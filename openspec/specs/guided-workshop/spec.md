@@ -19,8 +19,12 @@ Le double diamant SHALL garder les noms officiels des phases (Découvrir, Défin
 - **WHEN** l'équipe relit la première version de la story map
 - **THEN** l'outil rappelle qu'elle sert aussi à tester auprès des utilisateurs et peut renvoyer au premier diamant
 
-### Requirement: Fiche-outil et consigne
-Chaque étape outil SHALL afficher une consigne « À faire » avec sa durée et donner accès à une fiche-outil (à quoi ça sert, quand, comment, pièges, origine), dans un panneau qui ne bloque pas le tableau.
+### Requirement: La théorie avant la pratique
+Chaque étape outil SHALL commencer par la théorie de l'outil (à quoi ça sert, quand l'utiliser, comment faire, pièges, origine), dépliée par défaut, puis afficher la consigne « À faire » avec sa durée. Le bouton « Passer à la pratique » SHALL replier la théorie en une ligne, rouvrable à tout moment, et l'état replié SHALL être mémorisé par étape.
+
+#### Scenario: Exemple complet sur un autre sujet
+- **WHEN** la théorie de l'impact mapping ou du story mapping est dépliée
+- **THEN** elle montre un exemple complet en lecture seule sur un autre sujet que le cas (la cantine anti-gaspi) : objectif → acteurs → impacts → livrables, ou parcours et trois versions
 
 ### Requirement: Débrief
-Le débrief SHALL permettre de ranger les trois outils sur les phases du double diamant avec vérification, de choisir l'outil adapté à huit situations avec explication, et de noter ce que l'équipe retient.
+Le débrief SHALL permettre de ranger les trois outils sur les phases du double diamant, puis de vérifier : chaque outil reçoit une correction propre à la phase choisie. Pour huit situations, choisir l'outil le plus adapté SHALL rapporter un point, un choix défendable un demi-point, et chaque choix SHALL recevoir une explication propre (pourquoi ce choix, puis le plus adapté). L'équipe SHALL pouvoir noter ce qu'elle retient.

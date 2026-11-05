@@ -47,6 +47,28 @@ export const TOOL_PHASES = {
   story: ['develop', 'deliver'],
 };
 
+/** Correction du rangement au débrief : pour chaque outil, une explication par phase choisie. */
+export const PLACEMENT_FEEDBACK = {
+  empathy: {
+    discover: 'On l\'utilise pour comprendre les personnes avant de chercher quoi que ce soit, à partir de ce qu\'on a vu et entendu.',
+    define: 'Elle nourrit la définition du problème, mais elle ne choisit rien : elle rassemble ce qu\'on a appris. Elle sert juste avant, pour Découvrir.',
+    develop: 'Elle ne produit aucune solution. Elle sert bien avant, pour comprendre les personnes : c\'est la phase Découvrir.',
+    deliver: 'On ne livre pas une empathy map. On peut la compléter après un test, mais son rôle est de comprendre les personnes au départ : Découvrir.',
+  },
+  impact: {
+    discover: 'Elle part d\'un objectif déjà choisi : elle n\'explore pas les besoins. Elle vient juste après, pour Définir l\'objectif et les comportements à changer.',
+    define: 'Elle fixe le pourquoi (un objectif mesurable) et les comportements à changer : c\'est le choix du problème à résoudre.',
+    develop: 'Ses livrables sont des pistes de solution, c\'est vrai. Mais son cœur, l\'objectif et les impacts, sert à cadrer le problème : Définir.',
+    deliver: 'Elle ne découpe pas ce qu\'on livre. Elle sert avant, à choisir l\'objectif et les comportements à changer : Définir.',
+  },
+  story: {
+    discover: 'Elle suppose qu\'on sait déjà pour qui et pourquoi : elle organise des solutions. Elle arrive dans le second diamant, Développer et Livrer.',
+    define: 'Elle ne choisit pas le problème, elle organise la solution le long du parcours. Elle vient dans le second diamant, Développer et Livrer.',
+    develop: 'On y organise les solutions imaginées le long du parcours utilisateur. Elle sert aussi à Livrer, en découpant des versions.',
+    deliver: 'Ses lignes de version découpent ce qu\'on livre et teste en premier. Elle sert aussi à Développer, en organisant les idées.',
+  },
+};
+
 /** Phase mise en avant pour chaque étape (repère « vous êtes ici »). */
 export const STEP_PHASES = {
   frame: [],
@@ -147,6 +169,49 @@ export const BACKBONE_EXAMPLE = [
   'Faire le trajet',
   'Après le trajet',
 ];
+
+/* ---------- Exemples (autre sujet, pour ne pas souffler la réponse du cas) ---------- */
+
+export const EXAMPLE_CASE = {
+  name: 'La cantine anti-gaspi',
+  context: 'La cantine d\'une entreprise jette chaque jour près d\'un repas sur cinq : on cuisine sans savoir combien de personnes viendront.',
+};
+
+/** Une impact map complète : pourquoi → qui → comment → quoi. */
+export const IMPACT_EXAMPLE = {
+  goal: 'Réduire de 30 % les repas jetés à la cantine d\'ici 6 mois',
+  actors: [
+    {
+      text: 'Les salariés qui déjeunent',
+      impacts: [
+        { text: 'Réservent leur repas la veille', deliverables: ['Réservation en deux clics depuis l\'intranet', 'Rappel la veille à 15 h'], kept: [0] },
+        { text: 'Prennent une portion adaptée à leur faim', deliverables: ['Choix petite ou grande portion au self'], kept: [] },
+      ],
+    },
+    {
+      text: 'L\'équipe de cuisine',
+      impacts: [
+        { text: 'Ajuste les quantités chaque matin', deliverables: ['Nombre de réservations du jour affiché à 9 h'], kept: [0] },
+      ],
+    },
+    {
+      text: 'Les managers',
+      impacts: [
+        { text: 'Signalent les absences de leur équipe (déplacements, séminaires)', deliverables: ['Saisie des absences d\'équipe en une fois'], kept: [] },
+      ],
+    },
+  ],
+};
+
+/** Une story map complète pour la même cantine : parcours et trois versions. */
+export const STORY_EXAMPLE = {
+  backbone: ['Découvrir le menu', 'Réserver', 'Venir déjeuner', 'Donner son avis'],
+  lanes: {
+    mvp: [['Voir le menu du lendemain'], ['Réserver un repas pour demain'], ['Être reconnu à la caisse'], ['Noter le repas (pouce haut ou bas)']],
+    r2: [['Voir le menu de la semaine'], ['Choisir sa portion', 'Recevoir un rappel à 15 h'], ['Annuler jusqu\'à 9 h le jour même'], ['Commenter un plat']],
+    later: [['Filtrer selon ses allergies'], ['Réserver toute la semaine d\'un coup'], ['Payer en ligne'], ['Proposer un plat']],
+  },
+};
 
 /* ---------- Les fiches-outil ---------- */
 
@@ -291,47 +356,87 @@ export const SITUATIONS = [
     text: 'Une fonctionnalité livrée il y a trois mois n\'est presque pas utilisée, et personne ne sait pourquoi.',
     answer: 'empathy',
     why: 'On manque de compréhension des utilisateurs : aller les voir, puis synthétiser ce qu\'on apprend dans une empathy map.',
+    others: {
+      impact: { level: 'wrong', text: 'L\'impact map dirait quel comportement on attend. Mais ici on ne sait justement pas pourquoi les gens n\'utilisent pas la fonctionnalité : il faut d\'abord aller les comprendre.' },
+      story: { level: 'wrong', text: 'Réorganiser le parcours suppose de savoir ce qui bloque. Sans comprendre les utilisateurs, on risque de redécouper la mauvaise chose.' },
+      designThinking: { level: 'ok', text: 'Repartir dans la démarche est juste, mais c\'est large : le manque est précis, c\'est la compréhension des utilisateurs. On commence donc par l\'outil de Découvrir.' },
+    },
   },
   {
     id: 'backlog',
     text: 'Le backlog compte 200 tickets ; plus personne ne voit ce qui constituerait une première version utile.',
     answer: 'story',
     why: 'La story map redonne la vue du parcours et permet de tracer une première version qui va de bout en bout.',
+    others: {
+      empathy: { level: 'wrong', text: 'Comprendre les utilisateurs ne trie pas 200 tickets. Le problème ici est l\'organisation de ce qu\'on va livrer.' },
+      impact: { level: 'ok', text: 'Utile pour écarter les tickets qui ne servent aucun objectif. Mais pour voir une première version de bout en bout, il faut le parcours de la story map.' },
+      designThinking: { level: 'wrong', text: 'Pas besoin de repartir de zéro : le contenu existe déjà, il faut l\'organiser et le découper.' },
+    },
   },
   {
     id: 'sponsor',
     text: 'Le sponsor arrive avec quinze fonctionnalités « indispensables ». On ne sait pas lesquelles servent son objectif.',
     answer: 'impact',
     why: 'L\'impact map relie chaque fonctionnalité à un changement de comportement et à l\'objectif : celles qui ne s\'y rattachent pas sont discutables.',
+    others: {
+      empathy: { level: 'wrong', text: 'Comprendre les utilisateurs reste utile, mais la question est celle du sponsor : quelles fonctionnalités servent son objectif ? C\'est le lien objectif → livrables.' },
+      story: { level: 'wrong', text: 'La story map organise des fonctionnalités dans un parcours, sans dire lesquelles servent l\'objectif. On finirait par organiser les quinze.' },
+      designThinking: { level: 'wrong', text: 'Toute la démarche est disproportionnée : il s\'agit de relier des demandes à un objectif, ce que fait directement l\'impact map.' },
+    },
   },
   {
     id: 'new-product',
     text: 'On démarre un produit sur un sujet que l\'équipe connaît mal, du problème jusqu\'à la première livraison.',
     answer: 'designThinking',
     why: 'Tout le chemin est à parcourir : la démarche complète, où chaque outil trouve sa place.',
+    others: {
+      empathy: { level: 'ok', text: 'C\'est bien le premier outil à sortir, mais il ne couvre que le début. Ici tout le chemin est à faire, du problème à la livraison.' },
+      impact: { level: 'wrong', text: 'On connaît trop mal le sujet pour fixer un objectif et des comportements à changer. Il faut d\'abord découvrir.' },
+      story: { level: 'wrong', text: 'Organiser des solutions alors qu\'on connaît mal le problème, c\'est sauter le premier diamant.' },
+    },
   },
   {
     id: 'release',
     text: 'Il faut découper un gros sujet en incréments livrables pour les prochains sprints.',
     answer: 'story',
     why: 'Les lignes de version de la story map servent exactement à ça.',
+    others: {
+      empathy: { level: 'wrong', text: 'Comprendre les utilisateurs ne dit pas comment découper un gros sujet en livraisons.' },
+      impact: { level: 'wrong', text: 'L\'impact map aide à choisir quoi faire, pas à découper ce qu\'on a choisi en incréments.' },
+      designThinking: { level: 'wrong', text: 'Toute la démarche est disproportionnée : le besoin est précis, découper en versions.' },
+    },
   },
   {
     id: 'two-profiles',
     text: 'Deux profils d\'utilisateurs semblent avoir des attentes opposées, et l\'équipe se dispute sur « ce que veulent les utilisateurs ».',
     answer: 'empathy',
     why: 'Une empathy map par profil, construite à partir de faits, remplace les opinions par une vision partagée.',
+    others: {
+      impact: { level: 'ok', text: 'Avec les deux profils comme acteurs de l\'arbre, on voit les comportements attendus de chacun. Mais la dispute porte sur ce que vivent les utilisateurs : des faits sur chaque profil la règlent mieux.' },
+      story: { level: 'wrong', text: 'Le parcours ne tranche pas un désaccord sur qui sont les utilisateurs. Il faut d\'abord une vision partagée de chaque profil.' },
+      designThinking: { level: 'wrong', text: 'Toute la démarche est disproportionnée : le manque est précis, une vision commune de chaque profil.' },
+    },
   },
   {
     id: 'kpi',
     text: 'La direction fixe un objectif chiffré : -20 % d\'appels au support d\'ici l\'été. Que pourrait-on faire ?',
     answer: 'impact',
     why: 'Un objectif mesurable est le point de départ d\'une impact map : qui appelle, quel comportement changer, quoi livrer.',
+    others: {
+      empathy: { level: 'wrong', text: 'Comprendre qui appelle le support est utile, mais un objectif chiffré appelle un arbre : qui, quel comportement changer, quoi livrer.' },
+      story: { level: 'wrong', text: 'On ne sait pas encore quoi construire : la story map organiserait des solutions qu\'on n\'a pas choisies.' },
+      designThinking: { level: 'ok', text: 'Si le sujet est mal connu, oui. Mais avec un objectif chiffré déjà posé, l\'impact map est le point de départ direct.' },
+    },
   },
   {
     id: 'wrong-problem',
     text: 'Après une démo, on se rend compte que la solution, bien faite, ne résout pas le bon problème.',
     answer: 'designThinking',
     why: 'Signe qu\'on a sauté le premier diamant : revenir à Découvrir et Définir avant de développer davantage.',
+    others: {
+      empathy: { level: 'ok', text: 'Retourner voir les utilisateurs est la bonne première étape. Mais le signal dit surtout qu\'on a sauté le premier diamant : c\'est toute la démarche qu\'il faut reprendre.' },
+      impact: { level: 'wrong', text: 'Fixer un objectif sur un problème mal compris ne corrigera rien. Il faut d\'abord revenir à Découvrir.' },
+      story: { level: 'wrong', text: 'Redécouper la solution ne sert à rien si elle ne résout pas le bon problème.' },
+    },
   },
 ];

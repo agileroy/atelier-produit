@@ -38,9 +38,9 @@ export function newState() {
     step: 'frame',
     visited: ['frame'],
     persona: PERSONA_IDS[0],
-    goal: '',
     notes: [],
     compare: {},
+    theoryClosed: [],
     debrief: { placement: {}, checked: false, answers: {}, takeaways: '' },
     seen: [],
   };
@@ -63,7 +63,8 @@ export const prevStep = (step) => STEP_IDS[stepIndex(step) - 1] ?? null;
    Un post-it est toujours rangé à un emplacement (place) :
    { b: 'empathy', persona, zone }      zone d'une empathy map
    { b: 'tray', step: 'impact'|'story' } bac « à placer » d'une étape
-   { b: 'actor' }                       acteur de l'impact map
+   { b: 'goal' }                        objectif de l'impact map
+   { b: 'actor', parent: goalId }       acteur sous un objectif
    { b: 'impact', parent: actorId }     impact sous un acteur
    { b: 'deliverable', parent: impactId } livrable sous un impact
    { b: 'backbone' }                    étape de la colonne vertébrale de la story map
@@ -73,7 +74,8 @@ export function encodePlace(p) {
   switch (p.b) {
     case 'empathy': return `empathy|${p.persona}|${p.zone}`;
     case 'tray': return `tray|${p.step}`;
-    case 'actor': return 'actor';
+    case 'goal': return 'goal';
+    case 'actor': return `actor|${p.parent}`;
     case 'impact': return `impact|${p.parent}`;
     case 'deliverable': return `deliverable|${p.parent}`;
     case 'backbone': return 'backbone';
@@ -87,7 +89,8 @@ export function decodePlace(key) {
   switch (b) {
     case 'empathy': return { b, persona: a, zone: c };
     case 'tray': return { b, step: a };
-    case 'actor': return { b };
+    case 'goal': return { b };
+    case 'actor': return { b, parent: a };
     case 'impact': return { b, parent: a };
     case 'deliverable': return { b, parent: a };
     case 'backbone': return { b };
@@ -103,7 +106,7 @@ export function familyOf(p) {
   if (!p) return null;
   if (p.b === 'empathy') return 'empathy';
   if (p.b === 'tray') return p.step;
-  if (['actor', 'impact', 'deliverable'].includes(p.b)) return 'impact';
+  if (['goal', 'actor', 'impact', 'deliverable'].includes(p.b)) return 'impact';
   if (['backbone', 'story'].includes(p.b)) return 'story';
   return null;
 }
@@ -115,8 +118,9 @@ export function placeExists(state, p) {
   switch (p.b) {
     case 'empathy': return PERSONA_IDS.includes(p.persona) && ZONE_IDS.includes(p.zone);
     case 'tray': return p.step === 'impact' || p.step === 'story';
-    case 'actor':
+    case 'goal':
     case 'backbone': return true;
+    case 'actor': return parentIs(p.parent, 'goal');
     case 'impact': return parentIs(p.parent, 'actor');
     case 'deliverable': return parentIs(p.parent, 'impact');
     case 'story': return LANE_IDS.includes(p.lane) && parentIs(p.col, 'backbone');
@@ -131,7 +135,7 @@ export const notesIn = (state, place) => state.notes.filter((n) => samePlace(n.p
 
 /** Enfants directs d'un post-it (impacts d'un acteur, livrables d'un impact, stories d'une étape). */
 export function childrenOf(state, id) {
-  return state.notes.filter((n) => (n.place.parent === id && (n.place.b === 'impact' || n.place.b === 'deliverable')) || (n.place.b === 'story' && n.place.col === id));
+  return state.notes.filter((n) => (n.place.parent === id && ['actor', 'impact', 'deliverable'].includes(n.place.b)) || (n.place.b === 'story' && n.place.col === id));
 }
 
 export function addNote(state, place, text, extra = {}) {
@@ -216,8 +220,9 @@ export function placesFor(state, id) {
     for (const z of EMPATHY_ZONES) out.push({ place: { b: 'empathy', persona: note.place.persona, zone: z.id }, label: z.label });
   } else if (family === 'impact') {
     out.push({ place: { b: 'tray', step: 'impact' }, label: 'Bac « à placer »' });
-    out.push({ place: { b: 'actor' }, label: 'Acteur' });
-    for (const a of notesIn(state, { b: 'actor' })) out.push({ place: { b: 'impact', parent: a.id }, label: `Impact de « ${label(a)} »` });
+    out.push({ place: { b: 'goal' }, label: 'Objectif' });
+    for (const g of notesIn(state, { b: 'goal' })) out.push({ place: { b: 'actor', parent: g.id }, label: `Acteur de « ${label(g)} »` });
+    for (const a of state.notes.filter((n) => n.place.b === 'actor')) out.push({ place: { b: 'impact', parent: a.id }, label: `Impact de « ${label(a)} »` });
     for (const i of state.notes.filter((n) => n.place.b === 'impact')) out.push({ place: { b: 'deliverable', parent: i.id }, label: `Livrable de « ${label(i)} »` });
   } else if (family === 'story') {
     out.push({ place: { b: 'tray', step: 'story' }, label: 'Bac « à placer »' });
@@ -290,13 +295,6 @@ export function emptyZones(state, personaId) {
 
 /* ---------- Impact mapping ---------- */
 
-export function setGoal(state, text) {
-  const value = cleanText(text);
-  if (state.goal === value) return false;
-  state.goal = value;
-  return true;
-}
-
 export function toggleKeep(state, id) {
   const note = getNote(state, id);
   if (!note || note.place.b !== 'deliverable') return false;
@@ -331,7 +329,8 @@ export function deliverablePath(state, id) {
   const d = getNote(state, id);
   const impact = d && getNote(state, d.place.parent);
   const actor = impact && getNote(state, impact.place.parent);
-  return [state.goal, actor?.text, impact?.text, d?.text].filter(Boolean);
+  const goal = actor && getNote(state, actor.place.parent);
+  return [goal?.text, actor?.text, impact?.text, d?.text].filter(Boolean);
 }
 
 /* ---------- Story mapping ---------- */
@@ -376,9 +375,27 @@ export function answerSituation(state, situationId, choice) {
   return true;
 }
 
+/**
+ * Verdict d'une réponse : 'right' (le plus adapté), 'ok' (défendable, demi-point) ou 'wrong',
+ * avec l'explication propre au choix fait.
+ */
+export function situationVerdict(situation, choice) {
+  if (choice === situation.answer) return { level: 'right', text: situation.why, points: 1 };
+  const other = situation.others?.[choice];
+  if (other?.level === 'ok') return { level: 'ok', text: other.text, points: 0.5 };
+  return { level: 'wrong', text: other?.text ?? '', points: 0 };
+}
+
 export function situationScore(state) {
   const answered = SITUATIONS.filter((s) => state.debrief.answers[s.id]);
-  return { answered: answered.length, correct: answered.filter((s) => state.debrief.answers[s.id] === s.answer).length, total: SITUATIONS.length };
+  const verdicts = answered.map((s) => situationVerdict(s, state.debrief.answers[s.id]));
+  return {
+    answered: answered.length,
+    correct: verdicts.filter((v) => v.level === 'right').length,
+    defensible: verdicts.filter((v) => v.level === 'ok').length,
+    points: verdicts.reduce((sum, v) => sum + v.points, 0),
+    total: SITUATIONS.length,
+  };
 }
 
 /* ---------- Post-its venus des téléphones ---------- */
@@ -428,12 +445,17 @@ export function reportText(state, date = '') {
   }
   if (!state.notes.some((n) => n.place.b === 'empathy')) lines.push('(non remplie)');
 
-  lines.push('', 'IMPACT MAP', `Objectif : ${state.goal || '(non défini)'}`);
-  for (const a of notesIn(state, { b: 'actor' })) {
-    lines.push(`- ${a.text}`);
-    for (const i of notesIn(state, { b: 'impact', parent: a.id })) {
-      lines.push(`  - ${i.text}`);
-      for (const d of notesIn(state, { b: 'deliverable', parent: i.id })) lines.push(`    - ${d.text}${d.keep ? ' [retenu]' : ''}`);
+  lines.push('', 'IMPACT MAP');
+  const goals = notesIn(state, { b: 'goal' });
+  if (!goals.length) lines.push('(non remplie)');
+  for (const g of goals) {
+    lines.push(`Objectif : ${g.text}`);
+    for (const a of notesIn(state, { b: 'actor', parent: g.id })) {
+      lines.push(`- ${a.text}`);
+      for (const i of notesIn(state, { b: 'impact', parent: a.id })) {
+        lines.push(`  - ${i.text}`);
+        for (const d of notesIn(state, { b: 'deliverable', parent: i.id })) lines.push(`    - ${d.text}${d.keep ? ' [retenu]' : ''}`);
+      }
     }
   }
 
@@ -448,7 +470,7 @@ export function reportText(state, date = '') {
   }
 
   const score = situationScore(state);
-  lines.push('', 'DÉBRIEF', `Situations : ${score.correct} bonnes réponses sur ${score.answered} (${score.total} situations)`);
+  lines.push('', 'DÉBRIEF', `Situations : ${String(score.points).replace('.', ',')} point${score.points > 1 ? 's' : ''} sur ${score.answered} réponse${score.answered > 1 ? 's' : ''} (${score.correct} bonne${score.correct > 1 ? 's' : ''}, ${score.defensible} défendable${score.defensible > 1 ? 's' : ''})`);
   if (state.debrief.takeaways.trim()) lines.push('Ce que l\'équipe retient :', state.debrief.takeaways.trim());
   return lines.join('\n');
 }
@@ -476,13 +498,21 @@ export function sanitize(raw) {
   if (Array.isArray(raw.visited)) state.visited = STEP_IDS.filter((s) => raw.visited.includes(s) || s === state.step);
   if (!state.visited.includes('frame')) state.visited.unshift('frame');
   if (PERSONA_IDS.includes(raw.persona)) state.persona = raw.persona;
-  state.goal = cleanText(raw.goal);
 
   // Post-its : on garde les valides, en plusieurs passes pour que les parents passent avant les enfants.
-  const pending = (Array.isArray(raw.notes) ? raw.notes : []).filter((n) => n && ID_RE.test(n.id) && cleanText(n.text) && decodePlace(encodePlace(n.place ?? {})));
+  let rawNotes = (Array.isArray(raw.notes) ? raw.notes : []).filter((n) => n && typeof n === 'object');
+  // Anciens ateliers : un seul objectif (raw.goal) et des acteurs sans parent.
+  const loose = rawNotes.filter((n) => n.place?.b === 'actor' && !n.place.parent);
+  const oldGoal = cleanText(raw.goal);
+  if ((oldGoal || loose.length) && !rawNotes.some((n) => n.place?.b === 'goal')) {
+    const gid = newId();
+    rawNotes = [{ id: gid, text: oldGoal || 'Objectif à définir', place: { b: 'goal' } }, ...rawNotes];
+    for (const n of loose) n.place = { b: 'actor', parent: gid };
+  }
+  const pending = rawNotes.filter((n) => ID_RE.test(n.id) && cleanText(n.text) && decodePlace(encodePlace(n.place ?? {})));
   const ids = new Set();
   const order = new Map(pending.map((n, i) => [n, i]));
-  for (const pass of [['empathy', 'tray', 'actor', 'backbone'], ['impact'], ['deliverable', 'story']]) {
+  for (const pass of [['empathy', 'tray', 'goal', 'backbone'], ['actor'], ['impact'], ['deliverable', 'story']]) {
     for (const n of pending) {
       if (!pass.includes(n.place.b) || ids.has(n.id)) continue;
       let place = decodePlace(encodePlace(n.place));
@@ -515,6 +545,7 @@ export function sanitize(raw) {
     return true;
   });
 
+  if (Array.isArray(raw.theoryClosed)) state.theoryClosed = STEP_IDS.filter((st) => raw.theoryClosed.includes(st));
   if (raw.compare && typeof raw.compare === 'object') {
     for (const p of PERSONA_IDS) if (raw.compare[p] === true) state.compare[p] = true;
   }
@@ -532,7 +563,8 @@ export function placeLabel(state, place) {
   switch (place.b) {
     case 'empathy': return EMPATHY_ZONES.find((z) => z.id === place.zone)?.label ?? '';
     case 'tray': return 'bac à placer';
-    case 'actor': return IMPACT_LEVELS[1].name.toLowerCase();
+    case 'goal': return 'objectifs';
+    case 'actor': return `acteurs de « ${getNote(state, place.parent)?.text ?? ''} »`;
     case 'impact': return `impacts de « ${getNote(state, place.parent)?.text ?? ''} »`;
     case 'deliverable': return `livrables de « ${getNote(state, place.parent)?.text ?? ''} »`;
     case 'backbone': return 'colonne vertébrale';

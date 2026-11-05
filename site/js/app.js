@@ -3,14 +3,15 @@
 
 import {
   STEPS, CASE, PERSONAS, EMPATHY_ZONES, IMPACT_LEVELS, STORY_LANES, TOOLS, PHASES, TOOL_PHASES,
-  STEP_PHASES, BRIEFS, SITUATIONS, SITUATION_CHOICES, GOAL_EXAMPLE, PHONE_STEPS, DIAMOND_MESSAGE, DIAMOND_LOOP,
+  STEP_PHASES, BRIEFS, SITUATIONS, SITUATION_CHOICES, PHONE_STEPS, DIAMOND_MESSAGE, DIAMOND_LOOP,
+  PLACEMENT_FEEDBACK, EXAMPLE_CASE, IMPACT_EXAMPLE, STORY_EXAMPLE,
 } from './content.js?v=__VERSION__';
 import {
   newState, setStep, nextStep, prevStep, stepIndex, addNote, updateNote, moveNote, moveBlocker, removeNote,
   notesIn, getNote, childrenOf, placesFor, encodePlace, decodePlace, samePlace, familyOf, placeLabel,
   availableExtracts, placeExtract, unplaceExtract, extractById, compareEmpathy, emptyZones, personaById,
-  setGoal, toggleKeep, keptDeliverables, importDeliverable, useBackboneExample, mvpGaps,
-  setPlacement, checkPlacement, answerSituation, situationScore, mergeRemote, reportText,
+  toggleKeep, keptDeliverables, importDeliverable, useBackboneExample, mvpGaps,
+  setPlacement, checkPlacement, answerSituation, situationScore, situationVerdict, mergeRemote, reportText,
   serialize, parseSaved, sanitize, toolName, TOOL_IDS, MAX_TEXT,
 } from './core.js?v=__VERSION__';
 import { $, $$, esc, toast, announce, copyText, load, save, setupTheme, downloadJson, today, ICONS } from './shared.js?v=__VERSION__';
@@ -21,12 +22,12 @@ const STORE_KEY = 'atelier-produit.state';
 const STEP_TOOL = { frame: 'designThinking', empathy: 'empathy', impact: 'impact', story: 'story', debrief: 'designThinking' };
 const STEP_NUMBER = { empathy: 1, impact: 2, story: 3 };
 const ZONE_HUES = { says: 205, thinks: 265, does: 150, feels: 330, pains: 6, gains: 44 };
-const KIND_HUES = { actor: 205, impact: 28, deliverable: 150 };
+const KIND_HUES = { goal: 262, actor: 205, impact: 28, deliverable: 150 };
 const CHOICE_LABELS = { empathy: 'Empathy map', impact: 'Impact mapping', story: 'Story mapping', designThinking: 'La démarche complète (Design Thinking)' };
 
 const main = $('#main');
 let state = restore();
-const ui = { sheet: false, selectedTool: null, info: null };
+const ui = { selectedTool: null, info: null, frameTheory: false };
 
 function restore() {
   const saved = load(STORE_KEY);
@@ -54,7 +55,6 @@ function render(focus) {
   main.innerHTML = views[state.step]();
   $$('.canvas-scroll').forEach((s, i) => { if (scroll[i]) s.scrollLeft = scroll[i]; });
   renderStepper();
-  renderSheet();
   if (keep) main.querySelector(`[data-focus="${CSS.escape(keep)}"]`)?.focus({ preventScroll: true });
 }
 
@@ -88,19 +88,110 @@ function stepHeader(step) {
   const tool = TOOLS[STEP_TOOL[step]];
   const n = STEP_NUMBER[step];
   const phases = STEP_PHASES[step].map((p) => PHASES.find((x) => x.id === p).label).join(' · ');
-  const brief = BRIEFS[step];
+  const debrief = step === 'debrief';
   return `<header class="step-head">
     <div class="intro">
       <p class="kicker">${n ? `Étape ${n} · ` : ''}${esc(phases)}</p>
-      <h1 tabindex="-1">${esc(step === 'debrief' ? 'Débrief' : tool.name)}</h1>
-      <p class="lede">${esc(step === 'debrief' ? 'On range les outils, on s\'entraîne à choisir le bon, et on garde une trace.' : tool.oneLine)}</p>
-      ${step === 'debrief' ? '' : `<button type="button" class="btn btn-quiet btn-small" data-act="sheet" data-focus="sheet">${ICONS.book} Fiche-outil</button>`}
+      <h1 tabindex="-1">${esc(debrief ? 'Débrief' : tool.name)}</h1>
+      <p class="lede">${esc(debrief ? 'On range les outils, on s\'entraîne à choisir le bon, et on garde une trace.' : tool.oneLine)}</p>
     </div>
-    <div class="head-side">
-      ${diamondMini(STEP_PHASES[step])}
-      ${brief ? `<div class="brief"><p class="brief-title">À faire <span>${esc(brief.duration)}</span></p><ol>${brief.steps.map((s) => `<li>${esc(s)}</li>`).join('')}</ol></div>` : ''}
+    ${diamondMini(STEP_PHASES[step])}
+  </header>
+  ${debrief ? '' : theoryBlock(step)}
+  ${briefBlock(step)}`;
+}
+
+/** La théorie de l'outil : dépliée au départ, repliée une fois qu'on passe à la pratique. */
+function theoryBlock(step, { closable = true } = {}) {
+  const t = TOOLS[STEP_TOOL[step]];
+  const closed = step === 'frame' ? !ui.frameTheory : state.theoryClosed.includes(step);
+  if (closed) {
+    return `<section class="theory is-closed">
+      <button type="button" class="theory-toggle" data-act="theory-open" data-focus="theory" aria-expanded="false">
+        ${ICONS.book}<span><strong>La théorie : ${esc(t.name)}</strong> à quoi ça sert, quand l'utiliser, comment faire${step === 'impact' || step === 'story' ? ', et un exemple complet' : ''}</span><span class="theory-open">Revoir</span>
+      </button>
+    </section>`;
+  }
+  return `<section class="theory" aria-labelledby="theory-${step}">
+    <div class="theory-head">
+      <p class="kicker">${ICONS.book} La théorie</p>
+      <h2 id="theory-${step}">${esc(t.name)}</h2>
     </div>
-  </header>`;
+    <div class="theory-grid">
+      <div class="theory-col">
+        <h3>À quoi ça sert</h3><p>${esc(t.why)}</p>
+        <h3>Quand l'utiliser</h3><ul>${t.when.map((w) => `<li>${esc(w)}</li>`).join('')}</ul>
+      </div>
+      <div class="theory-col">
+        <h3>Comment faire</h3><ol class="theory-how">${t.how.map((w) => `<li>${esc(w)}</li>`).join('')}</ol>
+      </div>
+      <div class="theory-col">
+        <h3>Pièges classiques</h3><ul class="pitfalls">${t.pitfalls.map((w) => `<li>${esc(w)}</li>`).join('')}</ul>
+      </div>
+    </div>
+    ${step === 'impact' ? impactExample() : step === 'story' ? storyExample() : ''}
+    <div class="theory-foot">
+      <p class="theory-origin">${esc(t.origin)}</p>
+      ${closable ? `<button type="button" class="btn btn-primary" data-act="theory-close" data-focus="theory">${step === 'frame' ? 'Replier la fiche' : 'Passer à la pratique'} ↓</button>` : ''}
+    </div>
+  </section>`;
+}
+
+function briefBlock(step) {
+  const brief = BRIEFS[step];
+  if (!brief) return '';
+  return `<section class="brief" aria-label="À faire">
+    <p class="brief-title">À faire <span>${esc(brief.duration)}</span></p>
+    <ol>${brief.steps.map((x) => `<li>${esc(x)}</li>`).join('')}</ol>
+  </section>`;
+}
+
+/** Post-it en lecture seule (exemples). */
+const staticNote = (text, hue, cls = '') => `<div class="note note--static ${cls}" style="--h:${hue}"><span class="note-text">${esc(text)}</span></div>`;
+
+function exampleHead(title) {
+  return `<div class="example-head"><p class="kicker">Exemple complet · ${esc(EXAMPLE_CASE.name)}</p><h3>${esc(title)}</h3><p class="hint">${esc(EXAMPLE_CASE.context)} Un autre sujet que le vôtre, exprès : regardez la forme, pas les réponses.</p></div>`;
+}
+
+function impactExample() {
+  const ex = IMPACT_EXAMPLE;
+  return `<div class="example">
+    ${exampleHead('Une impact map, du pourquoi au quoi')}
+    <div class="canvas-scroll canvas-scroll--example">
+      <div class="imap">
+        <div class="imap-head">${IMPACT_LEVELS.map((l) => `<div style="--h:${KIND_HUES[l.id]}"><strong>${esc(l.label)}</strong> ${esc(l.name)}</div>`).join('')}</div>
+        <ul class="ilist ilist--goal"><li class="irow irow--goal">
+          <div class="icell">${staticNote(ex.goal, KIND_HUES.goal, 'note--goal')}</div>
+          <ul class="ilist ilist--actor">${ex.actors.map((a) => `<li class="irow irow--actor">
+            <div class="icell">${staticNote(a.text, KIND_HUES.actor)}</div>
+            <ul class="ilist ilist--impact">${a.impacts.map((i) => `<li class="irow irow--impact">
+              <div class="icell">${staticNote(i.text, KIND_HUES.impact)}</div>
+              <ul class="ilist ilist--deliv">${i.deliverables.map((d, k) => `<li class="deliv-item">${staticNote(d, KIND_HUES.deliverable, i.kept.includes(k) ? 'is-kept' : '')}${i.kept.includes(k) ? `<span class="keep-mark" title="Retenu">${ICONS.star}</span>` : ''}</li>`).join('')}</ul>
+            </li>`).join('')}</ul>
+          </li>`).join('')}</ul>
+        </li></ul>
+      </div>
+    </div>
+    <p class="hint">${ICONS.star} Les livrables étoilés sont ceux qu'on retient pour la première version : le chemin le plus court vers l'objectif.</p>
+  </div>`;
+}
+
+function storyExample() {
+  const ex = STORY_EXAMPLE;
+  return `<div class="example">
+    ${exampleHead('Une story map, du parcours aux versions')}
+    <div class="canvas-scroll canvas-scroll--example">
+      <div class="smap smap--example">
+        <div class="srow srow--backbone"><div class="slabel"><strong>Le parcours</strong></div>
+          <div class="backbone">${ex.backbone.map((b) => `<div class="bcell">${staticNote(b, 48, 'note--backbone')}</div>`).join('')}</div></div>
+        ${STORY_LANES.map((lane, i) => `${i ? '<div class="sline" aria-hidden="true"><span>ligne de version</span></div>' : ''}<div class="srow srow--lane srow--${lane.id}">
+          <div class="slabel"><strong>${esc(lane.label)}</strong></div>
+          <div class="lane">${ex.lanes[lane.id].map((cell) => `<div class="scell">${cell.map((t) => staticNote(t, 48)).join('')}</div>`).join('')}</div>
+        </div>`).join('')}
+      </div>
+    </div>
+    <p class="hint">La première version a au moins une story sous chaque étape : on peut déjà réserver et manger, même sans le confort des versions suivantes.</p>
+  </div>`;
 }
 
 function stepNav() {
@@ -240,12 +331,12 @@ function viewFrame() {
   <section class="frame-diamond">
     <div class="section-head">
       <h2>Le double diamant</h2>
-      <button type="button" class="btn btn-quiet btn-small" data-act="sheet" data-focus="sheet">${ICONS.book} Fiche Design Thinking</button>
     </div>
     <p class="diamond-message">${esc(DIAMOND_MESSAGE)}</p>
     <p class="hint">Au fil de l'atelier, chaque outil vient prendre sa place sur le diamant.</p>
     ${diamondBoard({ chips })}
   </section>
+  ${theoryBlock('frame')}
 
   <section>
     <h2 class="section-title">Le déroulé</h2>
@@ -285,10 +376,10 @@ function viewEmpathy() {
   const zone = (z) => {
     const place = { b: 'empathy', persona: persona.id, zone: z.id };
     const list = notesIn(state, place);
-    return `<section class="ezone ezone--${z.id}" style="--h:${ZONE_HUES[z.id]}" aria-labelledby="z-${z.id}">
+    return `<section class="ezone ezone--${z.id}" style="--h:${ZONE_HUES[z.id]}" aria-labelledby="z-${z.id}" data-drop="${encodePlace(place)}">
       <h2 id="z-${z.id}">${esc(z.label)} <span class="count">${list.length || ''}</span></h2>
       <p class="ezone-q">${esc(z.question)}</p>
-      <div class="note-list" data-drop="${encodePlace(place)}">${list.map((n) => noteHtml(n, { badge: badge(n) })).join('')}</div>
+      <div class="note-list">${list.map((n) => noteHtml(n, { badge: badge(n) })).join('')}</div>
       ${addButton(place, 'Ajouter')}
     </section>`;
   };
@@ -342,7 +433,7 @@ function viewEmpathy() {
 /* ---------- Étape 2 : impact mapping ---------- */
 
 function viewImpact() {
-  const actors = notesIn(state, { b: 'actor' });
+  const goals = notesIn(state, { b: 'goal' });
   const inspiration = PERSONAS.map((p) => ({
     p,
     pains: notesIn(state, { b: 'empathy', persona: p.id, zone: 'pains' }),
@@ -369,6 +460,14 @@ function viewImpact() {
     </ul>
   </li>`;
 
+  const goalRow = (g) => `<li class="irow irow--goal">
+    <div class="icell">${noteHtml(g, { cls: 'note--goal' })}</div>
+    <ul class="ilist ilist--actor" data-drop="${encodePlace({ b: 'actor', parent: g.id })}">
+      ${notesIn(state, { b: 'actor', parent: g.id }).map(actorRow).join('')}
+      <li class="irow irow--add">${addButton({ b: 'actor', parent: g.id }, 'Acteur')}</li>
+    </ul>
+  </li>`;
+
   return `
   ${stepHeader('impact')}
   <div class="impact-layout">
@@ -376,20 +475,13 @@ function viewImpact() {
       <div class="canvas-scroll">
         <div class="imap">
           <div class="imap-head">${IMPACT_LEVELS.map((l) => `<div style="--h:${KIND_HUES[l.id] ?? 262}"><strong>${esc(l.label)}</strong> ${esc(l.name)}<span>${esc(l.question)}</span></div>`).join('')}</div>
-          <div class="imap-body">
-            <div class="igoal">
-              <label class="sr-only" for="goal">Objectif</label>
-              <textarea id="goal" class="goal-input" data-focus="goal" rows="5" maxlength="${MAX_TEXT}" placeholder="Un objectif mesurable : combien, d'ici quand ?">${esc(state.goal)}</textarea>
-              ${state.goal ? '' : '<button type="button" class="link-btn" data-act="goal-example" data-focus="goal-example">Voir un exemple</button>'}
-            </div>
-            <ul class="ilist ilist--actor" data-drop="actor">
-              ${actors.map(actorRow).join('')}
-              <li class="irow irow--add">${addButton({ b: 'actor' }, 'Acteur')}</li>
-            </ul>
-          </div>
+          <ul class="ilist ilist--goal" data-drop="goal">
+            ${goals.map(goalRow).join('')}
+            <li class="irow irow--add">${addButton({ b: 'goal' }, goals.length ? 'Autre objectif' : 'Objectif')}</li>
+          </ul>
         </div>
       </div>
-      <p class="hint">${ICONS.star} Cochez l'étoile des livrables que vous retenez : ils vous attendront dans la story map. Un livrable qui ne se rattache à aucun impact n'a pas de raison d'exister.</p>
+      <p class="hint">${ICONS.star} Cochez l'étoile des livrables que vous retenez : ils vous attendront dans la story map. Plusieurs sous-groupes ? Chacun peut poser son propre objectif avec « Autre objectif ».</p>
     </div>
     <aside class="side">
       ${trayHtml('impact', 'À placer', 'Les post-its des téléphones arrivent ici. Glissez-les dans l\'arbre.')}
@@ -468,39 +560,75 @@ function viewDebrief() {
   const loose = TOOL_IDS.filter((t) => !placement[t]);
   const score = situationScore(state);
   const allPlaced = loose.length === 0;
-  const wrong = results ? TOOL_IDS.filter((t) => results[t] === false) : [];
+  const rightCount = results ? TOOL_IDS.filter((t) => results[t]).length : 0;
+  const phaseLabel = (id) => PHASES.find((p) => p.id === id).label;
+  const fmt = (n) => String(n).replace('.', ',');
+
+  const resultCard = (tool) => {
+    const ok = results[tool];
+    const phase = placement[tool];
+    const best = TOOL_PHASES[tool].map(phaseLabel).join(' et ');
+    return `<li class="dresult ${ok ? 'is-right' : 'is-wrong'}">
+      <p class="dresult-head">${toolChip(tool)} <span>rangé dans <strong>${esc(phaseLabel(phase))}</strong></span></p>
+      <p class="dresult-verdict">${ok ? `${ICONS.check} Bien vu.` : `Pas tout à fait : sa place est ${esc(best)}.`}</p>
+      <p>${esc(PLACEMENT_FEEDBACK[tool][phase])}</p>
+    </li>`;
+  };
+
+  const verdictHtml = (s, answer) => {
+    const v = situationVerdict(s, answer);
+    const best = `<strong>Le plus adapté : ${esc(CHOICE_LABELS[s.answer])}.</strong> ${esc(s.why)}`;
+    if (v.level === 'right') return `<div class="verdict verdict--right" role="status"><p><strong>${ICONS.check} Oui, c'est le plus adapté.</strong> ${esc(s.why)}</p></div>`;
+    if (v.level === 'ok') return `<div class="verdict verdict--ok" role="status"><p><strong>Défendable (½ point).</strong> ${esc(v.text)}</p><p>${best}</p></div>`;
+    return `<div class="verdict verdict--wrong" role="status"><p><strong>Pas le meilleur choix.</strong> ${esc(v.text)}</p><p>${best}</p></div>`;
+  };
 
   return `
   ${stepHeader('debrief')}
   <section class="dsection">
-    <div class="section-head"><h2>1. Ranger les outils sur le double diamant</h2></div>
-    <p class="hint">Glissez chaque outil sur la phase où il sert le plus (ou touchez un outil, puis une phase).</p>
-    <div class="tool-tray" data-drop="tools" data-axis="x">${loose.map((t) => toolChip(t, { draggable: true })).join('') || '<span class="hint">Tous les outils sont rangés.</span>'}</div>
+    <div class="dsection-head">
+      <span class="dsection-n">1</span>
+      <div><h2>Ranger les outils sur le double diamant</h2>
+      <p class="hint">Où chaque outil sert-il le plus ? Glissez-le sur sa phase, ou touchez un outil puis une phase. Les icônes « i » rappellent le sens de chaque phase.</p></div>
+      ${results ? `<p class="score">${rightCount} / ${TOOL_IDS.length}</p>` : ''}
+    </div>
+    <div class="tool-tray" data-drop="tools" data-axis="x">
+      <span class="tool-tray-label">À ranger</span>
+      ${loose.map((t) => toolChip(t, { draggable: true })).join('') || '<span class="hint">Tous les outils sont rangés : vérifiez quand l\'équipe est d\'accord.</span>'}
+    </div>
     ${diamondBoard({ chips, droppable: true, results })}
     <div class="dcheck">
-      <button type="button" class="btn btn-primary" data-act="check" data-focus="check" ${allPlaced ? '' : 'disabled'}>Vérifier</button>
-      ${results ? `<p class="dfeedback" role="status">${wrong.length
-        ? `${esc(wrong.map(toolName).join(' et '))} : pas tout à fait. ${wrong.map((t) => `${esc(toolName(t))} sert surtout à ${esc(TOOL_PHASES[t].map((p) => PHASES.find((x) => x.id === p).label.toLowerCase()).join(' et '))}.`).join(' ')}`
-        : 'Tout est à sa place. L\'empathy map sert à découvrir, l\'impact map à définir le pourquoi, la story map à développer et livrer par incréments ; le Design Thinking, c\'est tout le chemin.'}</p>` : ''}
+      <button type="button" class="btn btn-primary" data-act="check" data-focus="check" ${allPlaced ? '' : 'disabled'}>${results ? 'Vérifier à nouveau' : 'Vérifier'}</button>
+      ${allPlaced ? '' : `<p class="hint">Encore ${loose.length} outil${loose.length > 1 ? 's' : ''} à ranger.</p>`}
     </div>
+    ${results ? `<ul class="dresults">${TOOL_IDS.map(resultCard).join('')}</ul>
+      <p class="dsummary">${rightCount === TOOL_IDS.length ? 'Tout est à sa place. ' : ''}Et le Design Thinking ? Ce n'est pas un outil de plus : c'est tout le chemin, avec les allers-retours.</p>` : ''}
   </section>
 
   <section class="dsection">
-    <div class="section-head"><h2>2. Quel outil pour quelle situation ?</h2>
-      ${score.answered ? `<p class="score">${score.correct} / ${score.answered}</p>` : ''}</div>
+    <div class="dsection-head">
+      <span class="dsection-n">2</span>
+      <div><h2>Quel outil pour quelle situation ?</h2>
+      <p class="hint">Huit situations réelles. Un point pour le choix le plus adapté, un demi-point pour un choix défendable.</p></div>
+      ${score.answered ? `<p class="score">${fmt(score.points)} <small>/ ${score.answered}</small></p>` : ''}
+    </div>
     <ol class="situations">
-      ${SITUATIONS.map((s) => {
+      ${SITUATIONS.map((s, k) => {
         const answer = state.debrief.answers[s.id];
-        const ok = answer === s.answer;
-        return `<li class="situation ${answer ? (ok ? 'is-right' : 'is-wrong') : ''}">
-          <p class="situation-text">${esc(s.text)}</p>
-          <div class="choices" role="group" aria-label="Outil">
-            ${SITUATION_CHOICES.map((c) => `<button type="button" class="choice ${answer === c ? 'is-chosen' : ''} ${answer && c === s.answer ? 'is-answer' : ''}" data-answer="${s.id}" data-choice="${c}" data-focus="answer:${s.id}:${c}" aria-pressed="${answer === c}">${esc(CHOICE_LABELS[c])}</button>`).join('')}
+        const v = answer ? situationVerdict(s, answer) : null;
+        return `<li class="situation ${v ? `is-${v.level}` : ''}">
+          <p class="situation-text"><span class="situation-n">${k + 1}</span>${esc(s.text)}</p>
+          <div class="choices" role="group" aria-label="Outil le plus adapté">
+            ${SITUATION_CHOICES.map((c) => {
+              const cls = answer === c ? `is-chosen is-${v.level}` : answer && c === s.answer ? 'is-answer' : '';
+              return `<button type="button" class="choice ${cls}" data-answer="${s.id}" data-choice="${c}" data-focus="answer:${s.id}:${c}" aria-pressed="${answer === c}">${esc(CHOICE_LABELS[c])}</button>`;
+            }).join('')}
           </div>
-          ${answer ? `<p class="situation-why" role="status"><strong>${ok ? 'Oui.' : `Plutôt : ${esc(CHOICE_LABELS[s.answer])}.`}</strong> ${esc(s.why)}</p>` : ''}
+          ${answer ? verdictHtml(s, answer) : ''}
         </li>`;
       }).join('')}
     </ol>
+    ${score.answered ? '<p class="hint"><button type="button" class="link-btn" data-act="reset-answers" data-focus="reset-answers">Effacer les réponses</button></p>' : ''}
   </section>
 
   <section class="dsection debrief-end">
@@ -524,35 +652,8 @@ function viewDebrief() {
 
 const views = { frame: viewFrame, empathy: viewEmpathy, impact: viewImpact, story: viewStory, debrief: viewDebrief };
 
-/* ---------- Fiche-outil (panneau non modal) ---------- */
-
-function renderSheet() {
-  const sheet = $('#sheet');
-  if (!ui.sheet) { sheet.hidden = true; document.body.classList.remove('has-sheet'); return; }
-  const t = TOOLS[STEP_TOOL[state.step]];
-  sheet.innerHTML = `<div class="sheet-head">
-      <p class="kicker">Fiche-outil</p>
-      <h2 id="sheet-title">${esc(t.name)}</h2>
-      <button type="button" class="icon-btn" data-close-sheet aria-label="Fermer la fiche" title="Fermer la fiche">${ICONS.close}</button>
-    </div>
-    <div class="sheet-body">
-      <p class="sheet-one">${esc(t.oneLine)}</p>
-      <h3>À quoi ça sert</h3><p>${esc(t.why)}</p>
-      <h3>Quand l'utiliser</h3><ul>${t.when.map((w) => `<li>${esc(w)}</li>`).join('')}</ul>
-      <h3>Comment faire</h3><ol>${t.how.map((w) => `<li>${esc(w)}</li>`).join('')}</ol>
-      <h3>Pièges classiques</h3><ul class="pitfalls">${t.pitfalls.map((w) => `<li>${esc(w)}</li>`).join('')}</ul>
-      <p class="sheet-origin">${esc(t.origin)}</p>
-    </div>`;
-  sheet.hidden = false;
-  document.body.classList.add('has-sheet');
-}
-
-$('#sheet').addEventListener('click', (e) => {
-  if (e.target.closest('[data-close-sheet]')) { ui.sheet = false; renderSheet(); $('[data-act="sheet"]', main)?.focus(); }
-});
 document.addEventListener('keydown', (e) => {
-  if (e.key === 'Escape' && ui.info) { ui.info = null; render(); return; }
-  if (e.key === 'Escape' && ui.sheet && !document.querySelector('dialog[open]')) { ui.sheet = false; renderSheet(); }
+  if (e.key === 'Escape' && ui.info && !document.querySelector('dialog[open]')) { ui.info = null; render(); }
 });
 
 /* ---------- Boîte de dialogue : écrire, modifier, ranger un post-it ---------- */
@@ -568,8 +669,9 @@ function openDialog(html, ctx) {
 }
 
 function openNew(place, label) {
-  const level = { actor: 'Acteur', impact: 'Impact', deliverable: 'Livrable', backbone: 'Étape du parcours', story: 'Story' }[place.b];
+  const level = { goal: 'Objectif', actor: 'Acteur', impact: 'Impact', deliverable: 'Livrable', backbone: 'Étape du parcours', story: 'Story' }[place.b];
   const hints = {
+    goal: 'Un résultat mesurable et daté : combien, d\'ici quand ? Pas une solution (« faire une appli »).',
     actor: 'Une personne ou un groupe qui peut aider à atteindre l\'objectif, ou le freiner.',
     impact: 'Un changement de comportement : « propose ses trajets », « ose demander »…',
     deliverable: 'Ce qu\'on pourrait livrer ou faire pour provoquer ce changement.',
@@ -757,16 +859,10 @@ main.addEventListener('keydown', (e) => {
 });
 
 main.addEventListener('input', (e) => {
-  if (e.target.id === 'goal') {
-    setGoal(state, e.target.value);
-    persist();
-  } else if (e.target.id === 'takeaways') {
+  if (e.target.id === 'takeaways') {
     state.debrief.takeaways = e.target.value.slice(0, 4000);
     persist();
   }
-});
-main.addEventListener('change', (e) => {
-  if (e.target.id === 'goal') render(); // fait disparaître « Voir un exemple »
 });
 
 function placeTool(tool, phase) {
@@ -777,9 +873,19 @@ function placeTool(tool, phase) {
 }
 
 const actions = {
-  sheet() { ui.sheet = !ui.sheet; renderSheet(); if (ui.sheet) $('#sheet .icon-btn').focus(); },
+  'theory-open'() {
+    if (state.step === 'frame') ui.frameTheory = true;
+    else state.theoryClosed = state.theoryClosed.filter((st) => st !== state.step);
+    commit({ focus: 'theory' });
+  },
+  'theory-close'() {
+    if (state.step === 'frame') { ui.frameTheory = false; render('theory'); return; }
+    if (!state.theoryClosed.includes(state.step)) state.theoryClosed.push(state.step);
+    commit();
+    $('.brief', main)?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  },
+  'reset-answers'() { state.debrief.answers = {}; commit(); },
   compare() { state.compare[state.persona] = !state.compare[state.persona]; commit({ focus: 'compare' }); },
-  'goal-example'() { setGoal(state, state.goal || GOAL_EXAMPLE); commit({ focus: 'goal' }); },
   'backbone-example'() { useBackboneExample(state); commit(); announce('Parcours type posé : modifiez-le librement'); },
   check() { state.debrief.checked = true; commit({ focus: 'check' }); },
   async copy() {
@@ -794,7 +900,6 @@ const actions = {
     const seen = state.seen;
     state = newState();
     state.seen = seen; // les post-its déjà reçus des téléphones ne reviennent pas
-    ui.sheet = false;
     commit();
     window.scrollTo({ top: 0 });
   },
@@ -877,7 +982,8 @@ function buildReport() {
   const empathy = PERSONAS.filter((p) => state.notes.some((n) => n.place.b === 'empathy' && n.place.persona === p.id)).map((p) => `
     <h3>${esc(p.name)}, ${esc(p.role.toLowerCase())}</h3>
     <div class="pr-grid">${EMPATHY_ZONES.map((z) => `<div><h4>${esc(z.label)}</h4>${list(notesIn(state, { b: 'empathy', persona: p.id, zone: z.id }))}</div>`).join('')}</div>`).join('') || '<p class="muted">Non remplie.</p>';
-  const tree = notesIn(state, { b: 'actor' }).map((a) => `<li><strong>${esc(a.text)}</strong><ul>${notesIn(state, { b: 'impact', parent: a.id }).map((i) => `<li>${esc(i.text)}<ul>${notesIn(state, { b: 'deliverable', parent: i.id }).map((d) => `<li>${esc(d.text)}${d.keep ? ' ★' : ''}</li>`).join('')}</ul></li>`).join('')}</ul></li>`).join('');
+  const actorsHtml = (g) => notesIn(state, { b: 'actor', parent: g.id }).map((a) => `<li><strong>${esc(a.text)}</strong><ul>${notesIn(state, { b: 'impact', parent: a.id }).map((i) => `<li>${esc(i.text)}<ul>${notesIn(state, { b: 'deliverable', parent: i.id }).map((d) => `<li>${esc(d.text)}${d.keep ? ' ★' : ''}</li>`).join('')}</ul></li>`).join('')}</ul></li>`).join('');
+  const tree = notesIn(state, { b: 'goal' }).map((g) => `<p><strong>Objectif :</strong> ${esc(g.text)}</p><ul>${actorsHtml(g)}</ul>`).join('') || '<p class="muted">Non remplie.</p>';
   const cols = notesIn(state, { b: 'backbone' });
   const story = cols.length ? `<table><thead><tr><th></th>${cols.map((c) => `<th>${esc(c.text)}</th>`).join('')}</tr></thead><tbody>
     ${STORY_LANES.map((l) => `<tr><th>${esc(l.label)}</th>${cols.map((c) => `<td>${notesIn(state, { b: 'story', col: c.id, lane: l.id }).map((n) => `<p>${esc(n.text)}</p>`).join('')}</td>`).join('')}</tr>`).join('')}
@@ -887,7 +993,7 @@ function buildReport() {
     <h1>Atelier Produit · ${esc(CASE.name)}</h1>
     <p class="muted">${esc(new Date().toLocaleDateString('fr-FR', { day: 'numeric', month: 'long', year: 'numeric' }))}</p>
     <h2>Empathy map</h2>${empathy}
-    <h2>Impact map</h2><p><strong>Objectif :</strong> ${esc(state.goal || '(non défini)')}</p>${tree ? `<ul>${tree}</ul>` : ''}
+    <h2>Impact map</h2>${tree}
     <h2>Story map</h2>${story}
     <h2>Débrief</h2><p>Situations : ${score.correct} bonne${score.correct > 1 ? 's' : ''} réponse${score.correct > 1 ? 's' : ''} sur ${score.answered}.</p>
     ${state.debrief.takeaways.trim() ? `<h3>Ce que l'équipe retient</h3><p class="pre">${esc(state.debrief.takeaways.trim())}</p>` : ''}`;

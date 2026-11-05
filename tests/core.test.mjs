@@ -3,19 +3,20 @@ import assert from 'node:assert/strict';
 import {
   newState, setStep, addNote, moveNote, moveBlocker, removeNote, notesIn, childrenOf, placesFor,
   availableExtracts, placeExtract, unplaceExtract, compareEmpathy, emptyZones,
-  setGoal, toggleKeep, keptDeliverables, importDeliverable, deliverablePath,
-  useBackboneExample, mvpGaps, setPlacement, checkPlacement, answerSituation, situationScore,
+  toggleKeep, keptDeliverables, importDeliverable, deliverablePath,
+  useBackboneExample, mvpGaps, setPlacement, checkPlacement, answerSituation, situationScore, situationVerdict,
   mergeRemote, reportText, serialize, parseSaved, encodePlace, decodePlace, nextStep, prevStep,
 } from '../site/js/core.js';
 import { PERSONAS, BACKBONE_EXAMPLE, SITUATIONS } from '../site/js/content.js';
 
-/** Petit arbre d'impact : un acteur, un impact, un livrable. */
-function impactTree() {
+/** Petit arbre d'impact : un objectif, un acteur, un impact, un livrable. */
+function impactTree(goalText = '-20 % d\'autosolistes') {
   const s = newState();
-  const actor = addNote(s, { b: 'actor' }, 'Karim');
+  const goal = addNote(s, { b: 'goal' }, goalText);
+  const actor = addNote(s, { b: 'actor', parent: goal.id }, 'Karim');
   const impact = addNote(s, { b: 'impact', parent: actor.id }, 'Trouve un trajet sans demander');
   const deliv = addNote(s, { b: 'deliverable', parent: impact.id }, 'Liste des trajets par équipe');
-  return { s, actor, impact, deliv };
+  return { s, goal, actor, impact, deliv };
 }
 
 test('état initial : étape « cadre », rien sur les tableaux', () => {
@@ -37,7 +38,7 @@ test('étapes : navigation et étapes visitées', () => {
 
 test('emplacements : encodage réversible', () => {
   for (const p of [
-    { b: 'empathy', persona: 'karim', zone: 'pains' }, { b: 'tray', step: 'story' }, { b: 'actor' },
+    { b: 'empathy', persona: 'karim', zone: 'pains' }, { b: 'tray', step: 'story' }, { b: 'goal' }, { b: 'actor', parent: 'abcd1234' },
     { b: 'impact', parent: 'abcd1234' }, { b: 'deliverable', parent: 'abcd1234' }, { b: 'backbone' },
     { b: 'story', col: 'abcd1234', lane: 'mvp' },
   ]) assert.deepEqual(decodePlace(encodePlace(p)), p);
@@ -68,16 +69,17 @@ test('déplacement : ordre conservé et insertion avant un post-it', () => {
 test('déplacement : jamais d\'une étape à l\'autre', () => {
   const s = newState();
   const n = addNote(s, { b: 'empathy', persona: 'sophie', zone: 'says' }, 'x');
-  assert.equal(moveBlocker(s, n.id, { b: 'actor' }), 'family');
+  assert.equal(moveBlocker(s, n.id, { b: 'goal' }), 'family');
   assert.equal(moveNote(s, n.id, { b: 'backbone' }).ok, false);
 });
 
 test('impact map : un nœud qui a des enfants ne change pas de niveau', () => {
-  const { s, actor, impact, deliv } = impactTree();
+  const { s, goal, actor, impact, deliv } = impactTree();
   assert.equal(moveBlocker(s, actor.id, { b: 'tray', step: 'impact' }), 'children');
-  assert.equal(moveBlocker(s, impact.id, { b: 'actor' }), 'children');
-  assert.equal(moveBlocker(s, deliv.id, { b: 'actor' }), null, 'un livrable seul peut devenir acteur');
-  const other = addNote(s, { b: 'actor' }, 'Sophie');
+  assert.equal(moveBlocker(s, impact.id, { b: 'actor', parent: goal.id }), 'children');
+  assert.equal(moveBlocker(s, goal.id, { b: 'tray', step: 'impact' }), 'children');
+  assert.equal(moveBlocker(s, deliv.id, { b: 'actor', parent: goal.id }), null, 'un livrable seul peut devenir acteur');
+  const other = addNote(s, { b: 'actor', parent: goal.id }, 'Sophie');
   assert.equal(moveNote(s, impact.id, { b: 'impact', parent: other.id }).ok, true, 'changer de parent est permis');
   assert.equal(childrenOf(s, other.id).length, 1);
 });
@@ -85,7 +87,19 @@ test('impact map : un nœud qui a des enfants ne change pas de niveau', () => {
 test('impact map : supprimer un acteur emporte ses impacts et ses livrables', () => {
   const { s, actor } = impactTree();
   assert.equal(removeNote(s, actor.id), 3);
-  assert.equal(s.notes.length, 0);
+  assert.equal(s.notes.length, 1, 'l\'objectif reste');
+});
+
+test('impact map : plusieurs objectifs, chacun son arbre', () => {
+  const { s, goal } = impactTree('Objectif A');
+  const g2 = addNote(s, { b: 'goal' }, 'Objectif B');
+  const a2 = addNote(s, { b: 'actor', parent: g2.id }, 'RH');
+  assert.equal(notesIn(s, { b: 'goal' }).length, 2);
+  assert.equal(notesIn(s, { b: 'actor', parent: g2.id })[0].id, a2.id);
+  assert.equal(removeNote(s, goal.id), 4, 'un objectif emporte tout son arbre');
+  assert.equal(addNote(s, { b: 'actor', parent: 'inconnu1' }, 'x'), null, 'pas d\'acteur sans objectif');
+  const text = reportText(s);
+  assert.ok(text.includes('Objectif : Objectif B') && text.includes('- RH'));
 });
 
 test('story map : supprimer une étape renvoie ses stories dans le bac', () => {
@@ -101,7 +115,7 @@ test('menu « déplacer vers » : seulement les emplacements de la même étape'
   const { s, deliv } = impactTree();
   const places = placesFor(s, deliv.id).map((p) => p.place.b);
   assert.ok(places.includes('deliverable'));
-  assert.ok(places.every((b) => ['tray', 'actor', 'impact', 'deliverable'].includes(b)));
+  assert.ok(places.every((b) => ['tray', 'goal', 'actor', 'impact', 'deliverable'].includes(b)));
 });
 
 test('empathy map : un extrait posé quitte la pioche, et y revient', () => {
@@ -130,7 +144,6 @@ test('empathy map : comparaison avec la proposition et zones vides', () => {
 
 test('impact → story : les livrables retenus s\'importent une seule fois', () => {
   const { s, deliv } = impactTree();
-  setGoal(s, '-20 % d\'autosolistes');
   assert.equal(keptDeliverables(s).length, 0);
   toggleKeep(s, deliv.id);
   assert.equal(keptDeliverables(s)[0].imported, false);
@@ -170,7 +183,12 @@ test('débrief : situations', () => {
   answerSituation(s, SITUATIONS[0].id, SITUATIONS[0].answer);
   answerSituation(s, SITUATIONS[1].id, 'designThinking');
   assert.equal(answerSituation(s, 'inconnue', 'story'), false);
-  assert.deepEqual(situationScore(s), { answered: 2, correct: 1, total: SITUATIONS.length });
+  assert.deepEqual(situationScore(s), { answered: 2, correct: 1, defensible: 0, points: 1, total: SITUATIONS.length });
+  answerSituation(s, 'adoption', 'designThinking'); // défendable
+  assert.deepEqual(situationScore(s), { answered: 2, correct: 0, defensible: 1, points: 0.5, total: SITUATIONS.length });
+  const v = situationVerdict(SITUATIONS[0], 'story');
+  assert.equal(v.level, 'wrong');
+  assert.ok(v.text.length > 20, 'une explication propre au mauvais choix');
 });
 
 test('téléphones : chaque post-it n\'est ajouté qu\'une fois, au bon endroit', () => {
@@ -189,8 +207,7 @@ test('téléphones : chaque post-it n\'est ajouté qu\'une fois, au bon endroit'
 });
 
 test('compte rendu : contient les trois tableaux et le débrief', () => {
-  const { s, deliv } = impactTree();
-  setGoal(s, 'Objectif X');
+  const { s, deliv } = impactTree('Objectif X');
   toggleKeep(s, deliv.id);
   placeExtract(s, 'k1', 'says');
   s.debrief.takeaways = 'On refera une empathy map au prochain sujet.';
@@ -227,14 +244,32 @@ test('fichier abîmé : orphelins rangés dans le bac, doublons et intrus écart
         { id: 'abcd0003', text: 'Extrait', place: { b: 'empathy', persona: 'sophie', zone: 'says' }, from: 'extract:s1' },
         { id: 'abcd0004', text: 'Extrait bis', place: { b: 'empathy', persona: 'sophie', zone: 'feels' }, from: 'extract:s1' },
         { id: 'abcd0005', text: 'Zone inconnue', place: { b: 'empathy', persona: 'sophie', zone: 'dreams' } },
-        { id: 'BAD ID', text: 'x', place: { b: 'actor' } },
-        { id: 'abcd0006', text: '<img src=x onerror=alert(1)>', place: { b: 'actor' } },
+        { id: 'BAD ID', text: 'x', place: { b: 'goal' } },
+        { id: 'abcd0006', text: '<img src=x onerror=alert(1)>', place: { b: 'goal' } },
       ],
     },
   };
   const s = parseSaved(file);
   assert.equal(s.step, 'frame');
   assert.deepEqual(s.notes.map((n) => [n.id, n.place.b]), [
-    ['abcd0001', 'tray'], ['abcd0002', 'tray'], ['abcd0003', 'empathy'], ['abcd0006', 'actor'],
+    ['abcd0001', 'tray'], ['abcd0002', 'tray'], ['abcd0003', 'empathy'], ['abcd0006', 'goal'],
   ]);
+});
+
+test('ancien atelier (un seul objectif) : l\'objectif devient un post-it et garde ses acteurs', () => {
+  const s = parseSaved({
+    app: 'atelier-produit',
+    state: {
+      goal: 'Réduire les autosolistes',
+      notes: [
+        { id: 'abcd0001', text: 'Karim', place: { b: 'actor' } },
+        { id: 'abcd0002', text: 'Trouve un trajet', place: { b: 'impact', parent: 'abcd0001' } },
+      ],
+    },
+  });
+  const goals = notesIn(s, { b: 'goal' });
+  assert.equal(goals.length, 1);
+  assert.equal(goals[0].text, 'Réduire les autosolistes');
+  assert.equal(notesIn(s, { b: 'actor', parent: goals[0].id })[0].text, 'Karim');
+  assert.equal(notesIn(s, { b: 'impact', parent: 'abcd0001' }).length, 1);
 });

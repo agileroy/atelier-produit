@@ -2,6 +2,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import {
   PERSONAS, EMPATHY_ZONES, TOOLS, TOOL_PHASES, PHASES, SITUATIONS, SITUATION_CHOICES, BRIEFS, STEPS, STEP_PHASES, PHONE_STEPS, DIAMOND_MESSAGE, DIAMOND_LOOP,
+  PLACEMENT_FEEDBACK, IMPACT_EXAMPLE, STORY_EXAMPLE,
 } from '../site/js/content.js';
 
 const zoneIds = EMPATHY_ZONES.map((z) => z.id);
@@ -58,4 +59,32 @@ test('situations : réponses possibles, chaque choix sert au moins une fois', ()
 
 test('chaque étape de travail a sa consigne', () => {
   for (const step of [...PHONE_STEPS, 'debrief']) assert.ok(BRIEFS[step]?.steps.length, step);
+});
+
+test('situations : une explication pour chaque autre choix, au moins une « défendable »', () => {
+  for (const s of SITUATIONS) {
+    for (const c of SITUATION_CHOICES.filter((c) => c !== s.answer)) {
+      const o = s.others?.[c];
+      assert.ok(o && o.text && ['ok', 'wrong'].includes(o.level), `${s.id} : ${c}`);
+    }
+  }
+  assert.ok(SITUATIONS.some((s) => Object.values(s.others).some((o) => o.level === 'ok')));
+});
+
+test('débrief : une explication pour chaque outil posé sur chaque phase', () => {
+  for (const tool of Object.keys(TOOL_PHASES)) {
+    for (const p of PHASES) assert.ok(PLACEMENT_FEEDBACK[tool]?.[p.id], `${tool} : ${p.id}`);
+  }
+});
+
+test('exemples : chaîne complète pour l\'impact map, story map alignée sur son parcours', () => {
+  assert.ok(IMPACT_EXAMPLE.goal);
+  for (const a of IMPACT_EXAMPLE.actors) {
+    assert.ok(a.text && a.impacts.length, a.text);
+    for (const i of a.impacts) assert.ok(i.text && i.deliverables.length, i.text);
+  }
+  for (const lane of ['mvp', 'r2', 'later']) {
+    assert.equal(STORY_EXAMPLE.lanes[lane].length, STORY_EXAMPLE.backbone.length, lane);
+  }
+  assert.ok(STORY_EXAMPLE.lanes.mvp.every((cell) => cell.length), 'la première version traverse tout le parcours');
 });
