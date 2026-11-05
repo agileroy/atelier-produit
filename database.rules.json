@@ -225,7 +225,7 @@
               },
               "state": {
                 "persona": {
-                  ".write": "auth != null && root.child('atelierProduit/sessions/' + $sid + '/owners/' + auth.uid).exists()",
+                  ".write": "auth != null && newData.parent().parent().parent().parent().child('owners').child(auth.uid).exists()",
                   ".validate": "newData.isString() && newData.val().matches(/^(sophie|karim)$/)"
                 },
                 "compare": {
