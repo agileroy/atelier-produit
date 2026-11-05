@@ -14,7 +14,8 @@ import {
   setPlacement, checkPlacement, answerSituation, situationScore, situationVerdict, mergeRemote, reportText,
   serialize, parseSaved, sanitize, toolName, TOOL_IDS, MAX_TEXT,
 } from './core.js?v=__VERSION__';
-import { $, $$, esc, toast, announce, copyText, load, save, setupTheme, downloadJson, today, ICONS } from './shared.js?v=__VERSION__';
+import { $, $$, esc, toast, announce, copyText, load, save, setupTheme, downloadJson, today, qrSvg, ICONS } from './shared.js?v=__VERSION__';
+import { podium, quizStats, QUIZ_MAX } from './session-core.js?v=__VERSION__';
 import { setupDnd } from './dnd.js?v=__VERSION__';
 import { createPhones } from './phones.js?v=__VERSION__';
 
@@ -27,7 +28,7 @@ const CHOICE_LABELS = { empathy: 'Empathy map', impact: 'Impact mapping', story:
 
 const main = $('#main');
 let state = restore();
-const ui = { selectedTool: null, info: null, frameTheory: false };
+const ui = { selectedTool: null, info: null, frameTheory: false, quizEntries: [] };
 
 function restore() {
   const saved = load(STORE_KEY);
@@ -312,6 +313,8 @@ function viewFrame() {
     <p class="lede">Le Design Thinking donne la démarche ; l'empathy map, l'impact mapping et le story mapping en sont des outils. Pour voir comment ils s'enchaînent, on les applique l'un après l'autre sur le même cas.</p>
   </header>
 
+  ${joinCard()}
+
   <section class="frame-grid">
     <article class="case">
       <p class="kicker">Le cas</p>
@@ -353,6 +356,26 @@ function viewFrame() {
     <p class="hint">Environ deux heures. L'écran est projeté ; chacun peut aussi envoyer des post-its depuis son téléphone (bouton « Téléphones » en haut).</p>
   </section>
   ${stepNav()}`;
+}
+
+/** Rejoindre sur téléphone : le QR code en évidence dès l'arrivée. */
+function joinCard() {
+  if (!phones.available) return '';
+  if (!phones.live) {
+    return `<section class="join join--off">
+      <span class="join-icon">${ICONS.phone}</span>
+      <div><h2>Les téléphones, pour participer</h2>
+      <p class="hint">Chacun rejoint l'atelier avec son prénom : il pourra envoyer des post-its, puis jouer au quiz final.</p></div>
+      <button type="button" class="btn btn-primary" data-act="phones-show" data-focus="phones-show">Ouvrir l'atelier aux téléphones</button>
+    </section>`;
+  }
+  return `<section class="join">
+    <div class="join-qr">${qrSvg(phones.url, 'QR code pour rejoindre l\'atelier')}</div>
+    <div><p class="kicker">Rejoignez l'atelier</p>
+      <h2>Scannez, puis entrez votre prénom</h2>
+      <p class="hint">Gardez la page ouverte : elle suit l'écran, pour les post-its puis pour le quiz final.</p>
+      <p class="join-url">${esc(phones.url.replace(/^https?:\/\//, ''))}</p></div>
+  </section>`;
 }
 
 function avatar(p, size = '') {
@@ -583,8 +606,16 @@ function viewDebrief() {
     return `<div class="verdict verdict--wrong" role="status"><p><strong>Pas le meilleur choix.</strong> ${esc(v.text)}</p><p>${best}</p></div>`;
   };
 
+  const quizMode = state.debrief.mode === 'quiz';
+  const modeSwitch = `<div class="mode-switch" role="radiogroup" aria-label="Déroulé du débrief">
+    <button type="button" role="radio" aria-checked="${!quizMode}" data-mode="team" data-focus="mode:team"><strong>En équipe, à l'écran</strong><span>On répond ensemble, l'animateur manipule.</span></button>
+    <button type="button" role="radio" aria-checked="${quizMode}" data-mode="quiz" data-focus="mode:quiz"><strong>Quiz individuel sur téléphone</strong><span>Chacun répond dans son coin, puis révélation et podium.</span></button>
+  </div>`;
+
   return `
   ${stepHeader('debrief')}
+  ${modeSwitch}
+  ${quizMode ? quizPanel() : `
   <section class="dsection">
     <div class="dsection-head">
       <span class="dsection-n">1</span>
@@ -629,11 +660,11 @@ function viewDebrief() {
       }).join('')}
     </ol>
     ${score.answered ? '<p class="hint"><button type="button" class="link-btn" data-act="reset-answers" data-focus="reset-answers">Effacer les réponses</button></p>' : ''}
-  </section>
+  </section>`}
 
   <section class="dsection debrief-end">
     <div class="takeaways">
-      <h2>3. Ce que l'équipe retient</h2>
+      <h2>${quizMode ? '' : '3. '}Ce que l'équipe retient</h2>
       <p class="hint">Quel outil essayer sur un vrai sujet ? Quand ? Qui s'en occupe ?</p>
       <label class="sr-only" for="takeaways">Ce que l'équipe retient</label>
       <textarea id="takeaways" class="field" rows="6" maxlength="4000" data-focus="takeaways" placeholder="Ex. : faire une story map du prochain sujet au lieu d'un backlog plat.">${esc(state.debrief.takeaways)}</textarea>
@@ -648,6 +679,99 @@ function viewDebrief() {
     </div>
   </section>
   ${stepNav()}`;
+}
+
+/* ---------- Débrief en quiz individuel ---------- */
+
+function quizPanel() {
+  const entries = ui.quizEntries;
+  const fmt = (n) => String(Math.round(n * 10) / 10).replace('.', ',');
+  if (!phones.available) {
+    return `<section class="dsection"><p>Le quiz individuel passe par les téléphones, qui ne sont pas configurés pour cet outil. Utilisez le débrief en équipe.</p></section>`;
+  }
+  if (!phones.live) {
+    return `<section class="dsection qpanel">
+      <h2>Ouvrez d'abord l'atelier aux téléphones</h2>
+      <p class="hint">Chacun rejoint avec son prénom, répond au quiz sur son téléphone, puis vous révélez les réponses : chacun reçoit sa correction, l'écran affiche les bonnes réponses et le podium.</p>
+      <button type="button" class="btn btn-primary" data-act="phones-show" data-focus="phones-show">Ouvrir l'atelier aux téléphones</button>
+    </section>`;
+  }
+  const qr = `<div class="qjoin"><div class="join-qr">${qrSvg(phones.url, 'QR code pour rejoindre le quiz')}</div><p class="hint">Pas encore connecté ? Scannez.</p></div>`;
+
+  if (phones.quiz !== 'revealed') {
+    const open = phones.quiz === 'open';
+    return `<section class="dsection qpanel">
+      <div class="qstatus">
+        <div>
+          <p class="kicker">${open ? 'Quiz en cours' : 'Quiz prêt'}</p>
+          <h2>${open ? 'Chacun répond sur son téléphone' : 'Lancez le quiz quand tout le monde est connecté'}</h2>
+          <p class="hint">${QUIZ_MAX} questions : ranger les trois outils sur le double diamant, puis huit situations. Un point par bonne réponse, un demi-point pour une réponse défendable.</p>
+          ${open ? `<p class="qcount"><strong>${entries.length}</strong> copie${entries.length > 1 ? 's' : ''} reçue${entries.length > 1 ? 's' : ''}</p>
+            ${entries.length ? `<ul class="qnames">${entries.map((e) => `<li>${esc(e.author)}</li>`).join('')}</ul>` : '<p class="hint">Les prénoms s\'afficheront ici au fil des validations.</p>'}` : ''}
+          <div class="qactions">
+            ${open
+              ? `<button type="button" class="btn btn-primary" data-act="quiz-reveal" data-focus="quiz-reveal" ${entries.length ? '' : 'disabled'}>Révéler les réponses</button>
+                 <button type="button" class="btn btn-quiet" data-act="quiz-stop" data-focus="quiz-stop">Arrêter le quiz</button>`
+              : `<button type="button" class="btn btn-primary" data-act="quiz-start" data-focus="quiz-start">Lancer le quiz</button>`}
+          </div>
+        </div>
+        ${qr}
+      </div>
+    </section>`;
+  }
+
+  // Révélation : podium, statistiques du groupe, bonnes réponses avec la répartition des réponses.
+  const top = podium(entries);
+  const stats = quizStats(entries);
+  const medals = ['🥇', '🥈', '🥉'];
+  const order = [top[1], top[0], top[2]].filter(Boolean);
+  const hardest = stats.hardest && SITUATIONS.findIndex((x) => x.id === stats.hardest.id);
+  const chips = {};
+  for (const tool of TOOL_IDS) for (const ph of TOOL_PHASES[tool]) (chips[ph] ??= []).push(tool);
+  const pct = (n) => (stats.count ? Math.round((n / stats.count) * 100) : 0);
+  const bars = (counts, labelOf, right) => `<ul class="qbars">${Object.entries(counts).map(([k, n]) => `<li class="${right.includes(k) ? 'is-right' : ''}">
+      <span class="qbar-label">${esc(labelOf(k))}</span><span class="qbar"><b style="width:${pct(n)}%"></b></span><span class="qbar-n">${n}</span></li>`).join('')}</ul>`;
+
+  return `<section class="dsection qpanel qreveal">
+    <div class="podium" aria-label="Podium">
+      ${order.map((p) => `<div class="podium-step podium-step--${p.rank}">
+        <span class="podium-medal" aria-hidden="true">${medals[p.rank - 1]}</span>
+        <strong class="podium-name">${esc(p.author)}</strong>
+        <span class="podium-score">${fmt(p.points)} <small>/ ${QUIZ_MAX}</small></span>
+        <span class="podium-block">${p.rank}</span>
+      </div>`).join('')}
+    </div>
+    <p class="qsummary">${stats.count} participant${stats.count > 1 ? 's' : ''} · moyenne du groupe : <strong>${fmt(stats.average)} / ${QUIZ_MAX}</strong>.
+      Chacun a reçu sa correction détaillée sur son téléphone.</p>
+    ${hardest >= 0 && stats.hardest.rate < 1 ? `<p class="qhardest"><strong>À discuter :</strong> la situation ${hardest + 1} n'a eu que ${pct(stats.hardest.rate * stats.count)} % de réponses les plus adaptées.</p>` : ''}
+    <div class="qactions">
+      <button type="button" class="btn btn-quiet" data-act="quiz-replay" data-focus="quiz-replay">Rejouer (effacer les copies)</button>
+      <button type="button" class="btn btn-quiet" data-act="quiz-stop" data-focus="quiz-stop">Fermer le quiz</button>
+    </div>
+  </section>
+
+  <section class="dsection">
+    <div class="dsection-head"><span class="dsection-n">1</span><div><h2>Les outils sur le double diamant</h2>
+      <p class="hint">Les bonnes réponses, et où le groupe a rangé chaque outil.</p></div></div>
+    ${diamondBoard({ chips })}
+    <div class="qtools">${TOOL_IDS.map((t) => `<div class="qtool"><p>${toolChip(t)}</p>
+      ${bars(stats.tools[t], (ph) => PHASES.find((x) => x.id === ph).label, TOOL_PHASES[t])}
+      <p class="hint">${esc(PLACEMENT_FEEDBACK[t][TOOL_PHASES[t][0]])}</p></div>`).join('')}</div>
+  </section>
+
+  <section class="dsection">
+    <div class="dsection-head"><span class="dsection-n">2</span><div><h2>Les situations</h2>
+      <p class="hint">La réponse la plus adaptée, et la répartition des réponses du groupe.</p></div></div>
+    <ol class="situations">${SITUATIONS.map((x, k) => {
+      const defensible = Object.entries(x.others).filter(([, o]) => o.level === 'ok').map(([c]) => c);
+      return `<li class="situation ${stats.hardest?.id === x.id ? 'is-hardest' : ''}">
+        <p class="situation-text"><span class="situation-n">${k + 1}</span>${esc(x.text)}</p>
+        ${bars(stats.situations[x.id], (c) => CHOICE_LABELS[c], [x.answer])}
+        <div class="verdict verdict--right"><p><strong>${ICONS.check} ${esc(CHOICE_LABELS[x.answer])}.</strong> ${esc(x.why)}</p>
+        ${defensible.length ? `<p><strong>Défendable :</strong> ${esc(defensible.map((c) => CHOICE_LABELS[c]).join(', '))}.</p>` : ''}</div>
+      </li>`;
+    }).join('')}</ol>
+  </section>`;
 }
 
 const views = { frame: viewFrame, empathy: viewEmpathy, impact: viewImpact, story: viewStory, debrief: viewDebrief };
@@ -829,6 +953,9 @@ main.addEventListener('click', (e) => {
     return;
   }
 
+  const modeBtn = t.closest('[data-mode]');
+  if (modeBtn) { state.debrief.mode = modeBtn.dataset.mode; commit({ focus: `mode:${modeBtn.dataset.mode}` }); return; }
+
   const select = t.closest('[data-select-tool]');
   if (select) {
     const tool = select.dataset.selectTool;
@@ -885,6 +1012,24 @@ const actions = {
     $('.brief', main)?.scrollIntoView({ behavior: 'smooth', block: 'start' });
   },
   'reset-answers'() { state.debrief.answers = {}; commit(); },
+  'phones-show'() { phones.show(); },
+  async 'quiz-start'() {
+    await phones.clearQuiz();
+    if (await phones.setQuiz('open')) announce('Quiz lancé sur les téléphones');
+  },
+  async 'quiz-reveal'() {
+    if (await phones.setQuiz('revealed')) announce('Réponses révélées');
+  },
+  async 'quiz-stop'() {
+    if (!confirm('Fermer le quiz ? Les téléphones reviennent à l\'écran d\'attente.')) return;
+    await phones.setQuiz('off');
+  },
+  async 'quiz-replay'() {
+    if (!confirm('Effacer toutes les copies et relancer un quiz ?')) return;
+    await phones.setQuiz('off');
+    await phones.clearQuiz();
+    await phones.setQuiz('open');
+  },
   compare() { state.compare[state.persona] = !state.compare[state.persona]; commit({ focus: 'compare' }); },
   'backbone-example'() { useBackboneExample(state); commit(); announce('Parcours type posé : modifiez-le librement'); },
   check() { state.debrief.checked = true; commit({ focus: 'check' }); },
@@ -1006,7 +1151,18 @@ function printReport() {
 
 /* ---------- Téléphones ---------- */
 
+let phonesSig = '';
 const phones = createPhones({
+  onChange() {
+    const sig = `${phones.live}|${phones.quiz}|${phones.url}`;
+    if (sig === phonesSig) return;
+    phonesSig = sig;
+    if (state.step === 'frame' || state.step === 'debrief') render();
+  },
+  onQuiz(entries) {
+    ui.quizEntries = entries;
+    if (state.step === 'debrief' && state.debrief.mode === 'quiz') render();
+  },
   button: $('#phones-btn'),
   dialog: $('#phones'),
   count: $('#phones-count'),

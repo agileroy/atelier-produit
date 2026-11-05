@@ -32,6 +32,9 @@
             "createdAt": {
               ".validate": "newData.isNumber() && ((data.exists() && newData.val() === data.val()) || (!data.exists() && newData.val() === now))"
             },
+            "quiz": {
+              ".validate": "newData.isString() && newData.val().matches(/^(off|open|revealed)$/)"
+            },
             "$other": {
               ".validate": false
             }
@@ -71,6 +74,69 @@
                 "$other": {
                   ".validate": false
                 }
+              }
+            }
+          },
+          "quiz": {
+            ".read": "auth != null && data.parent().child('owners').child(auth.uid).exists()",
+            ".write": "auth != null && !newData.exists() && root.child('atelierProduit/sessions/' + $sid + '/owners/' + auth.uid).exists()",
+            "$uid": {
+              ".read": "auth != null && auth.uid === $uid",
+              ".write": "auth != null && auth.uid === $uid && !data.exists() && newData.exists() && root.child('atelierProduit/sessions/' + $sid + '/meta/quiz').val() === 'open'",
+              ".validate": "newData.hasChildren(['author', 'placement', 'answers', 'submittedAt'])",
+              "author": {
+                ".validate": "newData.isString() && newData.val().length >= 1 && newData.val().length <= 30"
+              },
+              "placement": {
+                ".validate": "newData.hasChildren(['empathy', 'impact', 'story'])",
+                "empathy": {
+                  ".validate": "newData.isString() && newData.val().matches(/^(discover|define|develop|deliver)$/)"
+                },
+                "impact": {
+                  ".validate": "newData.isString() && newData.val().matches(/^(discover|define|develop|deliver)$/)"
+                },
+                "story": {
+                  ".validate": "newData.isString() && newData.val().matches(/^(discover|define|develop|deliver)$/)"
+                },
+                "$other": {
+                  ".validate": false
+                }
+              },
+              "answers": {
+                ".validate": "newData.hasChildren(['adoption', 'backlog', 'sponsor', 'new-product', 'release', 'two-profiles', 'kpi', 'wrong-problem'])",
+                "adoption": {
+                  ".validate": "newData.isString() && newData.val().matches(/^(empathy|impact|story|designThinking)$/)"
+                },
+                "backlog": {
+                  ".validate": "newData.isString() && newData.val().matches(/^(empathy|impact|story|designThinking)$/)"
+                },
+                "sponsor": {
+                  ".validate": "newData.isString() && newData.val().matches(/^(empathy|impact|story|designThinking)$/)"
+                },
+                "new-product": {
+                  ".validate": "newData.isString() && newData.val().matches(/^(empathy|impact|story|designThinking)$/)"
+                },
+                "release": {
+                  ".validate": "newData.isString() && newData.val().matches(/^(empathy|impact|story|designThinking)$/)"
+                },
+                "two-profiles": {
+                  ".validate": "newData.isString() && newData.val().matches(/^(empathy|impact|story|designThinking)$/)"
+                },
+                "kpi": {
+                  ".validate": "newData.isString() && newData.val().matches(/^(empathy|impact|story|designThinking)$/)"
+                },
+                "wrong-problem": {
+                  ".validate": "newData.isString() && newData.val().matches(/^(empathy|impact|story|designThinking)$/)"
+                },
+                "$other": {
+                  ".validate": false
+                }
+              },
+              "submittedAt": {
+                ".validate": "newData.isNumber() && newData.val() === now"
+              },
+              "$other": {
+                ".validate": false
               }
             }
           },

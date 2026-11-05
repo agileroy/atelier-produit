@@ -16,3 +16,17 @@ Un post-it reçu SHALL être ajouté une seule fois au tableau, même après rec
 
 ### Requirement: Terminer la séance
 Terminer la séance SHALL effacer la séance et ses post-its de la base, sans retirer ceux déjà reçus sur le tableau.
+
+### Requirement: Quiz individuel du débrief
+L'animateur SHALL pouvoir choisir, au débrief, entre le débrief en équipe à l'écran et un quiz individuel sur téléphone. Dans le quiz, chacun SHALL répondre aux onze questions (trois outils à ranger, huit situations) puis valider une seule fois ; la base SHALL refuser une copie incomplète, une seconde copie, ou une copie hors d'un quiz ouvert.
+
+#### Scenario: Révélation
+- **WHEN** l'animateur révèle les réponses
+- **THEN** chaque téléphone affiche sa correction personnalisée et son score sur onze, et l'écran affiche le podium des trois meilleurs (à égalité, le premier à avoir validé passe devant), la moyenne du groupe, la situation la moins réussie, les bonnes réponses et la répartition des réponses
+
+#### Scenario: Rejouer
+- **WHEN** l'animateur choisit « Rejouer »
+- **THEN** toutes les copies sont effacées et les téléphones reviennent au formulaire
+
+### Requirement: Rejoindre dès l'arrivée
+L'étape Cadre SHALL afficher le QR code de la séance téléphones dès qu'elle est ouverte, pour que chacun rejoigne avec son prénom en arrivant.

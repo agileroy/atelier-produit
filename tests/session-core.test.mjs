@@ -10,8 +10,8 @@ test('identifiants de séance et clés', () => {
 });
 
 test('fiche de séance : valeurs bornées', () => {
-  assert.deepEqual(metaFor({ title: '  Atelier  ', step: 'impact', persona: 'karim' }), { title: 'Atelier', step: 'impact', persona: 'karim', closed: false });
-  assert.deepEqual(metaFor({ step: 'lune', persona: 'bob' }), { title: 'Atelier Produit', step: 'frame', persona: 'sophie', closed: false });
+  assert.deepEqual(metaFor({ title: '  Atelier  ', step: 'impact', persona: 'karim' }), { title: 'Atelier', step: 'impact', persona: 'karim', closed: false, quiz: 'off' });
+  assert.deepEqual(metaFor({ step: 'lune', persona: 'bob' }), { title: 'Atelier Produit', step: 'frame', persona: 'sophie', closed: false, quiz: 'off' });
   assert.equal(readMeta(null), null);
   assert.equal(readMeta({ title: 'x', step: 'story', closed: true }).closed, true);
 });
@@ -49,4 +49,49 @@ test('lecture de la base : post-its valides, triés par date', () => {
 test('adresse participant', () => {
   assert.equal(participantUrl('https://agileroy.github.io/atelier-produit/', 'abcabcabcabc'), 'https://agileroy.github.io/atelier-produit/postit.html?atelier=abcabcabcabc');
   assert.equal(participantUrl('https://agileroy.github.io/atelier-produit/index.html?x=1', 'abcabcabcabc'), 'https://agileroy.github.io/atelier-produit/postit.html?atelier=abcabcabcabc');
+});
+
+import { quizPayload, quizProgress, quizScore, readQuizEntries, podium, quizStats, QUIZ_MAX } from '../site/js/session-core.js';
+import { SITUATIONS } from '../site/js/content.js';
+
+const perfect = {
+  placement: { empathy: 'discover', impact: 'define', story: 'deliver' },
+  answers: Object.fromEntries(SITUATIONS.map((s) => [s.id, s.answer])),
+};
+
+test('quiz : une copie incomplète ne part pas', () => {
+  assert.equal(quizPayload({ author: 'Léa', placement: {}, answers: {} }), null);
+  assert.equal(quizProgress({ placement: { empathy: 'discover' }, answers: {} }), 1);
+  assert.equal(quizPayload({ author: '', ...perfect }), null);
+  assert.ok(quizPayload({ author: 'Léa', ...perfect }));
+});
+
+test('quiz : note sur 11, demi-point pour une réponse défendable', () => {
+  assert.equal(quizScore(perfect).points, QUIZ_MAX);
+  const one = structuredClone(perfect);
+  one.placement.impact = 'deliver';
+  one.answers.adoption = 'designThinking'; // défendable
+  one.answers.backlog = 'empathy'; // faux
+  const s = quizScore(one);
+  assert.equal(s.points, QUIZ_MAX - 1 - 0.5 - 1);
+  assert.equal(s.tools.find((t) => t.tool === 'impact').ok, false);
+  assert.equal(s.situations.find((x) => x.id === 'adoption').level, 'ok');
+});
+
+test('quiz : podium à trois, égalité départagée par l\'ordre de validation', () => {
+  const low = structuredClone(perfect); low.answers.backlog = 'empathy';
+  const entries = readQuizEntries({
+    u1: { author: 'Tom', ...low, submittedAt: 10 },
+    u2: { author: 'Léa', ...perfect, submittedAt: 30 },
+    u3: { author: 'Sam', ...perfect, submittedAt: 20 },
+    u4: { author: 'Max', ...low, submittedAt: 5 },
+    u5: { author: 'Bob', placement: {}, answers: {}, submittedAt: 1 },
+  });
+  assert.equal(entries.length, 4, 'copie incomplète ignorée');
+  assert.deepEqual(podium(entries).map((p) => p.author), ['Sam', 'Léa', 'Max']);
+  const stats = quizStats(entries);
+  assert.equal(stats.count, 4);
+  assert.equal(stats.situations.backlog.empathy, 2);
+  assert.equal(stats.hardest.id, 'backlog');
+  assert.equal(stats.average, (11 + 11 + 10 + 10) / 4);
 });

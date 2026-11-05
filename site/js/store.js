@@ -1,13 +1,14 @@
 // Seul module qui parle à Firebase. Connexion anonyme ; les règles de sécurité
 // (database.rules.json, branche atelierProduit) appliquent les mêmes contraintes côté base :
 // - un participant n'écrit que ses propres post-its, une seule fois, pendant l'étape en cours ;
-// - seuls les animateurs (navigateurs qui présentent la clé de la séance) lisent tous les post-its.
+// - seuls les animateurs (navigateurs qui présentent la clé de la séance) lisent tous les post-its ;
+// - chacun n'écrit qu'une copie de quiz, une seule fois, pendant que le quiz est ouvert.
 // Chargé à la demande (import dynamique) : sans réseau ni configuration, l'atelier marche quand même.
 
 import { initializeApp } from 'https://www.gstatic.com/firebasejs/12.19.0/firebase-app.js';
 import { getAuth, signInAnonymously, onAuthStateChanged } from 'https://www.gstatic.com/firebasejs/12.19.0/firebase-auth.js';
 import {
-  getDatabase, ref, onValue, get, set, update, serverTimestamp,
+  getDatabase, ref, onValue, get, set, update, remove, serverTimestamp,
 } from 'https://www.gstatic.com/firebasejs/12.19.0/firebase-database.js';
 import { firebaseConfig } from './firebase-config.js?v=__VERSION__';
 import { newId, metaFor } from './session-core.js?v=__VERSION__';
@@ -62,6 +63,14 @@ export function createStore() {
   /** Tous les post-its de la séance (animateur seulement) : arbre notes/{uid}/{noteId}. */
   const onNotes = (sid, cb, onError) => onValue(at(`sessions/${sid}/notes`), (s) => cb(s.val() ?? {}), onError);
 
+  // ---- Quiz individuel
+  const setQuiz = (sid, quiz) => set(at(`sessions/${sid}/meta/quiz`), quiz);
+  /** Toutes les copies (animateur seulement) : arbre quiz/{uid}. */
+  const onQuiz = (sid, cb, onError) => onValue(at(`sessions/${sid}/quiz`), (s) => cb(s.val() ?? {}), onError);
+  const clearQuiz = (sid) => remove(at(`sessions/${sid}/quiz`));
+  const submitQuiz = (sid, payload) => set(at(`sessions/${sid}/quiz/${uid}`), { ...payload, submittedAt: serverTimestamp() });
+  const onMyQuiz = (sid, cb, onError) => onValue(at(`sessions/${sid}/quiz/${uid}`), (s) => cb(s.val()), onError);
+
   /** Supprime la séance, ses post-its et sa clé. */
   const deleteSession = (sid) => update(ref(db, ROOT), { [`keys/${sid}`]: null, [`sessions/${sid}`]: null });
 
@@ -71,7 +80,7 @@ export function createStore() {
 
   return {
     start, createSession, claimOwner, getMeta, onMeta, setStep, setClosed, onNotes, deleteSession,
-    sendNote, onMyNotes,
+    sendNote, onMyNotes, setQuiz, onQuiz, clearQuiz, submitQuiz, onMyQuiz,
     get uid() { return uid; },
   };
 }

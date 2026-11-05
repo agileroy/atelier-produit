@@ -41,7 +41,7 @@ export function newState() {
     notes: [],
     compare: {},
     theoryClosed: [],
-    debrief: { placement: {}, checked: false, answers: {}, takeaways: '' },
+    debrief: { mode: 'team', placement: {}, checked: false, answers: {}, takeaways: '' },
     seen: [],
   };
 }
@@ -552,6 +552,7 @@ export function sanitize(raw) {
   const d = raw.debrief ?? {};
   for (const tool of TOOL_IDS) if (PHASE_IDS.includes(d.placement?.[tool])) state.debrief.placement[tool] = d.placement[tool];
   state.debrief.checked = d.checked === true;
+  state.debrief.mode = d.mode === 'quiz' ? 'quiz' : 'team';
   for (const s of SITUATIONS) if (SITUATION_CHOICES.includes(d.answers?.[s.id])) state.debrief.answers[s.id] = d.answers[s.id];
   state.debrief.takeaways = String(d.takeaways ?? '').slice(0, 4000);
   if (Array.isArray(raw.seen)) state.seen = raw.seen.filter((r) => typeof r === 'string' && ID_RE.test(r)).slice(-2000);

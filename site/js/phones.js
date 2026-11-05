@@ -2,19 +2,20 @@
 // et recevoir les post-its envoyés. Firebase n'est chargé qu'à la demande (store.js, import dynamique).
 
 import { firebaseConfig } from './firebase-config.js?v=__VERSION__';
-import { readMeta, flattenNotes, participantUrl, isSessionId, isKey } from './session-core.js?v=__VERSION__';
+import { readMeta, flattenNotes, participantUrl, isSessionId, isKey, readQuizEntries } from './session-core.js?v=__VERSION__';
 import { STEPS, PHONE_STEPS } from './content.js?v=__VERSION__';
 import { personaById } from './core.js?v=__VERSION__';
 import { esc, load, save, qrSvg, copyText, toast, ICONS } from './shared.js?v=__VERSION__';
 
 const SESSION_KEY = 'atelier-produit.session';
 
-export function createPhones({ button, dialog, count, current, onRemote }) {
+export function createPhones({ button, dialog, count, current, onRemote, onChange = () => {}, onQuiz = () => {} }) {
   let store = null;
   let status = firebaseConfig ? 'idle' : 'off'; // off | idle | connecting | live | error
   let session = null; // { sid, key }
   let meta = null;
   let notes = [];
+  let quizEntries = [];
   let unsubs = [];
   let lastSent = '';
 
@@ -40,6 +41,10 @@ export function createPhones({ button, dialog, count, current, onRemote }) {
       sync(...Object.values(current()));
       paint();
     }, () => { status = 'error'; paint(); }));
+    unsubs.push(store.onQuiz(session.sid, (tree) => {
+      quizEntries = readQuizEntries(tree);
+      onQuiz(quizEntries);
+    }, () => {}));
     unsubs.push(store.onNotes(session.sid, (tree) => {
       notes = flattenNotes(tree);
       onRemote(notes);
@@ -52,6 +57,8 @@ export function createPhones({ button, dialog, count, current, onRemote }) {
     session = null;
     meta = null;
     notes = [];
+    quizEntries = [];
+    onQuiz(quizEntries);
     lastSent = '';
     save(SESSION_KEY, null);
     status = firebaseConfig ? 'idle' : 'off';
@@ -104,6 +111,18 @@ export function createPhones({ button, dialog, count, current, onRemote }) {
     store.setStep(session.sid, step, persona).catch(() => { lastSent = ''; });
   }
 
+  /** Quiz du débrief : 'open' (les téléphones répondent), 'revealed' (correction pour tous), 'off'. */
+  async function setQuiz(mode) {
+    if (status !== 'live') return false;
+    try { await store.setQuiz(session.sid, mode); return true; } catch { toast('Action impossible pour le moment.'); return false; }
+  }
+
+  /** Efface toutes les copies (pour rejouer). */
+  async function clearQuiz() {
+    if (status !== 'live') return;
+    try { await store.clearQuiz(session.sid); } catch { toast('Effacement impossible pour le moment.'); }
+  }
+
   async function setClosed(closed) {
     try { await store.setClosed(session.sid, closed); } catch { toast('Action impossible pour le moment.'); }
   }
@@ -127,6 +146,7 @@ export function createPhones({ button, dialog, count, current, onRemote }) {
     count.textContent = notes.length;
     button.title = live ? `Téléphones connectés : ${notes.length} post-it${notes.length > 1 ? 's' : ''} reçu${notes.length > 1 ? 's' : ''}` : 'Envoyer des post-its depuis les téléphones';
     if (dialog.open) dialog.innerHTML = body();
+    onChange();
   }
 
   function body() {
@@ -178,11 +198,12 @@ export function createPhones({ button, dialog, count, current, onRemote }) {
     </div>`;
   }
 
-  button.addEventListener('click', () => {
+  function show() {
     dialog.innerHTML = body();
     dialog.showModal();
     dialog.querySelector('[data-open-session], [data-copy-url], [data-close]')?.focus();
-  });
+  }
+  button.addEventListener('click', show);
 
   dialog.addEventListener('click', async (e) => {
     if (e.target === dialog || e.target.closest('[data-close]')) { dialog.close(); return; }
@@ -199,5 +220,12 @@ export function createPhones({ button, dialog, count, current, onRemote }) {
     if (e.target.matches('[data-closed]')) setClosed(e.target.checked);
   });
 
-  return { resume, sync };
+  return {
+    resume, sync, show, setQuiz, clearQuiz,
+    get live() { return status === 'live'; },
+    get available() { return status !== 'off'; },
+    get quiz() { return meta?.quiz ?? 'off'; },
+    get url() { return session ? participantUrl(location.href, session.sid) : ''; },
+    get people() { return new Set(notes.map((n) => n.uid)).size; },
+  };
 }
