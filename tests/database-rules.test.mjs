@@ -95,8 +95,8 @@ test('salle : un code ne se réserve qu\'une fois et pointe vers la séance qui 
 
 test('salle : un prénom réservé appartient à celui qui l\'a pris', () => {
   const n = session.names.$key;
-  assert.match(n['.write'], /!data\.exists\(\) && newData\.val\(\) === auth\.uid/);
-  assert.match(n['.write'], /data\.val\(\) === auth\.uid && !newData\.exists\(\)/, 'on ne libère que son propre prénom');
+  assert.equal(n['.write'], 'auth != null && (!data.exists() || data.val() === auth.uid)', 'libre, ou déjà à soi (rechargement, libération)');
+  assert.match(n['.validate'], /newData\.val\(\) === auth\.uid/, 'on ne réserve que pour soi');
 });
 
 test('salle : chacun écrit sa présence, seul l\'animateur voit la liste', () => {
