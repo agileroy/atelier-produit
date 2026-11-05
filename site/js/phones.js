@@ -106,7 +106,9 @@ export function createPhones({ button, dialog, count, current, onRemote, onChang
     try {
       await getStore();
       await store.claimOwner(session.sid, session.key);
-      if (!(await store.getMeta(session.sid))) { forget(); return; }
+      const existing = await store.getMeta(session.sid);
+      if (!existing) { forget(); return; }
+      if (!existing.code) await store.assignCode(session.sid); // séance ouverte avant les codes courts
       status = 'live';
       listen();
     } catch {

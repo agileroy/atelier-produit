@@ -65,6 +65,18 @@ export function createStore() {
     }
   }
 
+  /** Donne un code court à une séance qui n'en a pas (ouverte avant leur arrivée). */
+  async function assignCode(sid) {
+    for (let attempt = 0; attempt < 5; attempt++) {
+      const code = newCode();
+      try {
+        await update(ref(db, ROOT), { [`codes/${code}`]: sid, [`sessions/${sid}/meta/code`]: code });
+        return code;
+      } catch { /* code déjà pris : on en tire un autre */ }
+    }
+    return null;
+  }
+
   /** Séance correspondant à un code court, ou null. */
   const resolveCode = (code) => get(at(`codes/${code}`)).then((s) => s.val()).catch(() => null);
 
@@ -140,7 +152,7 @@ export function createStore() {
   return {
     start, createSession, claimOwner, getMeta, onMeta, setStep, setClosed, onNotes, deleteSession,
     sendNote, onMyNotes, setQuiz, onQuiz, clearQuiz, submitQuiz, onMyQuiz,
-    resolveCode, onPresence, claimName, releaseName, goOnline,
+    resolveCode, assignCode, onPresence, claimName, releaseName, goOnline,
     setMeta, onMembers, setMembers, onMyMember, onBoard, writeBoard, setBoardState, setKept, onKept,
     get uid() { return uid; },
   };

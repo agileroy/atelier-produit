@@ -55,7 +55,7 @@ const shared = {
 };
 
 /** Peut-on modifier le tableau affiché ? L'animateur partout ; un participant dans son groupe seulement. */
-const canEdit = () => !shared.on || HOST || shared.group === shared.myGroup;
+const canEdit = () => !shared.on || HOST || (shared.group === shared.myGroup && !shared.restitution);
 const clone = (x) => structuredClone(x);
 const groupPersona = (g) => shared.boards[g]?.state?.persona ?? DEFAULT_PERSONAS[g];
 
@@ -271,8 +271,8 @@ function boardBar() {
   return `<div class="board-bar">
     <div class="group-tabs" role="tablist" aria-label="Tableau affiché">${tabs}</div>
     ${HOST ? `<button type="button" class="btn ${shared.restitution ? 'btn-quiet' : 'btn-primary'} btn-small" data-act="restitution" data-focus="restitution">${shared.restitution ? 'Terminer la restitution' : 'Lancer la restitution'}</button>
-      <p class="hint">${shared.restitution ? 'Chaque participant peut voir le tableau de l\'autre groupe (en lecture seule).' : 'Chaque groupe ne voit que son tableau. La restitution montre les deux à tous.'}</p>`
-      : `<p class="hint">Restitution : ${shared.group === shared.myGroup ? 'votre tableau' : 'le tableau de l\'autre groupe, en lecture seule'}.</p>`}
+      <p class="hint">${shared.restitution ? 'Les participants voient les deux tableaux, en lecture seule : vous seul déplacez les post-its.' : 'Chaque groupe ne voit que son tableau. La restitution montre les deux à tous.'}</p>`
+      : `<p class="hint">Restitution : ${shared.group === shared.myGroup ? 'votre tableau' : 'le tableau de l\'autre groupe'}, en lecture seule. L'animateur déplace les post-its.</p>`}
   </div>`;
 }
 
@@ -461,6 +461,7 @@ function addButton(place, label) {
 function trayHtml(step, title, hint) {
   const place = { b: 'tray', step };
   const list = notesIn(state, place);
+  if (!list.length) return ''; // plus d'envoi depuis les téléphones : le bac ne sert qu'aux anciens ateliers
   return `<section class="tray ${list.length ? '' : 'is-empty'}" aria-label="${esc(title)}">
     <h2 class="tray-title">${esc(title)} ${list.length ? `<span class="count">${list.length}</span>` : ''}</h2>
     <p class="hint">${esc(hint)}</p>
@@ -639,14 +640,38 @@ function viewEmpathy() {
     <div>
       <h2>Et maintenant ?</h2>
       ${comparing
-        ? `<p><strong>${cmp.matching} extrait${cmp.matching > 1 ? 's' : ''} sur ${cmp.placed}</strong> rangé${cmp.matching > 1 ? 's' : ''} comme la proposition. Il n'y a pas de tri parfait : un écart est une bonne occasion de discuter (dire n'est pas penser, faire n'est pas dire).</p>`
+        ? `<p><strong>${cmp.matching} extrait${cmp.matching > 1 ? 's' : ''} sur ${cmp.placed}</strong> rangé${cmp.matching > 1 ? 's' : ''} comme la proposition${pool.length ? `, et ${pool.length} pas encore rangé${pool.length > 1 ? 's' : ''}` : ''}. La proposition complète est juste en dessous. Il n'y a pas de tri parfait : un écart est une bonne occasion de discuter (dire n'est pas penser, faire n'est pas dire).</p>`
         : '<p>Une fois les extraits rangés, comparez avec une proposition de tri.</p>'}
       ${empty.length ? `<p>Zones vides : <strong>${esc(empty.join(', '))}</strong>. Ce sont les questions de la prochaine interview.</p>` : '<p>Toutes les zones ont au moins un post-it.</p>'}
     </div>
     <button type="button" class="btn ${comparing ? 'btn-quiet' : 'btn-primary'}" data-act="compare" data-focus="compare" ${cmp.placed ? '' : 'disabled'}>
       ${comparing ? 'Masquer la proposition' : 'Comparer avec la proposition'}</button>
   </section>
+  ${comparing ? proposalHtml(persona) : ''}
   ${stepNav()}`;
+}
+
+/**
+ * La proposition de tri complète : tous les extraits du persona dans leur zone proposée, avec où
+ * le groupe les a rangés (ou pas encore). On voit aussi les choix pour les cartes non placées.
+ */
+function proposalHtml(persona) {
+  const placed = new Map(state.notes.filter((n) => n.from?.startsWith('extract:') && n.place.b === 'empathy').map((n) => [n.from.slice(8), n.place.zone]));
+  const zoneLabel = (id) => EMPATHY_ZONES.find((z) => z.id === id).label;
+  const status = (e) => {
+    const where = placed.get(e.id);
+    if (where === e.zone) return `<span class="cmp cmp--ok">${ICONS.check}rangé ici</span>`;
+    if (where) return `<span class="cmp cmp--diff">vous : ${esc(zoneLabel(where))}</span>`;
+    return '<span class="cmp cmp--todo">pas encore rangé</span>';
+  };
+  return `<section class="proposal" aria-labelledby="proposal-title">
+    <div class="section-head"><h2 id="proposal-title">La proposition de tri pour ${esc(persona.name)}</h2>
+      <p class="hint">Une proposition, pas la vérité : tous les extraits, à l'endroit où on les rangerait.</p></div>
+    <div class="proposal-grid">${EMPATHY_ZONES.map((z) => `<div class="proposal-zone" style="--h:${ZONE_HUES[z.id]}">
+      <h3>${esc(z.label)}</h3>
+      <ul>${persona.extracts.filter((e) => e.zone === z.id).map((e) => `<li><span class="proposal-text">${esc(e.text)}</span>${status(e)}</li>`).join('')}</ul>
+    </div>`).join('')}</div>
+  </section>`;
 }
 
 /* ---------- Étape 2 : impact mapping ---------- */
@@ -704,7 +729,7 @@ function viewImpact() {
       <p class="hint">${ICONS.star} ${shared.on ? 'Les livrables retenus se choisissent tous ensemble, à la restitution : l\'animateur pose les étoiles. Ils serviront à tous les groupes pour la story map.' : 'Cochez l\'étoile des livrables que vous retenez : ils vous attendront dans la story map. Plusieurs objectifs ? Ajoutez-les avec « Autre objectif ».'}</p>
     </div>
     <aside class="side">
-      ${trayHtml('impact', 'À placer', 'Les post-its des participants arrivent ici. Glissez-les dans l\'arbre.')}
+      ${trayHtml('impact', 'À placer', 'Glissez ces post-its dans l\'arbre.')}
       <section class="inspiration">
         <h2>Pour s'inspirer</h2>
         ${inspiration.length ? inspiration.map(({ p, pains, gains }) => `<div class="insp">
@@ -734,13 +759,13 @@ function viewStory() {
     <section class="kept">
       <h2>Livrables retenus <span class="count">${kept.length}</span></h2>
       ${kept.length
-        ? `<p class="hint">Glissez-les sous une étape du parcours (ou touchez-en un pour l'envoyer dans le bac).</p>
+        ? `<p class="hint">Glissez-les sous une étape du parcours, ou cliquez sur l'un d'eux pour choisir où le placer.</p>
            <div class="kept-list">${kept.map((d) => `<button type="button" class="kchip ${d.imported ? 'is-imported' : ''}" data-drag="deliv:${d.id}" data-deliv="${d.id}" data-focus="deliv:${d.id}">
              ${d.imported ? ICONS.check : ''}${esc(d.text)}${shared.on && shared.groups === 2 && d.group ? ` <small>${esc(groupName(d.group))}</small>` : ''}</button>`).join('')}</div>`
         : HOST ? `<p class="hint">Aucun livrable retenu : cochez l'étoile des livrables dans <button type="button" class="link-btn" data-go="impact">l'impact map</button>.</p>`
           : '<p class="hint">Aucun livrable retenu pour l\'instant : ils sont choisis tous ensemble, à la fin de l\'impact mapping.</p>'}
     </section>
-    ${trayHtml('story', 'À placer', 'Post-its des participants et stories en attente.')}
+    ${trayHtml('story', 'À placer', 'Glissez ces post-its sous une étape du parcours.')}
   </div>
 
   <div class="canvas">
@@ -970,6 +995,25 @@ function openEdit(id) {
   </form>`, { mode: 'edit', id });
 }
 
+/** Livrable retenu : choisir l'étape du parcours et la version où le placer. */
+function openPlaceKept(id) {
+  const k = keptForStory().find((x) => x.id === id);
+  if (!k) return;
+  const cols = notesIn(state, { b: 'backbone' });
+  if (!cols.length) { toast('Posez d\'abord les étapes du parcours (« + Étape » ou « Partir du parcours type »).'); return; }
+  openDialog(`<form method="dialog" class="dialog-form" data-form="place-kept">
+    <h2 id="editor-title">Où placer ce livrable ?</h2>
+    <p class="extract-quote extract-quote--plain">${esc(k.text)}</p>
+    <label class="field-wrap"><span class="field-label">Étape du parcours</span>
+      <select class="field" name="col">${cols.map((c) => `<option value="${c.id}">${esc(c.text)}</option>`).join('')}</select></label>
+    <label class="field-wrap"><span class="field-label">Version</span>
+      <select class="field" name="lane">${STORY_LANES.map((l) => `<option value="${l.id}">${esc(l.label)}</option>`).join('')}</select></label>
+    <div class="dialog-actions"><span></span>
+      <button type="button" class="btn btn-quiet" data-cancel>Annuler</button>
+      <button type="submit" class="btn btn-primary">Placer</button></div>
+  </form>`, { mode: 'place-kept', id });
+}
+
 function openExtract(extractId) {
   const e = extractById(extractId);
   if (!e) return;
@@ -1009,7 +1053,14 @@ editor.addEventListener('click', (e) => {
 editor.addEventListener('submit', (e) => {
   e.preventDefault();
   const form = e.target;
-  const text = form.elements.text.value;
+  const text = form.elements.text?.value ?? '';
+  if (editing.mode === 'place-kept') {
+    const place = { b: 'story', col: form.elements.col.value, lane: form.elements.lane.value };
+    const note = importKept(editing.id, place);
+    editor.close();
+    if (note) { commit({ focus: `note:${note.id}` }); announce('Livrable placé dans la story map'); }
+    return;
+  }
   if (editing.mode === 'new') {
     const note = addNote(state, editing.place, text, hooks.author ? { author: hooks.author() } : {});
     editor.close();
@@ -1051,7 +1102,7 @@ main.addEventListener('click', (e) => {
   const t = e.target;
   const groupTab = t.closest('[data-group]');
   if (groupTab) { showGroup(groupTab.dataset.group); render(`group:${groupTab.dataset.group}`); return; }
-  if (!canEdit() && t.closest(EDIT_TARGETS)) { toast('Lecture seule : c\'est le tableau de l\'autre groupe.'); return; }
+  if (!canEdit() && t.closest(EDIT_TARGETS)) { toast(shared.restitution ? 'Restitution : seul l\'animateur déplace les post-its.' : 'Lecture seule : c\'est le tableau de l\'autre groupe.'); return; }
   const info = t.closest('[data-info]');
   if (info) {
     ui.info = ui.info === info.dataset.info ? null : info.dataset.info;
@@ -1087,8 +1138,7 @@ main.addEventListener('click', (e) => {
 
   const deliv = t.closest('[data-deliv]');
   if (deliv) {
-    const copy = importKept(deliv.dataset.deliv, { b: 'tray', step: 'story' });
-    if (copy) { commit(); announce('Livrable ajouté au bac à placer'); }
+    openPlaceKept(deliv.dataset.deliv);
     return;
   }
 
