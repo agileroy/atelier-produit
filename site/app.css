@@ -972,3 +972,58 @@ button.tchip { cursor: grab; touch-action: manipulation; }
 
 /* Étiquettes d'outils posées sur le grand diamant : elles rétrécissent avec lui. */
 .dboard .tchip { font-size: clamp(11px, 1.15vw, 14px); padding: 5px clamp(8px, 1vw, 12px); }
+
+/* ---------- Atelier partagé : groupes, restitution, participant ---------- */
+
+.pcard--center { max-width: 560px; width: 100%; margin: 4vh auto 0; }
+.pquiz-card { max-width: 860px; width: 100%; margin: 0 auto; }
+.pquiz-title { font-size: 26px; }
+.me-badge {
+  display: inline-flex; align-items: center; gap: 4px; height: 36px; padding: 0 14px;
+  border: 1px solid var(--line); border-radius: 999px; background: var(--surface); font-size: 14px; white-space: nowrap;
+}
+.me-badge strong { color: var(--accent); }
+body[data-mode="participant"] .stepper button:disabled { cursor: default; opacity: 1; }
+body[data-mode="participant"] .stepper button:disabled:hover { background: none; color: var(--muted); }
+body[data-mode="participant"] .stepper [aria-current="step"]:disabled:hover { color: var(--fg); }
+body[data-mode="participant"] .plan-item:disabled { cursor: default; }
+body[data-mode="participant"] .plan-item:disabled:hover { border-color: var(--line); }
+
+.persona-fixed {
+  margin: 0; display: inline-flex; align-items: center; gap: 10px; justify-self: start;
+  padding: 6px 14px 6px 6px; border-radius: 999px; background: var(--surface); border: 1px solid var(--line);
+}
+.board-bar {
+  display: flex; flex-wrap: wrap; align-items: center; gap: 10px 16px;
+  padding: 10px 14px; border-radius: 14px; background: var(--accent-soft); border: 1px solid color-mix(in srgb, var(--accent) 30%, transparent);
+}
+.board-bar p { margin: 0; }
+.board-bar--me { color: var(--fg); }
+.group-tabs { display: flex; gap: 6px; flex-wrap: wrap; }
+.group-tabs button {
+  display: inline-flex; align-items: center; gap: 6px; padding: 8px 14px; border-radius: 999px; cursor: pointer;
+  background: var(--surface); border: 1.5px solid var(--line); font-weight: 600; font-size: 14px;
+}
+.group-tabs [aria-selected="true"] { border-color: var(--accent); color: var(--accent); box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 20%, transparent); }
+.board-you { padding: 1px 8px; border-radius: 999px; background: var(--ok-soft); color: var(--ok); font-size: 12px; }
+
+/* Tableau de l'autre groupe, pendant la restitution : en lecture seule. */
+main.is-readonly .add-btn, main.is-readonly .keep-btn, main.is-readonly .pool, main.is-readonly [data-act="backbone-example"],
+main.is-readonly .story-sources, main.is-readonly .tray { display: none !important; }
+main.is-readonly .note { cursor: default; }
+main.is-readonly .empathy-layout { grid-template-columns: minmax(0, 1fr); }
+
+.groups-panel { grid-column: 1 / -1; display: grid; gap: 10px; padding-top: 14px; border-top: 1px solid var(--line); }
+.groups-head { display: flex; flex-wrap: wrap; align-items: center; gap: 10px 14px; }
+.groups-head h3 { font-size: 18px; margin-right: auto; }
+.seg { display: inline-flex; padding: 2px; border-radius: 999px; border: 1px solid var(--line); background: var(--bg); }
+.seg button { padding: 5px 12px; border: 0; border-radius: 999px; background: none; cursor: pointer; font-size: 14px; font-weight: 600; color: var(--muted); }
+.seg [aria-checked="true"] { background: var(--accent); color: var(--accent-ink); }
+.groups-grid { display: grid; gap: 12px; }
+.groups-grid--2 { grid-template-columns: 1fr 1fr; }
+.group-col { padding: 10px 12px; border-radius: 12px; background: var(--bg); border: 1px solid var(--line); }
+.group-name { margin: 0 0 6px; font-family: var(--display); font-weight: 700; display: flex; align-items: center; gap: 6px; }
+.group-col ul { list-style: none; margin: 0; padding: 0; display: grid; gap: 4px; }
+.group-col li { display: flex; justify-content: space-between; gap: 8px; font-size: 14px; }
+.group-col .link-btn { font-size: 13px; }
+@media (max-width: 600px) { .groups-grid--2 { grid-template-columns: minmax(0, 1fr); } }

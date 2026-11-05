@@ -274,3 +274,59 @@ test('ancien atelier (un seul objectif) : l\'objectif devient un post-it et gard
   assert.equal(notesIn(s, { b: 'actor', parent: goals[0].id })[0].text, 'Karim');
   assert.equal(notesIn(s, { b: 'impact', parent: 'abcd0001' }).length, 1);
 });
+
+import { boardUpdates, recordsToNotes, applyUpdates, noteRecord, updateNote } from '../site/js/core.js';
+
+test('tableau partagé : seules les différences partent dans la base', () => {
+  const s = newState();
+  const a = addNote(s, { b: 'empathy', persona: 'sophie', zone: 'says' }, 'A');
+  const b = addNote(s, { b: 'empathy', persona: 'sophie', zone: 'says' }, 'B');
+  const before = structuredClone(s.notes);
+  updateNote(s, a.id, 'A bis');
+  let up = boardUpdates(before, s.notes);
+  assert.deepEqual(Object.keys(up), [`notes/${a.id}`], 'un seul post-it modifié');
+  const before2 = structuredClone(s.notes);
+  removeNote(s, b.id);
+  up = boardUpdates(before2, s.notes);
+  assert.deepEqual(up, { [`notes/${b.id}`]: null });
+  assert.deepEqual(boardUpdates(s.notes, s.notes), {}, 'rien à écrire si rien ne change');
+});
+
+test('tableau partagé : aller-retour base ↔ post-its fidèle, ordre compris', () => {
+  const { s, goal, deliv } = impactTree('Objectif');
+  toggleKeep(s, deliv.id);
+  placeExtract(s, 's1', 'says');
+  const x = addNote(s, { b: 'empathy', persona: 'sophie', zone: 'says' }, 'Avant', { author: 'Léa' });
+  moveNote(s, x.id, { b: 'empathy', persona: 'sophie', zone: 'says' }, s.notes.find((n) => n.from === 'extract:s1').id);
+  const tree = applyUpdates({}, boardUpdates([], s.notes));
+  const back = recordsToNotes(tree);
+  assert.deepEqual(back.map((n) => n.id), s.notes.map((n) => n.id));
+  assert.equal(back.find((n) => n.id === deliv.id).keep, true);
+  assert.equal(back.find((n) => n.id === x.id).author, 'Léa');
+  assert.equal(notesIn({ notes: back }, { b: 'actor', parent: goal.id }).length, 1);
+});
+
+test('tableau partagé : deux personnes, deux post-its, aucune perte', () => {
+  const s = newState();
+  const z = { b: 'empathy', persona: 'karim', zone: 'pains' };
+  addNote(s, z, 'Commun');
+  const base = applyUpdates({}, boardUpdates([], s.notes));
+  // Léa et Tom partent du même état et ajoutent chacun un post-it.
+  const lea = { ...newState(), notes: recordsToNotes(base) };
+  const tom = { ...newState(), notes: recordsToNotes(base) };
+  const l0 = structuredClone(lea.notes); addNote(lea, z, 'De Léa');
+  const t0 = structuredClone(tom.notes); addNote(tom, z, 'De Tom');
+  const merged = applyUpdates(applyUpdates(base, boardUpdates(l0, lea.notes)), boardUpdates(t0, tom.notes));
+  assert.deepEqual(recordsToNotes(merged).map((n) => n.text).sort(), ['Commun', 'De Léa', 'De Tom']);
+});
+
+test('tableau partagé : un enregistrement invalide est ignoré', () => {
+  const notes = recordsToNotes({
+    abcd0001: { text: 'ok', place: 'empathy|sophie|says', order: 0 },
+    abcd0002: { text: 'zone inconnue', place: 'empathy|sophie|dreams', order: 1 },
+    'pas un id': { text: 'x', place: 'goal', order: 2 },
+    abcd0003: { text: '', place: 'goal', order: 3 },
+  });
+  assert.deepEqual(notes.map((n) => n.id), ['abcd0001']);
+  assert.deepEqual(noteRecord(notes[0], 5), { text: 'ok', place: 'empathy|sophie|says', order: 5 });
+});

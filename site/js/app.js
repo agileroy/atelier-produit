@@ -12,14 +12,17 @@ import {
   availableExtracts, placeExtract, unplaceExtract, extractById, compareEmpathy, emptyZones, personaById,
   toggleKeep, keptDeliverables, importDeliverable, useBackboneExample, mvpGaps,
   setPlacement, checkPlacement, answerSituation, situationScore, situationVerdict, mergeRemote, reportText,
+  boardUpdates, recordsToNotes,
   serialize, parseSaved, sanitize, toolName, TOOL_IDS, MAX_TEXT,
 } from './core.js?v=__VERSION__';
 import { $, $$, esc, toast, announce, copyText, load, save, setupTheme, downloadJson, today, qrSvg, ICONS } from './shared.js?v=__VERSION__';
-import { podium, quizStats, waitingFor, QUIZ_MAX } from './session-core.js?v=__VERSION__';
+import { podium, quizStats, waitingFor, QUIZ_MAX, groupIdsFor, groupName, DEFAULT_PERSONAS } from './session-core.js?v=__VERSION__';
 import { setupDnd } from './dnd.js?v=__VERSION__';
 import { createPhones } from './phones.js?v=__VERSION__';
 
-const STORE_KEY = 'atelier-produit.state';
+/** Animateur (index.html) ou participant (postit.html) : même interface, droits différents. */
+export const HOST = document.body.dataset.mode !== 'participant';
+const STORE_KEY = HOST ? 'atelier-produit.state' : 'atelier-produit.participant';
 const STEP_TOOL = { frame: 'designThinking', empathy: 'empathy', impact: 'impact', story: 'story', debrief: 'designThinking' };
 const STEP_NUMBER = { empathy: 1, impact: 2, story: 3 };
 const ZONE_HUES = { says: 205, thinks: 265, does: 150, feels: 330, pains: 6, gains: 44 };
@@ -29,6 +32,113 @@ const CHOICE_LABELS = { empathy: 'Empathy map', impact: 'Impact mapping', story:
 const main = $('#main');
 let state = restore();
 const ui = { selectedTool: null, info: null, frameTheory: false, quizEntries: [] };
+let phones = null; // animateur : module Participants
+const hooks = {}; // participant : vues fournies par participant.js (débrief, attente)
+
+/* ---------- Tableaux partagés (un par groupe) ----------
+   Dès que l'animateur ouvre la séance, ou pour un participant, les post-its ne vivent plus dans le
+   navigateur : chaque groupe a son tableau dans la base. state.notes reflète le tableau affiché. */
+
+const shared = {
+  on: false,
+  group: 'g1', // tableau affiché
+  myGroup: null, // participant : son groupe
+  groups: 2,
+  restitution: false,
+  boards: { g1: { notes: [], state: {} }, g2: { notes: [], state: {} } },
+  synced: { g1: [], g2: [] },
+  kept: [], // livrables étoilés, communs : [{ id, text, group }]
+  write: null, // (groupe, mises à jour) => Promise
+  setState: null, // (groupe, clé, valeur) => Promise
+  localNotes: null, // animateur : son tableau local, mis de côté pendant la séance
+  lastKept: '',
+};
+
+/** Peut-on modifier le tableau affiché ? L'animateur partout ; un participant dans son groupe seulement. */
+const canEdit = () => !shared.on || HOST || shared.group === shared.myGroup;
+const clone = (x) => structuredClone(x);
+const groupPersona = (g) => shared.boards[g]?.state?.persona ?? DEFAULT_PERSONAS[g];
+
+function showGroup(g) {
+  shared.group = g;
+  state.notes = clone(shared.boards[g].notes);
+  state.persona = groupPersona(g);
+  state.compare = { [state.persona]: shared.boards[g].state?.compare === true };
+}
+
+/** Passe en tableaux partagés (l'animateur garde son tableau local de côté). */
+export function enterShared({ write, setState, group = 'g1' }) {
+  if (!shared.on && HOST) shared.localNotes = state.notes;
+  shared.on = true;
+  shared.write = write;
+  shared.setState = setState;
+  showGroup(group);
+}
+
+export function leaveShared() {
+  if (!shared.on) return;
+  shared.on = false;
+  state.notes = shared.localNotes ?? [];
+  shared.localNotes = null;
+}
+
+/** Un tableau a changé dans la base. */
+export function receiveBoard(g, tree) {
+  shared.boards[g] = { notes: recordsToNotes(tree?.notes), state: tree?.state ?? {} };
+  shared.synced[g] = clone(shared.boards[g].notes);
+  if (HOST) publishKept();
+  if (shared.on && g === shared.group) {
+    showGroup(g);
+    render();
+  }
+}
+
+/** Écrit dans la base ce qui a changé sur le tableau affiché. */
+function flush() {
+  if (!shared.on || !canEdit() || !shared.write) return;
+  const g = shared.group;
+  const updates = boardUpdates(shared.synced[g], state.notes);
+  if (!Object.keys(updates).length) return;
+  shared.synced[g] = clone(state.notes);
+  shared.boards[g].notes = clone(state.notes);
+  shared.write(g, updates).catch(() => toast('Modification non enregistrée : la connexion est peut-être coupée.'));
+  if (HOST) publishKept();
+}
+
+/** Animateur : la liste commune des livrables étoilés, lue par tous les groupes à la story map. */
+function publishKept() {
+  if (!HOST || !shared.on || !phones?.live) return;
+  const map = {};
+  let order = 0;
+  for (const g of groupIdsFor(shared.groups)) {
+    for (const n of shared.boards[g].notes) if (n.place.b === 'deliverable' && n.keep) map[n.id] = { text: n.text, group: g, order: order++ };
+  }
+  const sig = JSON.stringify(map);
+  if (sig === shared.lastKept) return;
+  shared.lastKept = sig;
+  phones.setKept(map).catch(() => {});
+}
+
+export function receiveKept(tree) {
+  shared.kept = Object.entries(tree ?? {}).filter(([, v]) => v?.text).sort(([, a], [, b]) => (a.order ?? 0) - (b.order ?? 0))
+    .map(([id, v]) => ({ id, text: v.text, group: v.group }));
+  if (shared.on && state.step === 'story') render();
+}
+
+/** Livrables étoilés à importer dans la story map, avec leur état d'import sur le tableau affiché. */
+function keptForStory() {
+  if (!shared.on) return keptDeliverables(state);
+  const list = HOST
+    ? groupIdsFor(shared.groups).flatMap((g) => shared.boards[g].notes.filter((n) => n.place.b === 'deliverable' && n.keep).map((n) => ({ id: n.id, text: n.text, group: g })))
+    : shared.kept;
+  return list.map((k) => ({ ...k, imported: state.notes.some((m) => m.from === `deliverable:${k.id}`) }));
+}
+
+function importKept(id, place, beforeId = null) {
+  if (!shared.on) return importDeliverable(state, id, place, beforeId);
+  const k = keptForStory().find((x) => x.id === id);
+  return k ? importDeliverable(state, id, place, beforeId, { id, text: k.text, place: { b: 'deliverable' } }) : null;
+}
 
 function restore() {
   const saved = load(STORE_KEY);
@@ -39,19 +149,21 @@ function restore() {
 /* ---------- Cycle : modifier, mémoriser, redessiner ---------- */
 
 function persist() {
-  save(STORE_KEY, serialize(state));
+  // Pendant une séance, le tableau vit dans la base : on ne garde en local que le tableau de l'animateur.
+  save(STORE_KEY, serialize(shared.on ? { ...state, notes: shared.localNotes ?? [] } : state));
 }
 
 function commit({ focus } = {}) {
+  flush();
   persist();
   render(focus);
-  phones.sync(state.step, state.persona);
+  if (HOST) phones?.sync(state.step, state.persona);
 }
 
 /** Bouton « Rejoindre » permanent (sauf sur l'étape Cadre, qui a sa carte) : pour les retardataires. */
 function renderJoinPill() {
   const pill = $('#join-pill');
-  const show = phones.live && state.step !== 'frame';
+  const show = HOST && phones?.live && state.step !== 'frame';
   pill.hidden = !show;
   if (!show) return;
   const n = phones.presence.length;
@@ -89,7 +201,9 @@ function render(focus) {
   const keep = focus ?? (active && main.contains(active) ? focusKey(active) : null);
   const scroll = $$('.canvas-scroll').map((s) => s.scrollLeft);
   main.dataset.step = state.step;
-  main.innerHTML = views[state.step]();
+  const screen = hooks.screen?.(); // participant : accueil, prénom, attente d'un groupe
+  main.innerHTML = screen ?? views[state.step]();
+  main.classList.toggle('is-readonly', !canEdit());
   $$('.canvas-scroll').forEach((s, i) => { if (scroll[i]) s.scrollLeft = scroll[i]; });
   renderStepper();
   renderJoinPill();
@@ -99,7 +213,7 @@ function render(focus) {
 const focusKey = (el) => el.closest('[data-focus]')?.dataset.focus ?? null;
 
 function go(step) {
-  if (!setStep(state, step)) return;
+  if (!HOST || !setStep(state, step)) return;
   ui.selectedTool = null;
   commit();
   window.scrollTo({ top: 0 });
@@ -110,7 +224,7 @@ function go(step) {
 /* ---------- En-tête : étapes ---------- */
 
 function renderStepper() {
-  $('#stepper').innerHTML = STEPS.map((s, i) => `<li><button type="button" data-go="${s.id}" ${s.id === state.step ? 'aria-current="step"' : ''}>
+  $('#stepper').innerHTML = STEPS.map((s, i) => `<li><button type="button" data-go="${s.id}" ${s.id === state.step ? 'aria-current="step"' : ''} ${HOST ? '' : 'disabled'}>
       <span class="step-n">${state.visited.includes(s.id) && s.id !== state.step ? ICONS.check : i + 1}</span><span class="step-label">${esc(s.label)}</span>
     </button></li>`).join('');
 }
@@ -136,7 +250,30 @@ function stepHeader(step) {
     ${diamondMini(STEP_PHASES[step])}
   </header>
   ${debrief ? '' : theoryBlock(step)}
-  ${briefBlock(step)}`;
+  ${briefBlock(step)}
+  ${debrief ? '' : boardBar()}`;
+}
+
+/**
+ * Au-dessus du tableau : quel groupe on regarde. L'animateur passe d'un groupe à l'autre et lance la
+ * restitution ; pendant la restitution, chaque participant peut aussi regarder l'autre groupe.
+ */
+function boardBar() {
+  if (!shared.on || state.step === 'frame') return '';
+  const groups = groupIdsFor(shared.groups);
+  const label = (g) => `${groupName(g)} · ${personaById(groupPersona(g))?.name ?? ''}`;
+  if (!HOST && !shared.restitution) {
+    return shared.groups === 2 ? `<p class="board-bar board-bar--me">Vous travaillez dans le <strong>${esc(groupName(shared.myGroup))}</strong>. L'autre groupe découvrira votre tableau à la restitution.</p>` : '';
+  }
+  if (groups.length < 2) return '';
+  const tabs = groups.map((g) => `<button type="button" role="tab" aria-selected="${g === shared.group}" data-group="${g}" data-focus="group:${g}">
+      ${esc(label(g))}${HOST ? ` <span class="count">${phones?.roster?.[g]?.length ?? 0}</span>` : g === shared.myGroup ? ' <span class="board-you">vous</span>' : ''}</button>`).join('');
+  return `<div class="board-bar">
+    <div class="group-tabs" role="tablist" aria-label="Tableau affiché">${tabs}</div>
+    ${HOST ? `<button type="button" class="btn ${shared.restitution ? 'btn-quiet' : 'btn-primary'} btn-small" data-act="restitution" data-focus="restitution">${shared.restitution ? 'Terminer la restitution' : 'Lancer la restitution'}</button>
+      <p class="hint">${shared.restitution ? 'Chaque participant peut voir le tableau de l\'autre groupe (en lecture seule).' : 'Chaque groupe ne voit que son tableau. La restitution montre les deux à tous.'}</p>`
+      : `<p class="hint">Restitution : ${shared.group === shared.myGroup ? 'votre tableau' : 'le tableau de l\'autre groupe, en lecture seule'}.</p>`}
+  </div>`;
 }
 
 /** La théorie de l'outil : dépliée au départ, repliée une fois qu'on passe à la pratique. */
@@ -233,6 +370,7 @@ function storyExample() {
 }
 
 function stepNav() {
+  if (!HOST) return '';
   const prev = prevStep(state.step);
   const next = nextStep(state.step);
   const label = (id) => STEPS.find((s) => s.id === id).label;
@@ -385,13 +523,14 @@ function viewFrame() {
     <ol class="plan">
       ${plan.map(([id, q, text], i) => {
         const step = STEPS.find((s) => s.id === id);
-        return `<li><button type="button" class="plan-item" data-go="${id}">
+        return `<li><button type="button" class="plan-item" data-go="${id}" ${HOST ? '' : 'disabled'}>
           <span class="plan-n">${i + 1}</span>
           <span class="plan-body"><strong>${esc(step.label)}</strong> <em>${esc(q)}</em><span>${esc(text)}</span></span>
           <span class="plan-time">${esc(BRIEFS[id].duration)}</span>
         </button></li>`;
       }).join('')}
     </ol>
+    ${HOST ? '' : '<p class="hint">L\'animateur fait avancer l\'atelier : cette page suit l\'écran commun.</p>'}
     <p class="hint">Environ deux heures. L'écran est projeté ; chacun peut aussi envoyer des post-its depuis son ordinateur ou son téléphone (bouton « Participants » en haut).</p>
   </section>
   ${stepNav()}`;
@@ -413,7 +552,7 @@ function shareBlock(big = false) {
 
 /** Rejoindre l'atelier : lien à copier et QR code, en évidence dès l'arrivée. */
 function joinCard() {
-  if (!phones.available) return '';
+  if (!HOST || !phones?.available) return '';
   if (!phones.live) {
     return `<section class="join join--off">
       <span class="join-icon">${ICONS.users}</span>
@@ -466,13 +605,13 @@ function viewEmpathy() {
   const empty = emptyZones(state, persona.id).map(zoneLabel);
   return `
   ${stepHeader('empathy')}
-  <div class="persona-tabs" role="tablist" aria-label="Persona">
+  ${shared.on && !(HOST && shared.groups === 1) ? `<p class="persona-fixed">${avatar(persona, 'avatar--sm')} <span>${shared.groups === 2 ? `${esc(groupName(shared.group))} : ` : ''}la carte de <strong>${esc(persona.name)}</strong>, ${esc(persona.profile.toLowerCase())}</span></p>` : `<div class="persona-tabs" role="tablist" aria-label="Persona">
     ${PERSONAS.map((p) => {
       const count = state.notes.filter((n) => n.place.b === 'empathy' && n.place.persona === p.id).length;
       return `<button type="button" role="tab" aria-selected="${p.id === persona.id}" data-persona="${p.id}" data-focus="persona:${p.id}" style="--h:${p.hue}">
         ${avatar(p, 'avatar--sm')}<span><strong>${esc(p.name)}</strong> ${esc(p.profile.toLowerCase())}</span>${count ? `<span class="count">${count}</span>` : ''}</button>`;
     }).join('')}
-  </div>
+  </div>`}
   <div class="empathy-layout">
     <div class="emap" role="tabpanel">
       ${zone(EMPATHY_ZONES[0])}
@@ -521,8 +660,9 @@ function viewImpact() {
   })).filter((x) => x.pains.length || x.gains.length);
 
   const delivItem = (d) => `<li class="deliv-item">${noteHtml(d, { cls: d.keep ? 'is-kept' : '' })}
-    <button type="button" class="keep-btn" data-keep="${d.id}" data-focus="keep:${d.id}" aria-pressed="${!!d.keep}" title="${d.keep ? 'Retenu pour la story map' : 'Retenir pour la story map'}">
-      ${ICONS.star}<span class="sr-only">${d.keep ? 'Retenu pour la story map' : 'Retenir pour la story map'}</span></button></li>`;
+    ${HOST || !shared.on ? `<button type="button" class="keep-btn" data-keep="${d.id}" data-focus="keep:${d.id}" aria-pressed="${!!d.keep}" title="${d.keep ? 'Retenu pour la story map' : 'Retenir pour la story map'}">
+      ${ICONS.star}<span class="sr-only">${d.keep ? 'Retenu pour la story map' : 'Retenir pour la story map'}</span></button>`
+      : d.keep ? `<span class="keep-mark" title="Retenu pour la story map">${ICONS.star}</span>` : ''}</li>`;
 
   const impactRow = (i) => `<li class="irow irow--impact">
     <div class="icell">${noteHtml(i)}</div>
@@ -561,7 +701,7 @@ function viewImpact() {
           </ul>
         </div>
       </div>
-      <p class="hint">${ICONS.star} Cochez l'étoile des livrables que vous retenez : ils vous attendront dans la story map. Plusieurs sous-groupes ? Chacun peut poser son propre objectif avec « Autre objectif ».</p>
+      <p class="hint">${ICONS.star} ${shared.on ? 'Les livrables retenus se choisissent tous ensemble, à la restitution : l\'animateur pose les étoiles. Ils serviront à tous les groupes pour la story map.' : 'Cochez l\'étoile des livrables que vous retenez : ils vous attendront dans la story map. Plusieurs objectifs ? Ajoutez-les avec « Autre objectif ».'}</p>
     </div>
     <aside class="side">
       ${trayHtml('impact', 'À placer', 'Les post-its des participants arrivent ici. Glissez-les dans l\'arbre.')}
@@ -582,7 +722,7 @@ function viewImpact() {
 
 function viewStory() {
   const cols = notesIn(state, { b: 'backbone' });
-  const kept = keptDeliverables(state);
+  const kept = keptForStory();
   const gaps = mvpGaps(state);
   const cell = (c, lane) => {
     const place = { b: 'story', col: c.id, lane: lane.id };
@@ -596,8 +736,9 @@ function viewStory() {
       ${kept.length
         ? `<p class="hint">Glissez-les sous une étape du parcours (ou touchez-en un pour l'envoyer dans le bac).</p>
            <div class="kept-list">${kept.map((d) => `<button type="button" class="kchip ${d.imported ? 'is-imported' : ''}" data-drag="deliv:${d.id}" data-deliv="${d.id}" data-focus="deliv:${d.id}">
-             ${d.imported ? ICONS.check : ''}${esc(d.text)}</button>`).join('')}</div>`
-        : `<p class="hint">Aucun livrable retenu : cochez l'étoile des livrables dans <button type="button" class="link-btn" data-go="impact">l'impact map</button>.</p>`}
+             ${d.imported ? ICONS.check : ''}${esc(d.text)}${shared.on && shared.groups === 2 && d.group ? ` <small>${esc(groupName(d.group))}</small>` : ''}</button>`).join('')}</div>`
+        : HOST ? `<p class="hint">Aucun livrable retenu : cochez l'étoile des livrables dans <button type="button" class="link-btn" data-go="impact">l'impact map</button>.</p>`
+          : '<p class="hint">Aucun livrable retenu pour l\'instant : ils sont choisis tous ensemble, à la fin de l\'impact mapping.</p>'}
     </section>
     ${trayHtml('story', 'À placer', 'Post-its des participants et stories en attente.')}
   </div>
@@ -633,6 +774,7 @@ function viewStory() {
 /* ---------- Étape 4 : débrief ---------- */
 
 function viewDebrief() {
+  if (!HOST) return `${stepHeader('debrief')}${hooks.debriefView?.() ?? ''}`;
   return `
   ${stepHeader('debrief')}
   ${quizPanel()}
@@ -818,7 +960,7 @@ function openEdit(id) {
     <label class="field-wrap"><span class="field-label">Ranger dans</span>
       <select class="field" name="place">${places.map((p) => `<option value="${esc(encodePlace(p.place))}" ${encodePlace(p.place) === current ? 'selected' : ''}>${esc(p.label)}</option>`).join('')}</select></label>
     ${blocked ? '<p class="hint">Ce post-it a des post-its rattachés : il peut changer de place, pas de niveau.</p>' : ''}
-    ${n.place.b === 'deliverable' ? `<label class="check"><input type="checkbox" name="keep" ${n.keep ? 'checked' : ''}> Retenu pour la story map</label>` : ''}
+    ${n.place.b === 'deliverable' && (HOST || !shared.on) ? `<label class="check"><input type="checkbox" name="keep" ${n.keep ? 'checked' : ''}> Retenu pour la story map</label>` : ''}
     <div class="dialog-actions">
       <button type="button" class="btn btn-danger" data-delete>${extract ? 'Remettre dans la pioche' : 'Supprimer'}</button>
       <span></span>
@@ -844,6 +986,7 @@ editor.addEventListener('click', (e) => {
   if (e.target === editor || e.target.closest('[data-cancel]')) { editor.close(); return; }
   if (e.target.closest('[data-delete]') && editing?.mode === 'edit') {
     const n = getNote(state, editing.id);
+    if (!n) { editor.close(); return; }
     const kids = childrenOf(state, editing.id).length;
     if (n.place.b !== 'backbone' && kids && !confirm(`Supprimer aussi les ${kids} post-it${kids > 1 ? 's' : ''} rattaché${kids > 1 ? 's' : ''} ?`)) return;
     if (n.from?.startsWith('extract:')) unplaceExtract(state, n.id);
@@ -868,13 +1011,14 @@ editor.addEventListener('submit', (e) => {
   const form = e.target;
   const text = form.elements.text.value;
   if (editing.mode === 'new') {
-    const note = addNote(state, editing.place, text);
+    const note = addNote(state, editing.place, text, hooks.author ? { author: hooks.author() } : {});
     editor.close();
     if (note) commit({ focus: `note:${note.id}` });
     return;
   }
   if (editing.mode === 'edit') {
     const n = getNote(state, editing.id);
+    if (!n) { editor.close(); toast('Ce post-it vient d\'être supprimé par quelqu\'un du groupe.'); return; }
     if (!n.from?.startsWith('extract:')) updateNote(state, n.id, text);
     const place = decodePlace(form.elements.place?.value);
     if (place && !samePlace(place, n.place)) {
@@ -901,8 +1045,13 @@ function blockMessage(reason) {
 
 /* ---------- Clics dans la page ---------- */
 
+const EDIT_TARGETS = '[data-add], [data-note], [data-extract], [data-keep], [data-deliv], [data-persona], [data-act="compare"], [data-act="backbone-example"]';
+
 main.addEventListener('click', (e) => {
   const t = e.target;
+  const groupTab = t.closest('[data-group]');
+  if (groupTab) { showGroup(groupTab.dataset.group); render(`group:${groupTab.dataset.group}`); return; }
+  if (!canEdit() && t.closest(EDIT_TARGETS)) { toast('Lecture seule : c\'est le tableau de l\'autre groupe.'); return; }
   const info = t.closest('[data-info]');
   if (info) {
     ui.info = ui.info === info.dataset.info ? null : info.dataset.info;
@@ -931,17 +1080,17 @@ main.addEventListener('click', (e) => {
   if (extract) { openExtract(extract.dataset.extract); return; }
 
   const persona = t.closest('[data-persona]');
-  if (persona) { state.persona = persona.dataset.persona; commit(); return; }
+  if (persona) {
+    if (shared.on) { shared.setState(shared.group, 'persona', persona.dataset.persona); return; }
+    state.persona = persona.dataset.persona; commit(); return;
+  }
 
   const deliv = t.closest('[data-deliv]');
   if (deliv) {
-    const copy = importDeliverable(state, deliv.dataset.deliv, { b: 'tray', step: 'story' });
+    const copy = importKept(deliv.dataset.deliv, { b: 'tray', step: 'story' });
     if (copy) { commit(); announce('Livrable ajouté au bac à placer'); }
     return;
   }
-
-  const modeBtn = t.closest('[data-mode]');
-  if (modeBtn) { state.debrief.mode = modeBtn.dataset.mode; commit({ focus: `mode:${modeBtn.dataset.mode}` }); return; }
 
   const select = t.closest('[data-select-tool]');
   if (select) {
@@ -1021,11 +1170,16 @@ const actions = {
     await phones.clearQuiz();
     await phones.setQuiz('open');
   },
-  compare() { state.compare[state.persona] = !state.compare[state.persona]; commit({ focus: 'compare' }); },
+  compare() {
+    if (shared.on) { shared.setState(shared.group, 'compare', !state.compare[state.persona]); return; }
+    state.compare[state.persona] = !state.compare[state.persona]; commit({ focus: 'compare' });
+  },
+  restitution() { phones?.setRestitution(!shared.restitution); },
   'backbone-example'() { useBackboneExample(state); commit(); announce('Parcours type posé : modifiez-le librement'); },
   check() { state.debrief.checked = true; commit({ focus: 'check' }); },
   async copy() {
-    const ok = await copyText(reportText(state, today()) + quizReportLines());
+    const text = reportBoards().map(({ title, notes }) => `${title ? `===== ${title.toUpperCase()} =====\n` : ''}${reportText({ ...state, notes }, today())}`).join('\n\n');
+    const ok = await copyText(text + quizReportLines());
     toast(ok ? 'Compte rendu copié' : 'Copie impossible : utilisez l\'impression');
   },
   print() { printReport(); },
@@ -1062,6 +1216,7 @@ $('#file-input').addEventListener('change', async (e) => {
 const splitKey = (key) => { const i = key.indexOf(':'); return [key.slice(0, i), key.slice(i + 1)]; };
 
 function accepts(dragKey, dropKey) {
+  if (!canEdit()) return false;
   const [type, id] = splitKey(dragKey);
   if (type === 'tool') return dropKey === 'tools' || dropKey.startsWith('phase:');
   if (type === 'extract') {
@@ -1095,7 +1250,7 @@ function onDrop(dragKey, dropKey, beforeKey) {
     return;
   }
   if (type === 'deliv') {
-    importDeliverable(state, id, decodePlace(dropKey), beforeId);
+    importKept(id, decodePlace(dropKey), beforeId);
     commit();
     return;
   }
@@ -1123,7 +1278,28 @@ function quizReportLines() {
   return `\n\nQUIZ\n${st.count} participant${st.count > 1 ? 's' : ''}, moyenne ${fmt(st.average)} / ${QUIZ_MAX}. Podium : ${top}.`;
 }
 
+/** Les tableaux à mettre dans le compte rendu : un par groupe pendant une séance, sinon le tableau local. */
+function reportBoards() {
+  if (!shared.on) return [{ title: '', notes: state.notes }];
+  return groupIdsFor(shared.groups).map((g) => ({ title: shared.groups === 2 ? groupName(g) : '', notes: shared.boards[g].notes }));
+}
+
 function buildReport() {
+  const saved = state.notes;
+  const sections = reportBoards().map(({ title, notes }) => {
+    state.notes = notes;
+    return `${title ? `<h2 class="pr-group">${esc(title)}</h2>` : ''}${boardReportHtml()}`;
+  }).join('');
+  state.notes = saved;
+  $('#print-report').innerHTML = `
+    <h1>Atelier Produit · ${esc(CASE.name)}</h1>
+    <p class="muted">${esc(new Date().toLocaleDateString('fr-FR', { day: 'numeric', month: 'long', year: 'numeric' }))}</p>
+    ${sections}
+    <h2>Débrief</h2>${quizReportLines() ? `<p class="pre">${esc(quizReportLines().trim().replace(/^QUIZ\n/, 'Quiz : '))}</p>` : ''}
+    ${state.debrief.takeaways.trim() ? `<h3>Ce que l'équipe retient</h3><p class="pre">${esc(state.debrief.takeaways.trim())}</p>` : ''}`;
+}
+
+function boardReportHtml() {
   const list = (items) => (items.length ? `<ul>${items.map((n) => `<li>${esc(n.text)}${n.author ? ` <em>(${esc(n.author)})</em>` : ''}</li>`).join('')}</ul>` : '<p class="muted">—</p>');
   const empathy = PERSONAS.filter((p) => state.notes.some((n) => n.place.b === 'empathy' && n.place.persona === p.id)).map((p) => `
     <h3>${esc(p.name)}, ${esc(p.role.toLowerCase())}</h3>
@@ -1134,14 +1310,9 @@ function buildReport() {
   const story = cols.length ? `<table><thead><tr><th></th>${cols.map((c) => `<th>${esc(c.text)}</th>`).join('')}</tr></thead><tbody>
     ${STORY_LANES.map((l) => `<tr><th>${esc(l.label)}</th>${cols.map((c) => `<td>${notesIn(state, { b: 'story', col: c.id, lane: l.id }).map((n) => `<p>${esc(n.text)}</p>`).join('')}</td>`).join('')}</tr>`).join('')}
   </tbody></table>` : '<p class="muted">Non remplie.</p>';
-  $('#print-report').innerHTML = `
-    <h1>Atelier Produit · ${esc(CASE.name)}</h1>
-    <p class="muted">${esc(new Date().toLocaleDateString('fr-FR', { day: 'numeric', month: 'long', year: 'numeric' }))}</p>
-    <h2>Empathy map</h2>${empathy}
+  return `<h2>Empathy map</h2>${empathy}
     <h2>Impact map</h2>${tree}
-    <h2>Story map</h2>${story}
-    <h2>Débrief</h2>${quizReportLines() ? `<p class="pre">${esc(quizReportLines().trim().replace(/^QUIZ\n/, 'Quiz : '))}</p>` : ''}
-    ${state.debrief.takeaways.trim() ? `<h3>Ce que l'équipe retient</h3><p class="pre">${esc(state.debrief.takeaways.trim())}</p>` : ''}`;
+    <h2>Story map</h2>${story}`;
 }
 
 function printReport() {
@@ -1149,45 +1320,76 @@ function printReport() {
   window.print();
 }
 
-/* ---------- Téléphones ---------- */
+/* ---------- Participants (animateur) ---------- */
 
 let phonesSig = '';
-const phones = createPhones({
-  onChange() {
-    const sig = `${phones.live}|${phones.quiz}|${phones.url}|${phones.code}|${phones.presence.map((p) => p.uid + p.author).join(',')}`;
-    renderJoinPill();
-    if (sig === phonesSig) return;
-    phonesSig = sig;
-    if (state.step === 'frame' || state.step === 'debrief') render();
-  },
-  onQuiz(entries) {
-    ui.quizEntries = entries;
-    if (state.step === 'debrief' && state.debrief.mode === 'quiz') render();
-  },
-  button: $('#phones-btn'),
-  dialog: $('#phones'),
-  count: $('#phones-count'),
-  current: () => ({ step: state.step, persona: state.persona }),
-  onRemote(list) {
-    const added = mergeRemote(state, list);
-    if (!added.length) { persist(); return; }
-    commit();
-    const names = [...new Set(added.map((n) => n.author).filter(Boolean))];
-    toast(`${added.length} post-it${added.length > 1 ? 's' : ''} reçu${added.length > 1 ? 's' : ''}${names.length ? ` (${names.slice(0, 3).join(', ')})` : ''}`);
-    if (!PHONE_STEPS.includes(state.step)) return;
-    for (const n of added) main.querySelector(`[data-note="${n.id}"]`)?.classList.add('is-new');
-  },
-});
+function startHost() {
+  phones = createPhones({
+    onChange() {
+      const sig = `${phones.live}|${phones.quiz}|${phones.url}|${phones.code}|${phones.groups}|${phones.restitution}|${phones.presence.map((p) => p.uid + p.author).join(',')}|${JSON.stringify(phones.members)}`;
+      renderJoinPill();
+      if (sig === phonesSig) return;
+      phonesSig = sig;
+      shared.groups = phones.groups;
+      shared.restitution = phones.restitution;
+      if (shared.on && !groupIdsFor(shared.groups).includes(shared.group)) showGroup('g1');
+      render();
+    },
+    onLive(live) {
+      if (live && !shared.on) {
+        enterShared({ write: (g, u) => phones.writeBoard(g, u), setState: (g, k, v) => phones.setBoardState(g, k, v) });
+        render();
+      } else if (!live && shared.on) {
+        leaveShared();
+        render();
+      }
+    },
+    onBoard: receiveBoard,
+    onQuiz(entries) {
+      ui.quizEntries = entries;
+      if (state.step === 'debrief') render();
+    },
+    button: $('#phones-btn'),
+    dialog: $('#phones'),
+    count: $('#phones-count'),
+    current: () => ({ step: state.step, persona: state.persona }),
+    onRemote() {},
+  });
+}
 
 /* ---------- Démarrage ---------- */
 
+/** Ce que participant.js pilote : étape, tableaux, vues propres au participant. */
+export const api = {
+  get state() { return state; },
+  shared,
+  hooks,
+  render,
+  enterShared,
+  receiveBoard,
+  receiveKept,
+  showGroup,
+  setStep(step) {
+    if (step === state.step) return;
+    setStep(state, step);
+    persist();
+    render();
+    window.scrollTo({ top: 0 });
+  },
+};
+
 setupTheme($('#theme-toggle'));
-render();
-phones.resume();
-window.addEventListener('beforeprint', buildReport);
-window.addEventListener('afterprint', () => { $('#print-report').innerHTML = ''; });
-// Un autre onglet a modifié l'atelier : on suit.
-window.addEventListener('storage', (e) => {
-  if (e.key !== STORE_KEY || !e.newValue) return;
-  try { state = parseSaved(JSON.parse(e.newValue)); render(); } catch { /* ignoré */ }
-});
+if (HOST) {
+  startHost();
+  render();
+  phones.resume();
+  window.addEventListener('beforeprint', buildReport);
+  window.addEventListener('afterprint', () => { $('#print-report').innerHTML = ''; });
+  // Un autre onglet a modifié l'atelier : on suit (hors séance).
+  window.addEventListener('storage', (e) => {
+    if (e.key !== STORE_KEY || !e.newValue || shared.on) return;
+    try { state = parseSaved(JSON.parse(e.newValue)); render(); } catch { /* ignoré */ }
+  });
+} else {
+  import('./participant.js?v=__VERSION__').then((m) => m.startParticipant(api));
+}

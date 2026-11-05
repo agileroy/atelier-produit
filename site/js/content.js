@@ -326,7 +326,7 @@ export const BRIEFS = {
   empathy: {
     duration: '25 min',
     steps: [
-      'Choisissez Sophie ou Karim (on peut faire les deux, une carte chacun).',
+      'Lisez la fiche de votre persona (s\'il y a deux groupes, chacun a le sien : Sophie ou Karim).',
       'Faites glisser les extraits d\'interview dans les zones. Discutez des cas où vous hésitez.',
       'Ajoutez vos propres post-its : ce que vous en déduisez, ou ce qui vous manque.',
       'Comparez avec la proposition, puis repérez les zones vides.',
@@ -338,14 +338,14 @@ export const BRIEFS = {
       'Écrivez un objectif mesurable (combien, d\'ici quand).',
       'Ajoutez les acteurs : Sophie et Karim, mais aussi la direction, les RH, les chefs d\'équipe…',
       'Pour chaque acteur, quel changement de comportement aiderait l\'objectif ?',
-      'Ajoutez les livrables, puis cochez ceux que vous retenez pour la story map.',
+      'Ajoutez les livrables. À la restitution, on choisit tous ensemble ceux qu\'on retient pour la story map.',
     ],
   },
   story: {
     duration: '40 min',
     steps: [
       'Posez la colonne vertébrale : les grandes étapes du parcours d\'un covoitureur.',
-      'Glissez les livrables retenus sous les étapes, ajoutez les stories qui manquent.',
+      'Glissez les livrables retenus (les mêmes pour tous les groupes) sous les étapes, ajoutez les stories qui manquent.',
       'Rangez-les dans les versions : la première version doit traverser tout le parcours.',
       'Relisez la première version : peut-on vraiment covoiturer avec ? C\'est elle qu\'on fera tester aux utilisateurs pour apprendre.',
     ],

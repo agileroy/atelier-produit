@@ -38,6 +38,12 @@
             "code": {
               ".validate": "newData.isString() && newData.val().matches(/^[ABCDEFGHJKMNPQRSTUVWXYZ23456789]{4}$/) && (!data.exists() || newData.val() === data.val())"
             },
+            "groups": {
+              ".validate": "newData.isNumber() && (newData.val() === 1 || newData.val() === 2)"
+            },
+            "restitution": {
+              ".validate": "newData.isBoolean()"
+            },
             "$other": {
               ".validate": false
             }
@@ -163,6 +169,88 @@
               },
               "at": {
                 ".validate": "newData.isNumber() && newData.val() === now"
+              },
+              "$other": {
+                ".validate": false
+              }
+            }
+          },
+          "members": {
+            ".read": "auth != null && data.parent().child('owners').child(auth.uid).exists()",
+            ".write": "auth != null && root.child('atelierProduit/sessions/' + $sid + '/owners/' + auth.uid).exists()",
+            "$uid": {
+              ".read": "auth != null && auth.uid === $uid",
+              ".validate": "newData.hasChildren(['group'])",
+              "group": {
+                ".validate": "newData.isString() && newData.val().matches(/^g[12]$/)"
+              },
+              "$other": {
+                ".validate": false
+              }
+            }
+          },
+          "boards": {
+            "$g": {
+              ".read": "auth != null && (root.child('atelierProduit/sessions/' + $sid + '/owners/' + auth.uid).exists() || root.child('atelierProduit/sessions/' + $sid + '/members/' + auth.uid + '/group').val() === $g || (root.child('atelierProduit/sessions/' + $sid + '/meta/restitution').val() === true && root.child('atelierProduit/sessions/' + $sid + '/members/' + auth.uid).exists()))",
+              ".validate": "$g.matches(/^g[12]$/)",
+              "notes": {
+                "$nid": {
+                  ".write": "auth != null && (root.child('atelierProduit/sessions/' + $sid + '/owners/' + auth.uid).exists() || root.child('atelierProduit/sessions/' + $sid + '/members/' + auth.uid + '/group').val() === $g)",
+                  ".validate": "$nid.matches(/^[a-z0-9]{4,24}$/) && newData.hasChildren(['text', 'place', 'order'])",
+                  "text": {
+                    ".validate": "newData.isString() && newData.val().length >= 1 && newData.val().length <= 200"
+                  },
+                  "place": {
+                    ".validate": "newData.isString() && newData.val().matches(/^(empathy\\|(sophie|karim)\\|(says|thinks|does|feels|pains|gains)|tray\\|(impact|story)|goal|backbone|(actor|impact|deliverable)\\|[a-z0-9]{4,24}|story\\|[a-z0-9]{4,24}\\|(mvp|r2|later))$/)"
+                  },
+                  "order": {
+                    ".validate": "newData.isNumber()"
+                  },
+                  "from": {
+                    ".validate": "newData.isString() && newData.val().matches(/^(extract:[a-z0-9]+|deliverable:[a-z0-9]+|phone|example)$/)"
+                  },
+                  "author": {
+                    ".validate": "newData.isString() && newData.val().length <= 30"
+                  },
+                  "kind": {
+                    ".validate": "newData.isString() && newData.val().matches(/^(actor|impact|deliverable)$/)"
+                  },
+                  "keep": {
+                    ".validate": "newData.isBoolean()"
+                  },
+                  "$other": {
+                    ".validate": false
+                  }
+                }
+              },
+              "state": {
+                "persona": {
+                  ".write": "auth != null && root.child('atelierProduit/sessions/' + $sid + '/owners/' + auth.uid).exists()",
+                  ".validate": "newData.isString() && newData.val().matches(/^(sophie|karim)$/)"
+                },
+                "compare": {
+                  ".write": "auth != null && (root.child('atelierProduit/sessions/' + $sid + '/owners/' + auth.uid).exists() || root.child('atelierProduit/sessions/' + $sid + '/members/' + auth.uid + '/group').val() === $g)",
+                  ".validate": "newData.isBoolean()"
+                },
+                "$other": {
+                  ".validate": false
+                }
+              }
+            }
+          },
+          "kept": {
+            ".read": "auth != null",
+            ".write": "auth != null && root.child('atelierProduit/sessions/' + $sid + '/owners/' + auth.uid).exists()",
+            "$id": {
+              ".validate": "$id.matches(/^[a-z0-9]{4,24}$/) && newData.hasChildren(['text', 'group'])",
+              "text": {
+                ".validate": "newData.isString() && newData.val().length >= 1 && newData.val().length <= 200"
+              },
+              "group": {
+                ".validate": "newData.isString() && newData.val().matches(/^g[12]$/)"
+              },
+              "order": {
+                ".validate": "newData.isNumber()"
               },
               "$other": {
                 ".validate": false

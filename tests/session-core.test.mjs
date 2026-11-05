@@ -10,8 +10,8 @@ test('identifiants de séance et clés', () => {
 });
 
 test('fiche de séance : valeurs bornées', () => {
-  assert.deepEqual(metaFor({ title: '  Atelier  ', step: 'impact', persona: 'karim' }), { title: 'Atelier', step: 'impact', persona: 'karim', closed: false, quiz: 'off' });
-  assert.deepEqual(metaFor({ step: 'lune', persona: 'bob' }), { title: 'Atelier Produit', step: 'frame', persona: 'sophie', closed: false, quiz: 'off' });
+  assert.deepEqual(metaFor({ title: '  Atelier  ', step: 'impact', persona: 'karim' }), { title: 'Atelier', step: 'impact', persona: 'karim', closed: false, quiz: 'off', groups: 2, restitution: false });
+  assert.deepEqual(metaFor({ step: 'lune', persona: 'bob' }), { title: 'Atelier Produit', step: 'frame', persona: 'sophie', closed: false, quiz: 'off', groups: 2, restitution: false });
   assert.equal(readMeta(null), null);
   assert.equal(readMeta({ title: 'x', step: 'story', closed: true }).closed, true);
 });
@@ -127,4 +127,35 @@ test('lien court à partager : la page participant avec le code', () => {
   assert.equal(shareLink('https://agileroy.github.io/atelier-produit/', 'QVZS'), 'https://agileroy.github.io/atelier-produit/postit?code=QVZS');
   assert.equal(shareLink('https://agileroy.github.io/atelier-produit/index.html', 'QVZS'), 'https://agileroy.github.io/atelier-produit/postit?code=QVZS');
   assert.equal(shareLink('http://localhost:8765/index.html', 'K7PM'), 'http://localhost:8765/postit.html?code=K7PM');
+});
+
+import { assignNewcomers, shuffleGroups, roster, readMembers, groupIdsFor, DEFAULT_PERSONAS } from '../site/js/session-core.js';
+
+const people = (n) => Array.from({ length: n }, (_, i) => ({ uid: `u${i}`, author: `P${i}`, at: i }));
+const seeded = (seed = 1) => () => { seed = (seed * 16807) % 2147483647; return (seed - 1) / 2147483646; };
+
+test('groupes : un ou deux, un persona chacun', () => {
+  assert.deepEqual(groupIdsFor(1), ['g1']);
+  assert.deepEqual(groupIdsFor(2), ['g1', 'g2']);
+  assert.deepEqual(groupIdsFor(5), ['g1'], 'jamais plus de deux');
+  assert.notEqual(DEFAULT_PERSONAS.g1, DEFAULT_PERSONAS.g2);
+});
+
+test('groupes : les arrivants vont dans le groupe le moins rempli', () => {
+  const pres = people(5);
+  const members = { u0: 'g1', u1: 'g1', u2: 'g2' };
+  const out = assignNewcomers(members, pres, 2, seeded());
+  assert.deepEqual(Object.keys(out).sort(), ['u3', 'u4'], 'seuls les nouveaux sont affectés');
+  const r = roster({ ...members, ...out }, pres, 2);
+  assert.ok(Math.abs(r.g1.length - r.g2.length) <= 1, 'équilibré');
+  assert.deepEqual(assignNewcomers({ u0: 'g2' }, people(1), 1), { u0: 'g1' }, 'passage à un seul groupe : tout le monde en g1');
+});
+
+test('groupes : nouvelle répartition au hasard, équilibrée', () => {
+  for (let seed = 1; seed < 20; seed++) {
+    const map = shuffleGroups(people(7), 2, seeded(seed));
+    const n1 = Object.values(map).filter((g) => g === 'g1').length;
+    assert.ok(n1 === 3 || n1 === 4, `seed ${seed} : ${n1}`);
+  }
+  assert.deepEqual(readMembers({ a: { group: 'g2' }, b: { group: 'g9' }, c: null }), { a: 'g2' });
 });

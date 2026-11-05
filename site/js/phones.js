@@ -2,14 +2,17 @@
 // et recevoir les post-its envoyés. Firebase n'est chargé qu'à la demande (store.js, import dynamique).
 
 import { firebaseConfig } from './firebase-config.js?v=__VERSION__';
-import { readMeta, flattenNotes, participantUrl, shareLink, isSessionId, isKey, readQuizEntries, readPresence } from './session-core.js?v=__VERSION__';
+import {
+  readMeta, flattenNotes, participantUrl, shareLink, isSessionId, isKey, readQuizEntries, readPresence,
+  readMembers, assignNewcomers, shuffleGroups, roster, groupIdsFor, groupName, GROUP_IDS, DEFAULT_PERSONAS,
+} from './session-core.js?v=__VERSION__';
 import { STEPS, PHONE_STEPS } from './content.js?v=__VERSION__';
 import { personaById } from './core.js?v=__VERSION__';
 import { esc, load, save, qrSvg, copyText, toast, ICONS } from './shared.js?v=__VERSION__';
 
 const SESSION_KEY = 'atelier-produit.session';
 
-export function createPhones({ button, dialog, count, current, onRemote, onChange = () => {}, onQuiz = () => {} }) {
+export function createPhones({ button, dialog, count, current, onRemote, onChange = () => {}, onQuiz = () => {}, onBoard = () => {}, onLive = () => {} }) {
   let store = null;
   let status = firebaseConfig ? 'idle' : 'off'; // off | idle | connecting | live | error
   let session = null; // { sid, key }
@@ -17,6 +20,8 @@ export function createPhones({ button, dialog, count, current, onRemote, onChang
   let notes = [];
   let quizEntries = [];
   let presence = [];
+  let members = {};
+  let assigning = false;
   let unsubs = [];
   let lastSent = '';
 
@@ -44,8 +49,17 @@ export function createPhones({ button, dialog, count, current, onRemote, onChang
     }, () => { status = 'error'; paint(); }));
     unsubs.push(store.onPresence(session.sid, (tree) => {
       presence = readPresence(tree);
+      autoAssign();
       paint(true);
     }, () => {}));
+    unsubs.push(store.onMembers(session.sid, (tree) => {
+      members = readMembers(tree);
+      autoAssign();
+      paint(true);
+    }, () => {}));
+    for (const g of GROUP_IDS) {
+      unsubs.push(store.onBoard(session.sid, g, (tree) => onBoard(g, tree), () => {}));
+    }
     unsubs.push(store.onQuiz(session.sid, (tree) => {
       quizEntries = readQuizEntries(tree);
       onQuiz(quizEntries);
@@ -57,12 +71,22 @@ export function createPhones({ button, dialog, count, current, onRemote, onChang
     }, () => { status = 'error'; paint(); }));
   }
 
+  /** Les nouveaux arrivants sont répartis au hasard, dans le groupe le moins rempli. */
+  function autoAssign() {
+    if (!meta || assigning) return;
+    const todo = assignNewcomers(members, presence, meta.groups);
+    if (!Object.keys(todo).length) return;
+    assigning = true;
+    store.setMembers(session.sid, todo).catch(() => {}).finally(() => { assigning = false; });
+  }
+
   function forget(message) {
     stop();
     session = null;
     meta = null;
     notes = [];
     presence = [];
+    members = {};
     quizEntries = [];
     onQuiz(quizEntries);
     lastSent = '';
@@ -108,14 +132,33 @@ export function createPhones({ button, dialog, count, current, onRemote, onChang
     paint();
   }
 
-  /** L'animateur a changé d'étape ou de persona : les téléphones suivent. */
+  /** L'animateur a changé d'étape : les participants suivent, et la restitution se referme. */
   function sync(step, persona) {
     if (status !== 'live' || !meta) return;
     const key = `${step}|${persona}`;
     if (key === lastSent && meta.step === step && meta.persona === persona) return;
+    const stepChanged = meta.step !== step;
     lastSent = key;
-    store.setStep(session.sid, step, persona).catch(() => { lastSent = ''; });
+    store.setMeta(session.sid, { step, persona, ...(stepChanged ? { restitution: false } : {}) }).catch(() => { lastSent = ''; });
   }
+
+  // ---- Groupes (animateur seulement)
+  async function setGroups(n) {
+    if (status !== 'live') return;
+    await store.setMeta(session.sid, { groups: n });
+    if (n === 1) {
+      const moves = Object.fromEntries(Object.entries(members).filter(([, g]) => g !== 'g1').map(([u]) => [u, 'g1']));
+      if (Object.keys(moves).length) await store.setMembers(session.sid, moves);
+    } else {
+      await store.setMembers(session.sid, shuffleGroups(presence, 2));
+    }
+  }
+  const shuffle = () => (status === 'live' ? store.setMembers(session.sid, shuffleGroups(presence, meta.groups)) : null);
+  const moveMember = (uid, g) => store.setMembers(session.sid, { [uid]: g });
+  const setRestitution = (on) => store.setMeta(session.sid, { restitution: on });
+  const writeBoard = (g, updates) => store.writeBoard(session.sid, g, updates);
+  const setBoardState = (g, key, value) => store.setBoardState(session.sid, g, key, value);
+  const setKept = (map) => store.setKept(session.sid, map);
 
   /** Quiz du débrief : 'open' (les téléphones répondent), 'revealed' (correction pour tous), 'off'. */
   async function setQuiz(mode) {
@@ -147,6 +190,7 @@ export function createPhones({ button, dialog, count, current, onRemote, onChang
 
   function paint() {
     const live = status === 'live';
+    onLive(live);
     button.classList.toggle('is-live', live);
     count.hidden = !live || !presence.length;
     count.textContent = presence.length;
@@ -199,14 +243,37 @@ export function createPhones({ button, dialog, count, current, onRemote, onChang
         <p class="phones-url"><a href="${esc(this_share())}" target="_blank" rel="noopener">${esc(this_share().replace(/^https?:\/\//, ''))}</a>
           <button type="button" class="btn btn-primary btn-small" data-copy-url>${ICONS.link} Copier le lien</button></p>
         ${meta?.code ? `<p class="room-code">Code <strong>${esc(meta.code)}</strong></p>` : ''}
-        <p class="phones-stat"><strong>${presence.length}</strong> connecté${presence.length > 1 ? 's' : ''} · ${notes.length} post-it${notes.length > 1 ? 's' : ''} reçu${notes.length > 1 ? 's' : ''}</p>
-        ${presence.length ? `<ul class="present">${presence.map((p) => `<li>${esc(p.author)}</li>`).join('')}</ul>` : ''}
-        <p class="hint">Les participants suivent l'étape affichée : <strong>${esc(stepLabel)}</strong>${step === 'empathy' && meta ? ` (carte de ${esc(personaById(meta.persona)?.name ?? '')})` : ''}.
-          ${phoneStep ? '' : 'Pas de post-it à cette étape.'}</p>
-        <label class="check"><input type="checkbox" data-closed ${meta?.closed ? 'checked' : ''}> Fermer les envois</label>
+        <p class="phones-stat"><strong>${presence.length}</strong> connecté${presence.length > 1 ? 's' : ''}</p>
+        <p class="hint">Les participants suivent l'étape affichée : <strong>${esc(stepLabel)}</strong>.</p>
         <div class="dialog-actions"><button type="button" class="btn btn-danger" data-end>Terminer la séance</button></div>
       </div>
+      ${groupsPanel()}
     </div>`;
+  }
+
+  /** Les groupes : un ou deux, composition, déplacer quelqu'un, nouvelle répartition au hasard. */
+  function groupsPanel() {
+    const n = meta?.groups ?? 2;
+    const r = roster(members, presence, n);
+    const waiting = presence.filter((p) => !groupIdsFor(n).includes(members[p.uid]));
+    return `<section class="groups-panel" aria-labelledby="groups-title">
+      <div class="groups-head">
+        <h3 id="groups-title">Groupes</h3>
+        <div class="seg" role="radiogroup" aria-label="Nombre de groupes">
+          <button type="button" role="radio" aria-checked="${n === 1}" data-groups="1">1 groupe</button>
+          <button type="button" role="radio" aria-checked="${n === 2}" data-groups="2">2 groupes</button>
+        </div>
+        ${n === 2 ? '<button type="button" class="btn btn-quiet btn-small" data-shuffle>Répartir au hasard</button>' : ''}
+      </div>
+      <div class="groups-grid groups-grid--${n}">
+        ${groupIdsFor(n).map((g) => `<div class="group-col">
+          <p class="group-name">${esc(groupName(g))} <span class="count">${r[g].length}</span></p>
+          <ul>${r[g].map((p) => `<li>${esc(p.author)}${n === 2 ? `<button type="button" class="link-btn" data-move="${esc(p.uid)}" data-to="${g === 'g1' ? 'g2' : 'g1'}" title="Passer dans l'autre groupe">→ ${esc(groupName(g === 'g1' ? 'g2' : 'g1'))}</button>` : ''}</li>`).join('') || '<li class="hint">Personne pour l\'instant</li>'}</ul>
+        </div>`).join('')}
+      </div>
+      ${waiting.length ? `<p class="hint">En cours d'affectation : ${esc(waiting.map((p) => p.author).join(', '))}</p>` : ''}
+      <p class="hint">Les nouveaux arrivants rejoignent le groupe le moins rempli. Chaque groupe ne voit que son tableau, jusqu'à la restitution.</p>
+    </section>`;
   }
 
   function show() {
@@ -222,7 +289,15 @@ export function createPhones({ button, dialog, count, current, onRemote, onChang
     else if (e.target.closest('[data-retry]')) (session ? resume() : open());
     else if (e.target.closest('[data-forget]')) forget();
     else if (e.target.closest('[data-end]')) end();
-    else if (e.target.closest('[data-copy-url]')) {
+    else if (e.target.closest('[data-groups]')) {
+      const n = Number(e.target.closest('[data-groups]').dataset.groups);
+      if (n !== (meta?.groups ?? 2)) await setGroups(n);
+    } else if (e.target.closest('[data-shuffle]')) {
+      if (confirm('Répartir à nouveau tout le monde au hasard ? Chacun changera peut-être de groupe.')) await shuffle();
+    } else if (e.target.closest('[data-move]')) {
+      const b = e.target.closest('[data-move]');
+      await moveMember(b.dataset.move, b.dataset.to);
+    } else if (e.target.closest('[data-copy-url]')) {
       const ok = await copyText(this_share());
       toast(ok ? 'Lien copié : collez-le dans le chat de la réunion.' : 'Copie impossible');
     }
@@ -233,6 +308,11 @@ export function createPhones({ button, dialog, count, current, onRemote, onChang
 
   return {
     resume, sync, show, setQuiz, clearQuiz,
+    setGroups, shuffle, moveMember, setRestitution, writeBoard, setBoardState, setKept,
+    get groups() { return meta?.groups ?? 2; },
+    get restitution() { return meta?.restitution === true; },
+    get members() { return members; },
+    get roster() { return roster(members, presence, meta?.groups ?? 2); },
     get live() { return status === 'live'; },
     get available() { return status !== 'off'; },
     get quiz() { return meta?.quiz ?? 'off'; },

@@ -18,7 +18,7 @@ export const PHONE_ZONES = {
 };
 
 /** Fiche d'une séance, prête à écrire (createdAt est ajouté par le magasin). */
-export function metaFor({ title, step, persona, code }) {
+export function metaFor({ title, step, persona, code, groups }) {
   return {
     ...(isCode(code) ? { code } : {}),
     title: String(title ?? '').trim().slice(0, 80) || 'Atelier Produit',
@@ -26,6 +26,8 @@ export function metaFor({ title, step, persona, code }) {
     persona: PERSONA_IDS.includes(persona) ? persona : PERSONA_IDS[0],
     closed: false,
     quiz: 'off',
+    groups: groups === 1 ? 1 : 2,
+    restitution: false,
   };
 }
 
@@ -42,6 +44,8 @@ export function readMeta(raw) {
     closed: raw.closed === true,
     quiz: QUIZ_STATES.includes(raw.quiz) ? raw.quiz : 'off',
     code: isCode(raw.code) ? raw.code : '',
+    groups: raw.groups === 1 ? 1 : 2,
+    restitution: raw.restitution === true,
     createdAt: typeof raw.createdAt === 'number' ? raw.createdAt : null,
   };
 }
@@ -209,4 +213,54 @@ export function readPresence(tree) {
 export function waitingFor(presence, entries) {
   const done = new Set(entries.map((e) => e.uid));
   return presence.filter((p) => !done.has(p.uid));
+}
+
+/* ---------- Groupes (1 ou 2), gérés par l'animateur ---------- */
+
+export const GROUP_IDS = ['g1', 'g2'];
+export const MAX_GROUPS = 2;
+export const groupIdsFor = (count) => GROUP_IDS.slice(0, count === 2 ? 2 : 1);
+export const groupName = (g) => `Groupe ${GROUP_IDS.indexOf(g) + 1}`;
+/** Un persona par groupe : Sophie pour le groupe 1, Karim pour le groupe 2. */
+export const DEFAULT_PERSONAS = { g1: PERSONA_IDS[0], g2: PERSONA_IDS[1] };
+
+/** Affectations lues dans la base : { uid: 'g1' | 'g2' }. */
+export function readMembers(tree) {
+  return Object.fromEntries(Object.entries(tree ?? {}).filter(([, v]) => GROUP_IDS.includes(v?.group)).map(([uid, v]) => [uid, v.group]));
+}
+
+const pick = (list, random) => list[Math.floor(random() * list.length) % list.length];
+
+/**
+ * Place les présents sans groupe (ou dans un groupe qui n'existe plus) : dans le groupe le moins
+ * rempli, au hasard en cas d'égalité. Renvoie seulement les affectations à écrire : { uid: groupe }.
+ */
+export function assignNewcomers(members, presence, count, random = Math.random) {
+  const groups = groupIdsFor(count);
+  const size = Object.fromEntries(groups.map((g) => [g, 0]));
+  for (const p of presence) if (groups.includes(members[p.uid])) size[members[p.uid]]++;
+  const out = {};
+  for (const p of presence) {
+    if (groups.includes(members[p.uid])) continue;
+    const min = Math.min(...groups.map((g) => size[g]));
+    const g = pick(groups.filter((x) => size[x] === min), random);
+    out[p.uid] = g;
+    size[g]++;
+  }
+  return out;
+}
+
+/** Nouvelle répartition au hasard de tous les présents, équilibrée. */
+export function shuffleGroups(presence, count, random = Math.random) {
+  const groups = groupIdsFor(count);
+  const order = presence.map((p) => [random(), p.uid]).sort((a, b) => a[0] - b[0]).map(([, uid]) => uid);
+  const offset = Math.floor(random() * groups.length);
+  return Object.fromEntries(order.map((uid, i) => [uid, groups[(i + offset) % groups.length]]));
+}
+
+/** Composition des groupes : { g1: [{ uid, author }], g2: [...] }, sans les absents. */
+export function roster(members, presence, count) {
+  const out = Object.fromEntries(groupIdsFor(count).map((g) => [g, []]));
+  for (const p of presence) if (out[members[p.uid]]) out[members[p.uid]].push(p);
+  return out;
 }

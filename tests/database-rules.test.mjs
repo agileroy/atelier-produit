@@ -105,3 +105,36 @@ test('salle : chacun écrit sa présence, seul l\'animateur voit la liste', () =
   assert.equal(pr.$uid['.write'], 'auth != null && auth.uid === $uid');
   assert.equal(pr.$uid.$other['.validate'], false);
 });
+
+test('groupes : seul l\'animateur affecte les groupes ; chacun lit sa propre affectation', () => {
+  const m = session.members;
+  assert.match(m['.write'], /owners\/' \+ auth\.uid\)\.exists\(\)/);
+  assert.equal(m.$uid['.write'], undefined, 'un participant ne choisit pas son groupe');
+  assert.equal(m.$uid['.read'], 'auth != null && auth.uid === $uid');
+});
+
+test('groupes : un tableau n\'est lisible que par son groupe, ou par tous à la restitution', () => {
+  const b = session.boards.$g;
+  assert.match(b['.read'], /members\/' \+ auth\.uid \+ '\/group'\)\.val\(\) === \$g/);
+  assert.match(b['.read'], /meta\/restitution'\)\.val\(\) === true/);
+  assert.match(b.notes.$nid['.write'], /members\/' \+ auth\.uid \+ '\/group'\)\.val\(\) === \$g/, 'on n\'écrit que dans son groupe');
+  assert.equal(b.notes.$nid.$other['.validate'], false);
+  assert.match(b.state.persona['.write'], /owners/, 'le persona est fixé par l\'animateur');
+});
+
+test('livrables étoilés : liste commune, lisible par tous, écrite par l\'animateur', () => {
+  assert.equal(session.kept['.read'], 'auth != null');
+  assert.match(session.kept['.write'], /owners/);
+});
+
+test('groupes : la base accepte exactement les emplacements de l\'outil', async () => {
+  const { encodePlace } = await import('../site/js/core.js');
+  const re = new RegExp(session.boards.$g.notes.$nid.place['.validate'].match(/matches\(\/(.*)\/\)/)[1]);
+  const ok = [
+    { b: 'empathy', persona: 'karim', zone: 'gains' }, { b: 'tray', step: 'story' }, { b: 'goal' }, { b: 'backbone' },
+    { b: 'actor', parent: 'abcd1234' }, { b: 'impact', parent: 'abcd1234' }, { b: 'deliverable', parent: 'abcd1234' },
+    { b: 'story', col: 'abcd1234', lane: 'later' },
+  ];
+  for (const p of ok) assert.ok(re.test(encodePlace(p)), encodePlace(p));
+  for (const bad of ['empathy|bob|says', 'story|abcd1234|soon', 'actor|', 'goal|x', 'tray|empathy']) assert.ok(!re.test(bad), bad);
+});

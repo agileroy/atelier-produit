@@ -11,7 +11,7 @@ import {
   getDatabase, ref, onValue, get, set, update, remove, serverTimestamp, onDisconnect,
 } from 'https://www.gstatic.com/firebasejs/12.19.0/firebase-database.js';
 import { firebaseConfig } from './firebase-config.js?v=__VERSION__';
-import { newId, newCode, metaFor } from './session-core.js?v=__VERSION__';
+import { newId, newCode, metaFor, DEFAULT_PERSONAS } from './session-core.js?v=__VERSION__';
 
 /** Branche de la base réservée à cet outil. */
 const ROOT = 'atelierProduit';
@@ -55,6 +55,8 @@ export function createStore() {
           [`sessions/${sid}/meta`]: { ...metaFor({ ...fields, code }), createdAt: serverTimestamp() },
           [`sessions/${sid}/owners/${uid}`]: key,
           [`codes/${code}`]: sid,
+          [`sessions/${sid}/boards/g1/state/persona`]: DEFAULT_PERSONAS.g1,
+          [`sessions/${sid}/boards/g2/state/persona`]: DEFAULT_PERSONAS.g2,
         });
         return { sid, key, code };
       } catch (e) {
@@ -90,6 +92,22 @@ export function createStore() {
     [`keys/${sid}`]: null, [`sessions/${sid}`]: null, ...(code ? { [`codes/${code}`]: null } : {}),
   });
 
+  // ---- Groupes et tableaux partagés
+  const setMeta = (sid, fields) => update(at(`sessions/${sid}/meta`), fields);
+  /** Affectations (animateur seulement) : arbre members/{uid}/group. */
+  const onMembers = (sid, cb, onError) => onValue(at(`sessions/${sid}/members`), (s) => cb(s.val() ?? {}), onError);
+  /** Affecte des personnes à des groupes : { uid: 'g1' | 'g2' }. */
+  const setMembers = (sid, map) => update(at(`sessions/${sid}/members`), Object.fromEntries(Object.entries(map).map(([u, g]) => [u, { group: g }])));
+  const onMyMember = (sid, cb, onError) => onValue(at(`sessions/${sid}/members/${uid}`), (s) => cb(s.val()?.group ?? null), onError);
+  /** Tableau d'un groupe : post-its et réglages ({ notes, state }). */
+  const onBoard = (sid, g, cb, onError) => onValue(at(`sessions/${sid}/boards/${g}`), (s) => cb(s.val() ?? {}), onError);
+  /** Écrit les différences d'un tableau ({ 'notes/{id}': enregistrement | null }). */
+  const writeBoard = (sid, g, updates) => update(at(`sessions/${sid}/boards/${g}`), updates);
+  const setBoardState = (sid, g, key, value) => set(at(`sessions/${sid}/boards/${g}/state/${key}`), value);
+  /** Livrables étoilés, communs aux groupes (écrits par l'animateur) : { id: { text, group, order } }. */
+  const setKept = (sid, map) => set(at(`sessions/${sid}/kept`), map);
+  const onKept = (sid, cb, onError) => onValue(at(`sessions/${sid}/kept`), (s) => cb(s.val() ?? {}), onError);
+
   /** Présents (animateur seulement). */
   const onPresence = (sid, cb, onError) => onValue(at(`sessions/${sid}/presence`), (s) => cb(s.val() ?? {}), onError);
 
@@ -123,6 +141,7 @@ export function createStore() {
     start, createSession, claimOwner, getMeta, onMeta, setStep, setClosed, onNotes, deleteSession,
     sendNote, onMyNotes, setQuiz, onQuiz, clearQuiz, submitQuiz, onMyQuiz,
     resolveCode, onPresence, claimName, releaseName, goOnline,
+    setMeta, onMembers, setMembers, onMyMember, onBoard, writeBoard, setBoardState, setKept, onKept,
     get uid() { return uid; },
   };
 }

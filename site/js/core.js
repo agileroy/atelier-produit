@@ -313,8 +313,8 @@ export function keptDeliverables(state) {
 }
 
 /** Copie un livrable retenu dans la story map (bac, étape ou case). */
-export function importDeliverable(state, deliverableId, place, beforeId = null) {
-  const source = getNote(state, deliverableId);
+export function importDeliverable(state, deliverableId, place, beforeId = null, external = null) {
+  const source = external ?? getNote(state, deliverableId);
   if (!source || source.place.b !== 'deliverable' || familyOf(place) !== 'story') return null;
   const existing = state.notes.find((n) => n.from === `deliverable:${deliverableId}`);
   if (existing) {
@@ -576,3 +576,58 @@ export function placeLabel(state, place) {
 }
 
 export const toolName = (id) => TOOLS[id]?.name ?? id;
+
+/* ---------- Tableaux partagés (un par groupe) ----------
+   Dans la base, chaque post-it est un enregistrement séparé (notes/{id}) : deux personnes qui
+   travaillent sur deux post-its différents ne s'écrasent jamais. L'ordre d'affichage est un nombre. */
+
+const RECORD_FROM = /^(extract:[a-z0-9]+|deliverable:[a-z0-9]+|phone|example)$/;
+
+/** Un post-it prêt à écrire dans la base. */
+export function noteRecord(n, order) {
+  const r = { text: n.text, place: encodePlace(n.place), order };
+  if (n.from) r.from = n.from;
+  if (n.author) r.author = n.author;
+  if (n.kind) r.kind = n.kind;
+  if (n.keep) r.keep = true;
+  return r;
+}
+
+/** Les enregistrements de la base, relus en post-its valides, dans l'ordre. */
+export function recordsToNotes(tree) {
+  const rows = Object.entries(tree ?? {})
+    .filter(([id, r]) => ID_RE.test(id) && r && typeof r === 'object')
+    .sort(([a, x], [b, y]) => (Number(x.order) || 0) - (Number(y.order) || 0) || a.localeCompare(b))
+    .map(([id, r]) => ({
+      id, text: r.text, place: decodePlace(r.place) ?? {}, from: typeof r.from === 'string' && RECORD_FROM.test(r.from) ? r.from : undefined,
+      author: r.author, kind: r.kind, keep: r.keep === true,
+    }));
+  return sanitize({ notes: rows }).notes;
+}
+
+/**
+ * Ce qu'il faut écrire dans la base pour passer de `before` à `after` :
+ * { 'notes/{id}': enregistrement | null }, seulement pour les post-its ajoutés, modifiés ou supprimés.
+ */
+export function boardUpdates(before, after) {
+  const prev = new Map(before.map((n, i) => [n.id, JSON.stringify(noteRecord(n, i))]));
+  const out = {};
+  after.forEach((n, i) => {
+    const rec = noteRecord(n, i);
+    if (prev.get(n.id) !== JSON.stringify(rec)) out[`notes/${n.id}`] = rec;
+    prev.delete(n.id);
+  });
+  for (const id of prev.keys()) out[`notes/${id}`] = null;
+  return out;
+}
+
+/** Fusionne des mises à jour dans un arbre d'enregistrements (simulation locale de la base). */
+export function applyUpdates(tree, updates) {
+  const next = { ...(tree ?? {}) };
+  for (const [path, value] of Object.entries(updates)) {
+    const id = path.slice(6);
+    if (value === null) delete next[id];
+    else next[id] = value;
+  }
+  return next;
+}
