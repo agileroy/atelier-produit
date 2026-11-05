@@ -2,7 +2,7 @@
 // et recevoir les post-its envoyés. Firebase n'est chargé qu'à la demande (store.js, import dynamique).
 
 import { firebaseConfig } from './firebase-config.js?v=__VERSION__';
-import { readMeta, flattenNotes, participantUrl, isSessionId, isKey, readQuizEntries, readPresence } from './session-core.js?v=__VERSION__';
+import { readMeta, flattenNotes, participantUrl, shareLink, isSessionId, isKey, readQuizEntries, readPresence } from './session-core.js?v=__VERSION__';
 import { STEPS, PHONE_STEPS } from './content.js?v=__VERSION__';
 import { personaById } from './core.js?v=__VERSION__';
 import { esc, load, save, qrSvg, copyText, toast, ICONS } from './shared.js?v=__VERSION__';
@@ -157,7 +157,7 @@ export function createPhones({ button, dialog, count, current, onRemote, onChang
     onChange();
   }
 
-  const this_share = () => (meta?.code ? `${new URL('postit.html', location.href).href}?code=${meta.code}` : participantUrl(location.href, session.sid));
+  const this_share = () => (meta?.code ? shareLink(location.href, meta.code) : participantUrl(location.href, session.sid));
 
   function body() {
     const head = `<div class="dialog-head"><h2 id="phones-title">${ICONS.users} Participants</h2>
@@ -194,7 +194,7 @@ export function createPhones({ button, dialog, count, current, onRemote, onChang
     const stepLabel = STEPS.find((s) => s.id === step)?.label ?? '';
     const phoneStep = PHONE_STEPS.includes(step);
     return `${head}<div class="dialog-form phones-live">
-      <div class="qr-wrap">${qrSvg(url, 'QR code pour envoyer des post-its')}</div>
+      <div class="qr-wrap">${qrSvg(this_share(), 'QR code pour rejoindre l\'atelier')}</div>
       <div class="phones-info">
         <p class="phones-url"><a href="${esc(this_share())}" target="_blank" rel="noopener">${esc(this_share().replace(/^https?:\/\//, ''))}</a>
           <button type="button" class="btn btn-primary btn-small" data-copy-url>${ICONS.link} Copier le lien</button></p>
@@ -236,12 +236,14 @@ export function createPhones({ button, dialog, count, current, onRemote, onChang
     get live() { return status === 'live'; },
     get available() { return status !== 'off'; },
     get quiz() { return meta?.quiz ?? 'off'; },
-    get url() { return session ? participantUrl(location.href, session.sid) : ''; },
+    /** Le lien du QR code : le lien court quand la salle a un code (QR moins dense). */
+    get url() { return session ? this_share() : ''; },
     get people() { return new Set(notes.map((n) => n.uid)).size; },
     get presence() { return presence; },
     get code() { return meta?.code ?? ''; },
     get joinUrl() { return new URL('postit.html', location.href).href; },
     /** Lien à coller dans le chat de la réunion : la page participant avec le code de la salle. */
-    get shareUrl() { return meta?.code ? `${new URL('postit.html', location.href).href}?code=${meta.code}` : (session ? participantUrl(location.href, session.sid) : ''); },
+    get shareUrl() { return session ? this_share() : ''; },
+    get hasCode() { return !!meta?.code; },
   };
 }

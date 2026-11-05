@@ -404,9 +404,10 @@ function viewFrame() {
 function shareBlock(big = false) {
   const link = phones.shareUrl;
   return `<div class="share ${big ? 'share--big' : ''}">
-    <p class="share-link"><span class="share-url">${esc(link.replace(/^https?:\/\//, ''))}</span>
+    <p class="share-link"><button type="button" class="share-url" data-act="copy-link" title="Copier le lien">${esc(link.replace(/^https?:\/\//, ''))}</button>
       <button type="button" class="btn btn-primary btn-small" data-act="copy-link" data-focus="copy-link">${ICONS.link} Copier le lien</button></p>
-    ${phones.code ? `<p class="share-code">ou sur <strong>${esc(phones.joinUrl.replace(/^https?:\/\//, '').replace(/\.html$/, ''))}</strong>, le code <span class="room-code"><strong>${esc(phones.code)}</strong></span></p>` : ''}
+    ${phones.code ? `<p class="share-code">Code de la salle : <span class="room-code"><strong>${esc(phones.code)}</strong></span></p>`
+      : '<p class="share-code">Séance ouverte avant les codes courts : terminez-la puis rouvrez-la (bouton « Participants ») pour obtenir un lien plus court.</p>'}
   </div>`;
 }
 
@@ -683,7 +684,7 @@ function quizPanel() {
   }
   const qr = `<div class="qjoin"><div class="join-qr">${qrSvg(phones.url, 'QR code pour rejoindre le quiz')}</div>
     <p class="hint">Pas encore connecté ?</p>
-    <button type="button" class="btn btn-quiet btn-small" data-act="copy-link" data-focus="copy-link">${ICONS.link} Copier le lien</button></div>`;
+    ${shareBlock()}</div>`;
 
   if (phones.quiz !== 'revealed') {
     const open = phones.quiz === 'open';

@@ -754,11 +754,15 @@ button.tchip { cursor: grab; touch-action: manipulation; }
 .share { display: grid; gap: 6px; }
 .share-link { margin: 0; display: flex; flex-wrap: wrap; align-items: center; gap: 8px 12px; }
 .share-url {
-  padding: 6px 10px; border-radius: 8px; background: var(--bg); border: 1px solid var(--line);
+  padding: 6px 10px; border-radius: 8px; background: var(--bg); border: 1px solid var(--line); cursor: copy; text-align: left; color: var(--fg);
   font-family: ui-monospace, "SFMono-Regular", Menlo, Consolas, monospace; font-size: 14px; overflow-wrap: anywhere; user-select: all;
 }
 .share-code { margin: 0; font-size: 14px; color: var(--muted); }
 .share--big .share-url { font-size: 16px; }
+.share-url:hover { border-color: var(--accent); color: var(--accent); }
+.qjoin { max-width: 300px; }
+.qjoin .share-link { justify-content: center; }
+.qjoin .share-code { text-align: center; }
 .share--big .share-code { font-size: 16px; }
 .btn svg { flex: none; }
 

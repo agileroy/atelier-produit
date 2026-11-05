@@ -120,3 +120,11 @@ test('salle : présents et copies en attente', () => {
   assert.deepEqual(presence.map((p) => p.author), ['Léa', 'Tom']);
   assert.deepEqual(waitingFor(presence, [{ uid: 'u1' }]).map((p) => p.author), ['Tom']);
 });
+
+import { shareLink } from '../site/js/session-core.js';
+
+test('lien court à partager : la page participant avec le code', () => {
+  assert.equal(shareLink('https://agileroy.github.io/atelier-produit/', 'QVZS'), 'https://agileroy.github.io/atelier-produit/postit?code=QVZS');
+  assert.equal(shareLink('https://agileroy.github.io/atelier-produit/index.html', 'QVZS'), 'https://agileroy.github.io/atelier-produit/postit?code=QVZS');
+  assert.equal(shareLink('http://localhost:8765/index.html', 'K7PM'), 'http://localhost:8765/postit.html?code=K7PM');
+});
