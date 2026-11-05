@@ -52,7 +52,7 @@ function render() {
     body = `<p class="lede">${step === 'frame' ? 'L\'atelier n\'a pas encore commencé. Gardez cette page ouverte : elle suivra l\'écran.' : 'Pas de post-it à cette étape : suivez ce qui se passe à l\'écran.'}</p>`;
   } else {
     body = `
-      ${step === 'empathy' && persona ? `<p class="pfor" style="--h:${persona.hue}"><span class="avatar avatar--sm" style="--h:${persona.hue}" aria-hidden="true">${esc(persona.name[0])}</span>Carte de <strong>${esc(persona.name)}</strong>, ${esc(persona.role.toLowerCase())}</p>` : ''}
+      ${step === 'empathy' && persona ? `<p class="pfor" style="--h:${persona.hue}"><span class="avatar avatar--sm" style="--h:${persona.hue}" aria-hidden="true">${esc(persona.name[0])}</span><span>Carte de <strong>${esc(persona.name)}</strong>, ${esc(persona.role.toLowerCase())}</span></p>` : ''}
       <p class="hint">${esc(PROMPTS[step](persona))}</p>
       <form class="pform" id="pform">
         ${zones.length > 1 ? `<fieldset class="pzones"><legend class="field-label">Où va ce post-it ?</legend>
