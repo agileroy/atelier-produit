@@ -30,10 +30,10 @@ export const CASE = {
 /* ---------- Le double diamant (Design Council, 2005) ---------- */
 
 export const PHASES = [
-  { id: 'discover', label: 'Découvrir', verb: 'Explorer', plain: 'comprendre les personnes, leurs besoins et leurs difficultés', diamond: 1, mode: 'ouvrir' },
-  { id: 'define', label: 'Définir', verb: 'Cadrer', plain: 'choisir le problème à résoudre', diamond: 1, mode: 'fermer' },
-  { id: 'develop', label: 'Développer', verb: 'Imaginer', plain: 'explorer plusieurs solutions possibles', diamond: 2, mode: 'ouvrir' },
-  { id: 'deliver', label: 'Livrer', verb: 'Tester', plain: 'essayer des solutions concrètes et les améliorer avec les utilisateurs', diamond: 2, mode: 'fermer' },
+  { id: 'discover', label: 'Découvrir', plain: 'Comprendre les personnes, leurs besoins et leurs difficultés', diamond: 1, mode: 'ouvrir' },
+  { id: 'define', label: 'Définir', plain: 'Choisir le problème à résoudre', diamond: 1, mode: 'fermer' },
+  { id: 'develop', label: 'Développer', plain: 'Explorer plusieurs solutions possibles', diamond: 2, mode: 'ouvrir' },
+  { id: 'deliver', label: 'Livrer', plain: 'Essayer des solutions concrètes et les améliorer avec les utilisateurs', diamond: 2, mode: 'fermer' },
 ];
 
 /** Le message du double diamant, et l'aller-retour entre les phases. */
@@ -162,10 +162,10 @@ export const TOOLS = {
       'Des avis qui s\'opposent sans que personne n\'ait parlé aux utilisateurs',
     ],
     how: [
-      'Découvrir (explorer) : aller voir les personnes, comprendre leurs besoins et leurs difficultés.',
-      'Définir (cadrer) : choisir le problème à résoudre et l\'objectif à atteindre.',
-      'Développer (imaginer) : explorer plusieurs solutions possibles, prototyper vite.',
-      'Livrer (tester) : essayer des solutions concrètes avec les utilisateurs, les améliorer, livrer par petits incréments.',
+      'Découvrir : aller voir les personnes, comprendre leurs besoins et leurs difficultés.',
+      'Définir : choisir le problème à résoudre et l\'objectif à atteindre.',
+      'Développer : explorer plusieurs solutions possibles, prototyper vite.',
+      'Livrer : essayer des solutions concrètes avec les utilisateurs, les améliorer, livrer par petits incréments.',
     ],
     pitfalls: [
       'Sauter le premier diamant parce que « on sait déjà ce qu\'il faut faire ».',

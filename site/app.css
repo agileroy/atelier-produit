@@ -317,14 +317,6 @@ textarea.field { resize: vertical; line-height: 1.45; }
 /* ---------- Double diamant en grand ---------- */
 
 .dwrap { display: grid; gap: 4px; margin-top: 8px; }
-/* Légende : la phrase de chaque phase, alignée au-dessus de sa moitié de diamant. */
-.dlegend {
-  list-style: none; margin: 0; padding: 0 7%;
-  display: grid; grid-template-columns: 1fr 1fr .58fr 1fr 1fr; align-items: end;
-}
-.dlegend li:nth-child(3) { grid-column: 4; }
-.dlegend li:nth-child(4) { grid-column: 5; }
-.dlegend li { text-align: center; font-size: clamp(12px, 1.15vw, 14px); line-height: 1.35; color: var(--muted); padding: 0 2%; }
 .dboard { position: relative; aspect-ratio: 800 / 340; width: 100%; }
 .dboard-svg { position: absolute; inset: 0; width: 100%; height: 100%; }
 .dboard-svg polygon { fill: var(--surface); stroke: var(--line); stroke-width: 2; stroke-linejoin: round; }
@@ -342,8 +334,28 @@ textarea.field { resize: vertical; line-height: 1.45; }
 .dphase--develop { left: 58.5%; }
 .dphase--deliver { left: 74.5%; }
 .dphase-label { font-family: var(--display); font-weight: 700; font-size: clamp(14px, 1.8vw, 19px); }
-.dphase-verb { font-size: clamp(11px, 1.1vw, 13px); font-weight: 600; color: var(--accent); }
-.dphase-plain { display: none; }
+
+.dphase-head { display: inline-flex; align-items: center; gap: 6px; }
+.dinfo {
+  width: 20px; height: 20px; padding: 0; flex: none; display: grid; place-items: center; border-radius: 50%;
+  border: 1.5px solid var(--accent); background: var(--surface); color: var(--accent); cursor: help;
+  font: italic 700 12px/1 Georgia, "Times New Roman", serif;
+}
+.dinfo:hover, .dinfo[aria-expanded="true"] { background: var(--accent); color: var(--accent-ink); }
+/* Bulle explicative : au survol, au focus, ou ouverte au clic / au toucher. */
+.dphase { z-index: 1; }
+.dphase:has(.dinfo:hover), .dphase:has(.dinfo:focus-visible), .dphase:has(.dtip.is-open) { z-index: 5; }
+.dtip {
+  position: absolute; left: 50%; top: 2.2em; transform: translateX(-50%); z-index: 6;
+  width: max(180px, 115%); padding: 10px 12px; border-radius: 10px;
+  background: var(--fg); color: var(--bg); font-size: 14px; line-height: 1.35; font-weight: 500; text-align: center;
+  box-shadow: 0 12px 24px -10px rgba(0, 0, 0, .45);
+  opacity: 0; visibility: hidden; transition: opacity .15s ease;
+  pointer-events: none;
+}
+.dtip::before { content: ""; position: absolute; left: 50%; top: -6px; margin-left: -6px; border: 6px solid transparent; border-top: 0; border-bottom-color: var(--fg); }
+.dphase-head:has(.dinfo:hover) + .dtip, .dphase-head:has(.dinfo:focus-visible) + .dtip, .dtip.is-open { opacity: 1; visibility: visible; }
+@media (prefers-reduced-motion: reduce) { .dtip { transition: none; } }
 .dphase-mode { font-size: 11px; color: var(--muted); letter-spacing: .04em; }
 .dloop {
   position: absolute; left: 50%; bottom: 1%; transform: translateX(-50%); width: max-content; max-width: 70%;
@@ -379,8 +391,8 @@ button.tchip { cursor: grab; touch-action: manipulation; }
   .dboard-svg { display: none; }
   .dphase { position: static; width: auto; height: auto; min-height: 96px; background: var(--surface); border: 1px solid var(--line); }
   .dloop { position: static; grid-column: 1 / -1; transform: none; width: auto; max-width: none; background: none; }
-  .dlegend { display: none; }
-  .dphase-plain { display: block; font-size: 12px; line-height: 1.3; color: var(--muted); }
+  .dphase { position: relative; }
+  .dtip { left: 0; right: 0; width: auto; transform: none; font-size: 13px; }
   .dboard--drop .dphase { border: 2px dashed var(--line); }
 }
 
@@ -590,7 +602,7 @@ button.tchip { cursor: grab; touch-action: manipulation; }
 
 .dsection { display: grid; gap: 12px; padding: 22px 24px; background: var(--surface); border: 1px solid var(--line); border-radius: 18px; }
 .tool-tray { display: flex; flex-wrap: wrap; gap: 10px; min-height: 52px; padding: 8px; align-items: center; border: 1.5px dashed var(--line); border-radius: 12px; }
-.dsection .dwrap { background: var(--felt); border-radius: 14px; padding-top: 14px; }
+.dsection .dboard { background: var(--felt); border-radius: 14px; }
 .dsection .dboard-svg polygon { fill: var(--surface); }
 .dcheck { display: flex; gap: 12px 18px; align-items: center; flex-wrap: wrap; }
 .dfeedback { margin: 0; flex: 1 1 360px; }

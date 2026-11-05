@@ -42,9 +42,9 @@ test('double diamant : chaque outil se range sur des phases connues', () => {
   for (const s of STEPS) assert.ok(Array.isArray(STEP_PHASES[s.id]), s.id);
 });
 
-test('double diamant : chaque phase a son nom officiel et son verbe simple', () => {
+test('double diamant : chaque phase a son nom officiel et sa phrase explicative', () => {
   assert.deepEqual(PHASES.map((p) => p.label), ['Découvrir', 'Définir', 'Développer', 'Livrer']);
-  for (const p of PHASES) assert.ok(p.verb && p.plain && ['ouvrir', 'fermer'].includes(p.mode), p.id);
+  for (const p of PHASES) assert.ok(p.plain && !p.verb && ['ouvrir', 'fermer'].includes(p.mode), p.id);
   assert.ok(DIAMOND_MESSAGE && DIAMOND_LOOP);
 });
 

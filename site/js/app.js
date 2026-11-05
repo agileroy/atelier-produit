@@ -26,7 +26,7 @@ const CHOICE_LABELS = { empathy: 'Empathy map', impact: 'Impact mapping', story:
 
 const main = $('#main');
 let state = restore();
-const ui = { sheet: false, selectedTool: null };
+const ui = { sheet: false, selectedTool: null, info: null };
 
 function restore() {
   const saved = load(STORE_KEY);
@@ -133,7 +133,6 @@ function diamondMini(highlight) {
  */
 function diamondBoard({ chips, droppable = false, results = null }) {
   return `<div class="dwrap">
-  <ol class="dlegend" aria-hidden="true">${PHASES.map((p) => `<li>${esc(p.plain.charAt(0).toUpperCase() + p.plain.slice(1))}</li>`).join('')}</ol>
   <div class="dboard ${droppable ? 'dboard--drop' : ''}">
     <svg viewBox="0 0 800 340" aria-hidden="true" class="dboard-svg">
       <defs><marker id="dloop-head" viewBox="0 0 10 10" refX="5" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0 0 10 5 0 10z"/></marker></defs>
@@ -143,9 +142,11 @@ function diamondBoard({ chips, droppable = false, results = null }) {
       <path class="dloop-path" d="M690 262 C 680 330, 120 330, 110 268" marker-end="url(#dloop-head)"/>
     </svg>
     ${PHASES.map((p) => `<div class="dphase dphase--${p.id}" ${droppable ? `data-drop="phase:${p.id}" data-axis="x"` : ''} ${droppable && ui.selectedTool ? `role="button" tabindex="0" data-place-tool="${p.id}" aria-label="Ranger ${esc(toolName(ui.selectedTool))} dans ${esc(p.label)}"` : ''}>
-      <span class="dphase-label">${esc(p.label)}</span>
-      <span class="dphase-verb">${esc(p.verb)}</span>
-      <span class="dphase-plain">${esc(p.plain)}</span>
+      <span class="dphase-head">
+        <span class="dphase-label">${esc(p.label)}</span>
+        <button type="button" class="dinfo" data-info="${p.id}" data-focus="info:${p.id}" data-nodrag aria-expanded="${ui.info === p.id}" aria-controls="dtip-${p.id}" aria-label="En savoir plus : ${esc(p.label)}" >i</button>
+      </span>
+      <span class="dtip ${ui.info === p.id ? 'is-open' : ''}" id="dtip-${p.id}" role="note">${esc(p.plain)}</span>
       <span class="dphase-mode">${p.mode === 'ouvrir' ? '◁ on ouvre ▷' : '▷ on choisit ◁'}</span>
       <span class="dphase-chips">${(chips[p.id] ?? []).map((t) => toolChip(t, { draggable: droppable, result: results?.[t] })).join('')}</span>
     </div>`).join('')}
@@ -550,6 +551,7 @@ $('#sheet').addEventListener('click', (e) => {
   if (e.target.closest('[data-close-sheet]')) { ui.sheet = false; renderSheet(); $('[data-act="sheet"]', main)?.focus(); }
 });
 document.addEventListener('keydown', (e) => {
+  if (e.key === 'Escape' && ui.info) { ui.info = null; render(); return; }
   if (e.key === 'Escape' && ui.sheet && !document.querySelector('dialog[open]')) { ui.sheet = false; renderSheet(); }
 });
 
@@ -688,6 +690,13 @@ function blockMessage(reason) {
 
 main.addEventListener('click', (e) => {
   const t = e.target;
+  const info = t.closest('[data-info]');
+  if (info) {
+    ui.info = ui.info === info.dataset.info ? null : info.dataset.info;
+    render(`info:${info.dataset.info}`);
+    return;
+  }
+  if (ui.info) { ui.info = null; $$('.dtip.is-open', main).forEach((d) => d.classList.remove('is-open')); $$('[data-info]', main).forEach((b) => b.setAttribute('aria-expanded', 'false')); }
   const goBtn = t.closest('[data-go]');
   if (goBtn) { go(goBtn.dataset.go); return; }
 
