@@ -37,3 +37,6 @@ Chaque séance SHALL avoir un code court de quatre caractères sans ambiguïté 
 #### Scenario: Qui n'a pas encore répondu
 - **WHEN** le quiz est ouvert
 - **THEN** l'écran affiche le nombre de copies sur le nombre de présents, et les prénoms de ceux qui n'ont pas encore validé
+
+### Requirement: Participer depuis un ordinateur
+Les participants SHALL pouvoir rejoindre depuis un ordinateur aussi bien que depuis un téléphone : partout où un QR code est affiché, un lien copiable (page participant avec le code de la salle) SHALL l'accompagner. La page participant SHALL s'élargir sur grand écran, et Ctrl + Entrée (Cmd + Entrée sur Mac) SHALL envoyer un post-it.

@@ -55,20 +55,19 @@ function renderJoinPill() {
   pill.hidden = !show;
   if (!show) return;
   const n = phones.presence.length;
-  pill.innerHTML = `${ICONS.phone}<span>Rejoindre${phones.code ? ` · <strong>${esc(phones.code)}</strong>` : ''}</span><span class="join-pill-n" title="Connectés">${n}</span>`;
+  pill.innerHTML = `${ICONS.users}<span>Rejoindre${phones.code ? ` · <strong>${esc(phones.code)}</strong>` : ''}</span><span class="join-pill-n" title="Connectés">${n}</span>`;
   pill.setAttribute('aria-label', `Afficher le QR code pour rejoindre l'atelier (${n} connecté${n > 1 ? 's' : ''})`);
   if ($('#join').open) $('#join').innerHTML = joinDialogBody();
 }
 
 function joinDialogBody() {
-  const short = phones.joinUrl.replace(/^https?:\/\//, '').replace(/\.html$/, '');
-  return `<div class="dialog-head"><h2 id="join-title">${ICONS.phone} Rejoindre l'atelier</h2>
+  return `<div class="dialog-head"><h2 id="join-title">${ICONS.users} Rejoindre l'atelier</h2>
       <button type="button" class="icon-btn" data-close aria-label="Fermer" title="Fermer">${ICONS.close}</button></div>
     <div class="dialog-form join-big">
       <div class="join-big-qr">${qrSvg(phones.url, 'QR code pour rejoindre l\'atelier')}</div>
       <div class="join-big-info">
-        <p>Scannez le QR code, puis entrez votre prénom.</p>
-        ${phones.code ? `<p>Sans QR code : <strong>${esc(short)}</strong></p><p class="room-code room-code--big">Code <strong>${esc(phones.code)}</strong></p>` : ''}
+        ${shareBlock(true)}
+        <p class="hint">Sur téléphone : scannez le QR code.</p>
         <p class="hint">${phones.presence.length} connecté${phones.presence.length > 1 ? 's' : ''}</p>
       </div>
     </div>`;
@@ -81,7 +80,8 @@ $('#join-pill').addEventListener('click', () => {
   d.querySelector('[data-close]')?.focus();
 });
 $('#join').addEventListener('click', (e) => {
-  if (e.target === e.currentTarget || e.target.closest('[data-close]')) e.currentTarget.close();
+  if (e.target === e.currentTarget || e.target.closest('[data-close]')) { e.currentTarget.close(); return; }
+  if (e.target.closest('[data-act="copy-link"]')) actions['copy-link']();
 });
 
 function render(focus) {
@@ -131,7 +131,7 @@ function stepHeader(step) {
     <div class="intro">
       <p class="kicker">${n ? `Étape ${n} · ` : ''}${esc(phases)}</p>
       <h1 tabindex="-1">${esc(debrief ? 'Débrief' : tool.name)}</h1>
-      <p class="lede">${esc(debrief ? 'Un quiz individuel sur téléphone, puis la révélation : chacun reçoit sa correction, l\'écran montre les bonnes réponses et le podium.' : tool.oneLine)}</p>
+      <p class="lede">${esc(debrief ? 'Un quiz individuel, chacun sur son ordinateur ou son téléphone, puis la révélation : chacun reçoit sa correction, l\'écran montre les bonnes réponses et le podium.' : tool.oneLine)}</p>
     </div>
     ${diamondMini(STEP_PHASES[step])}
   </header>
@@ -392,29 +392,42 @@ function viewFrame() {
         </button></li>`;
       }).join('')}
     </ol>
-    <p class="hint">Environ deux heures. L'écran est projeté ; chacun peut aussi envoyer des post-its depuis son téléphone (bouton « Téléphones » en haut).</p>
+    <p class="hint">Environ deux heures. L'écran est projeté ; chacun peut aussi envoyer des post-its depuis son ordinateur ou son téléphone (bouton « Participants » en haut).</p>
   </section>
   ${stepNav()}`;
 }
 
-/** Rejoindre sur téléphone : le QR code en évidence dès l'arrivée. */
+/**
+ * Le lien à copier (ordinateurs, réunion à distance) et le code de la salle.
+ * `big` : version projetée, en grand.
+ */
+function shareBlock(big = false) {
+  const link = phones.shareUrl;
+  return `<div class="share ${big ? 'share--big' : ''}">
+    <p class="share-link"><span class="share-url">${esc(link.replace(/^https?:\/\//, ''))}</span>
+      <button type="button" class="btn btn-primary btn-small" data-act="copy-link" data-focus="copy-link">${ICONS.link} Copier le lien</button></p>
+    ${phones.code ? `<p class="share-code">ou sur <strong>${esc(phones.joinUrl.replace(/^https?:\/\//, '').replace(/\.html$/, ''))}</strong>, le code <span class="room-code"><strong>${esc(phones.code)}</strong></span></p>` : ''}
+  </div>`;
+}
+
+/** Rejoindre l'atelier : lien à copier et QR code, en évidence dès l'arrivée. */
 function joinCard() {
   if (!phones.available) return '';
   if (!phones.live) {
     return `<section class="join join--off">
-      <span class="join-icon">${ICONS.phone}</span>
-      <div><h2>Les téléphones, pour participer</h2>
-      <p class="hint">Chacun rejoint l'atelier avec son prénom, et peut envoyer ses post-its depuis son téléphone.</p></div>
-      <button type="button" class="btn btn-primary" data-act="phones-show" data-focus="phones-show">Ouvrir l'atelier aux téléphones</button>
+      <span class="join-icon">${ICONS.users}</span>
+      <div><h2>Faire participer chacun</h2>
+      <p class="hint">Chacun rejoint l'atelier depuis son ordinateur ou son téléphone, avec son prénom, et envoie ses post-its.</p></div>
+      <button type="button" class="btn btn-primary" data-act="phones-show" data-focus="phones-show">Ouvrir l'atelier aux participants</button>
     </section>`;
   }
   const present = phones.presence;
   return `<section class="join">
     <div class="join-qr">${qrSvg(phones.url, 'QR code pour rejoindre l\'atelier')}</div>
     <div class="join-body"><p class="kicker">Rejoignez l'atelier</p>
-      <h2>Scannez, puis entrez votre prénom</h2>
-      ${phones.code ? `<p class="join-alt">Sans QR code : <strong>${esc(phones.joinUrl.replace(/^https?:\/\//, '').replace(/\.html$/, ''))}</strong> puis le code <span class="room-code"><strong>${esc(phones.code)}</strong></span></p>` : `<p class="join-url">${esc(phones.url.replace(/^https?:\/\//, ''))}</p>`}
-      <p class="hint">Gardez la page ouverte : elle suit l'écran.</p>
+      <h2>Ouvrez le lien, puis entrez votre prénom</h2>
+      ${shareBlock()}
+      <p class="hint">Sur téléphone : scannez le QR code. Gardez la page ouverte : elle suit l'écran.</p>
       <div class="join-present"><p><strong>${present.length}</strong> connecté${present.length > 1 ? 's' : ''}</p>
         ${present.length ? `<ul class="present">${present.map((p) => `<li>${esc(p.author)}</li>`).join('')}</ul>` : '<p class="hint">Les prénoms s\'afficheront ici à mesure que chacun rejoint.</p>'}</div>
     </div>
@@ -550,7 +563,7 @@ function viewImpact() {
       <p class="hint">${ICONS.star} Cochez l'étoile des livrables que vous retenez : ils vous attendront dans la story map. Plusieurs sous-groupes ? Chacun peut poser son propre objectif avec « Autre objectif ».</p>
     </div>
     <aside class="side">
-      ${trayHtml('impact', 'À placer', 'Les post-its des téléphones arrivent ici. Glissez-les dans l\'arbre.')}
+      ${trayHtml('impact', 'À placer', 'Les post-its des participants arrivent ici. Glissez-les dans l\'arbre.')}
       <section class="inspiration">
         <h2>Pour s'inspirer</h2>
         ${inspiration.length ? inspiration.map(({ p, pains, gains }) => `<div class="insp">
@@ -585,7 +598,7 @@ function viewStory() {
              ${d.imported ? ICONS.check : ''}${esc(d.text)}</button>`).join('')}</div>`
         : `<p class="hint">Aucun livrable retenu : cochez l'étoile des livrables dans <button type="button" class="link-btn" data-go="impact">l'impact map</button>.</p>`}
     </section>
-    ${trayHtml('story', 'À placer', 'Post-its des téléphones et stories en attente.')}
+    ${trayHtml('story', 'À placer', 'Post-its des participants et stories en attente.')}
   </div>
 
   <div class="canvas">
@@ -659,16 +672,18 @@ function quizPanel() {
   const entries = ui.quizEntries;
   const fmt = (n) => String(Math.round(n * 10) / 10).replace('.', ',');
   if (!phones.available) {
-    return `<section class="dsection"><p>Le quiz individuel passe par les téléphones, qui ne sont pas configurés pour cet outil. Utilisez le débrief en équipe.</p></section>`;
+    return `<section class="dsection"><p>Le quiz individuel passe par la participation à distance, qui n'est pas configurée pour cet outil.</p></section>`;
   }
   if (!phones.live) {
     return `<section class="dsection qpanel">
-      <h2>Ouvrez d'abord l'atelier aux téléphones</h2>
-      <p class="hint">Chacun rejoint avec son prénom, répond au quiz sur son téléphone, puis vous révélez les réponses : chacun reçoit sa correction, l'écran affiche les bonnes réponses et le podium.</p>
-      <button type="button" class="btn btn-primary" data-act="phones-show" data-focus="phones-show">Ouvrir l'atelier aux téléphones</button>
+      <h2>Ouvrez d'abord l'atelier aux participants</h2>
+      <p class="hint">Chacun rejoint avec son prénom, répond au quiz sur son ordinateur ou son téléphone, puis vous révélez les réponses : chacun reçoit sa correction, l'écran affiche les bonnes réponses et le podium.</p>
+      <button type="button" class="btn btn-primary" data-act="phones-show" data-focus="phones-show">Ouvrir l'atelier aux participants</button>
     </section>`;
   }
-  const qr = `<div class="qjoin"><div class="join-qr">${qrSvg(phones.url, 'QR code pour rejoindre le quiz')}</div><p class="hint">Pas encore connecté ? Scannez.</p></div>`;
+  const qr = `<div class="qjoin"><div class="join-qr">${qrSvg(phones.url, 'QR code pour rejoindre le quiz')}</div>
+    <p class="hint">Pas encore connecté ?</p>
+    <button type="button" class="btn btn-quiet btn-small" data-act="copy-link" data-focus="copy-link">${ICONS.link} Copier le lien</button></div>`;
 
   if (phones.quiz !== 'revealed') {
     const open = phones.quiz === 'open';
@@ -676,7 +691,7 @@ function quizPanel() {
       <div class="qstatus">
         <div>
           <p class="kicker">${open ? 'Quiz en cours' : 'Quiz prêt'}</p>
-          <h2>${open ? 'Chacun répond sur son téléphone' : 'Lancez le quiz quand tout le monde est connecté'}</h2>
+          <h2>${open ? 'Chacun répond de son côté' : 'Lancez le quiz quand tout le monde est connecté'}</h2>
           <p class="hint">${QUIZ_MAX} questions : ranger les quatre notions sur le double diamant (Design Thinking compris), puis huit situations. Un point par bonne réponse, un demi-point pour une réponse défendable.</p>
           ${open ? quizProgressHtml(entries) : `<p class="hint"><strong>${phones.presence.length}</strong> connecté${phones.presence.length > 1 ? 's' : ''}${phones.presence.length ? ` : ${esc(phones.presence.map((p) => p.author).join(', '))}` : ''}.</p>`}
           <div class="qactions">
@@ -713,7 +728,7 @@ function quizPanel() {
       </div>`).join('')}
     </div>
     <p class="qsummary">${stats.count} participant${stats.count > 1 ? 's' : ''} · moyenne du groupe : <strong>${fmt(stats.average)} / ${QUIZ_MAX}</strong>.
-      Chacun a reçu sa correction détaillée sur son téléphone.</p>
+      Chacun a reçu sa correction détaillée sur son écran.</p>
     ${hardest >= 0 && stats.hardest.rate < 1 ? `<p class="qhardest"><strong>À discuter :</strong> la situation ${hardest + 1} n'a eu que ${pct(stats.hardest.rate * stats.count)} % de réponses les plus adaptées.</p>` : ''}
     <div class="qactions">
       <button type="button" class="btn btn-quiet" data-act="quiz-replay" data-focus="quiz-replay">Rejouer (effacer les copies)</button>
@@ -984,15 +999,19 @@ const actions = {
   },
   'reset-answers'() { state.debrief.answers = {}; commit(); },
   'phones-show'() { phones.show(); },
+  async 'copy-link'() {
+    const ok = await copyText(phones.shareUrl);
+    toast(ok ? 'Lien copié : collez-le dans le chat de la réunion.' : 'Copie impossible : sélectionnez le lien à la main.');
+  },
   async 'quiz-start'() {
     await phones.clearQuiz();
-    if (await phones.setQuiz('open')) announce('Quiz lancé sur les téléphones');
+    if (await phones.setQuiz('open')) announce('Quiz lancé');
   },
   async 'quiz-reveal'() {
     if (await phones.setQuiz('revealed')) announce('Réponses révélées');
   },
   async 'quiz-stop'() {
-    if (!confirm('Fermer le quiz ? Les téléphones reviennent à l\'écran d\'attente.')) return;
+    if (!confirm('Fermer le quiz ? Les participants reviennent à l\'écran d\'attente.')) return;
     await phones.setQuiz('off');
   },
   async 'quiz-replay'() {

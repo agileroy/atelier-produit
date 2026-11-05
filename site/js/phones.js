@@ -152,36 +152,38 @@ export function createPhones({ button, dialog, count, current, onRemote, onChang
     count.textContent = presence.length;
     button.title = live
       ? `${presence.length} connecté${presence.length > 1 ? 's' : ''} · ${notes.length} post-it${notes.length > 1 ? 's' : ''} reçu${notes.length > 1 ? 's' : ''}`
-      : 'Envoyer des post-its depuis les téléphones';
+      : 'Faire participer depuis un ordinateur ou un téléphone';
     if (dialog.open) dialog.innerHTML = body();
     onChange();
   }
 
+  const this_share = () => (meta?.code ? `${new URL('postit.html', location.href).href}?code=${meta.code}` : participantUrl(location.href, session.sid));
+
   function body() {
-    const head = `<div class="dialog-head"><h2 id="phones-title">${ICONS.phone} Post-its depuis les téléphones</h2>
+    const head = `<div class="dialog-head"><h2 id="phones-title">${ICONS.users} Participants</h2>
       <button type="button" class="icon-btn" data-close aria-label="Fermer" title="Fermer">${ICONS.close}</button></div>`;
     if (status === 'off') {
       return `${head}<div class="dialog-form">
-        <p>L'envoi depuis les téléphones n'est pas encore configuré pour cet outil.</p>
+        <p>La participation à distance n'est pas encore configurée pour cet outil.</p>
         <p class="hint">L'atelier fonctionne très bien sans : on écrit les post-its directement sur l'écran projeté. Pour l'activer, il faut un projet Firebase (voir le README du dépôt).</p>
       </div>`;
     }
     if (status === 'idle' || status === 'connecting') {
       return `${head}<div class="dialog-form">
-        <p>Chacun scanne un QR code et écrit ses post-its sur son téléphone. Ils arrivent sur cet écran, à l'étape en cours.</p>
+        <p>Chacun rejoint depuis son ordinateur ou son téléphone, avec un lien à copier ou un QR code, puis écrit ses post-its. Ils arrivent sur cet écran, à l'étape en cours.</p>
         <ul class="hint-list">
           <li>Pas de compte : un prénom suffit.</li>
           <li>Seuls les post-its envoyés passent par la base, effacée quand vous terminez la séance.</li>
-          <li>Le VPN de l'entreprise bloque Firebase : ouvrez cette page hors VPN, et les participants depuis leur téléphone.</li>
+          <li>Le VPN de l'entreprise bloque Firebase : l'animateur et les participants doivent être hors VPN (ou rejoindre depuis leur téléphone).</li>
         </ul>
         <div class="dialog-actions"><span></span>
-          <button type="button" class="btn btn-primary" data-open-session ${status === 'connecting' ? 'disabled' : ''}>${status === 'connecting' ? 'Connexion…' : 'Ouvrir l\'atelier aux téléphones'}</button></div>
+          <button type="button" class="btn btn-primary" data-open-session ${status === 'connecting' ? 'disabled' : ''}>${status === 'connecting' ? 'Connexion…' : 'Ouvrir l\'atelier aux participants'}</button></div>
       </div>`;
     }
     if (status === 'error') {
       return `${head}<div class="dialog-form">
         <p><strong>Connexion impossible.</strong> Le réseau bloque peut-être Firebase (VPN de l'entreprise ?).</p>
-        <p class="hint">L'atelier continue de fonctionner sans les téléphones.</p>
+        <p class="hint">L'atelier continue de fonctionner sans participation à distance.</p>
         <div class="dialog-actions">
           ${session ? '<button type="button" class="btn btn-danger" data-forget>Oublier cette séance</button>' : '<span></span>'}
           <button type="button" class="btn btn-primary" data-retry>Réessayer</button></div>
@@ -194,12 +196,12 @@ export function createPhones({ button, dialog, count, current, onRemote, onChang
     return `${head}<div class="dialog-form phones-live">
       <div class="qr-wrap">${qrSvg(url, 'QR code pour envoyer des post-its')}</div>
       <div class="phones-info">
-        <p class="phones-url"><a href="${esc(url)}" target="_blank" rel="noopener">${esc(url.replace(/^https?:\/\//, ''))}</a>
-          <button type="button" class="btn btn-quiet btn-small" data-copy-url>Copier le lien</button></p>
+        <p class="phones-url"><a href="${esc(this_share())}" target="_blank" rel="noopener">${esc(this_share().replace(/^https?:\/\//, ''))}</a>
+          <button type="button" class="btn btn-primary btn-small" data-copy-url>${ICONS.link} Copier le lien</button></p>
         ${meta?.code ? `<p class="room-code">Code <strong>${esc(meta.code)}</strong></p>` : ''}
         <p class="phones-stat"><strong>${presence.length}</strong> connecté${presence.length > 1 ? 's' : ''} · ${notes.length} post-it${notes.length > 1 ? 's' : ''} reçu${notes.length > 1 ? 's' : ''}</p>
         ${presence.length ? `<ul class="present">${presence.map((p) => `<li>${esc(p.author)}</li>`).join('')}</ul>` : ''}
-        <p class="hint">Les téléphones suivent l'étape affichée : <strong>${esc(stepLabel)}</strong>${step === 'empathy' && meta ? ` (carte de ${esc(personaById(meta.persona)?.name ?? '')})` : ''}.
+        <p class="hint">Les participants suivent l'étape affichée : <strong>${esc(stepLabel)}</strong>${step === 'empathy' && meta ? ` (carte de ${esc(personaById(meta.persona)?.name ?? '')})` : ''}.
           ${phoneStep ? '' : 'Pas de post-it à cette étape.'}</p>
         <label class="check"><input type="checkbox" data-closed ${meta?.closed ? 'checked' : ''}> Fermer les envois</label>
         <div class="dialog-actions"><button type="button" class="btn btn-danger" data-end>Terminer la séance</button></div>
@@ -221,8 +223,8 @@ export function createPhones({ button, dialog, count, current, onRemote, onChang
     else if (e.target.closest('[data-forget]')) forget();
     else if (e.target.closest('[data-end]')) end();
     else if (e.target.closest('[data-copy-url]')) {
-      const ok = await copyText(participantUrl(location.href, session.sid));
-      toast(ok ? 'Lien copié' : 'Copie impossible');
+      const ok = await copyText(this_share());
+      toast(ok ? 'Lien copié : collez-le dans le chat de la réunion.' : 'Copie impossible');
     }
   });
   dialog.addEventListener('change', (e) => {
@@ -239,5 +241,7 @@ export function createPhones({ button, dialog, count, current, onRemote, onChang
     get presence() { return presence; },
     get code() { return meta?.code ?? ''; },
     get joinUrl() { return new URL('postit.html', location.href).href; },
+    /** Lien à coller dans le chat de la réunion : la page participant avec le code de la salle. */
+    get shareUrl() { return meta?.code ? `${new URL('postit.html', location.href).href}?code=${meta.code}` : (session ? participantUrl(location.href, session.sid) : ''); },
   };
 }

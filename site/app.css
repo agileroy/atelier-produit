@@ -750,6 +750,18 @@ button.tchip { cursor: grab; touch-action: manipulation; }
 .perror { margin: 0; color: var(--danger); font-size: 14px; font-weight: 500; }
 .pcode { font-family: var(--display); font-size: 28px; font-weight: 800; letter-spacing: .3em; text-transform: uppercase; text-align: center; }
 
+/* Lien à copier (participants sur ordinateur) */
+.share { display: grid; gap: 6px; }
+.share-link { margin: 0; display: flex; flex-wrap: wrap; align-items: center; gap: 8px 12px; }
+.share-url {
+  padding: 6px 10px; border-radius: 8px; background: var(--bg); border: 1px solid var(--line);
+  font-family: ui-monospace, "SFMono-Regular", Menlo, Consolas, monospace; font-size: 14px; overflow-wrap: anywhere; user-select: all;
+}
+.share-code { margin: 0; font-size: 14px; color: var(--muted); }
+.share--big .share-url { font-size: 16px; }
+.share--big .share-code { font-size: 16px; }
+.btn svg { flex: none; }
+
 /* Bouton « Rejoindre » permanent et grand QR code */
 .join-pill {
   position: fixed; left: max(16px, env(safe-area-inset-left, 0px)); bottom: 16px; z-index: 25;
@@ -848,6 +860,16 @@ button.tchip { cursor: grab; touch-action: manipulation; }
 .pcorr { list-style: none; margin: 0; padding: 0; display: grid; gap: 10px; }
 .pyou { margin: 0; font-size: 14px; }
 @media (max-width: 380px) { .pq-choices--phases { grid-template-columns: minmax(0, 1fr); } }
+.pnote-foot { display: flex; justify-content: space-between; gap: 8px; }
+.pkbd { font-size: 12px; color: var(--muted); }
+@media (hover: none), (pointer: coarse) { .pkbd { visibility: hidden; } }
+/* Sur ordinateur : page plus large, choix sur plusieurs colonnes. */
+@media (min-width: 720px) {
+  main.postit-main { max-width: 860px; }
+  .pzones { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+  .pq-choices { grid-template-columns: 1fr 1fr; }
+  .pq-choices--phases { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+}
 
 /* ---------- Boîtes de dialogue ---------- */
 

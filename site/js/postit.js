@@ -1,4 +1,4 @@
-// Page participant (téléphone) : écrire des post-its pour l'étape en cours de l'atelier,
+// Page participant (ordinateur ou téléphone) : écrire des post-its pour l'étape en cours de l'atelier,
 // puis répondre au quiz du débrief et recevoir sa correction personnalisée.
 // Pas de compte : un prénom, mémorisé dans le navigateur. Chacun ne voit que ses propres post-its et sa copie.
 
@@ -81,7 +81,7 @@ function render() {
         </fieldset>` : ''}
         <label class="field-wrap"><span class="field-label">Votre post-it</span>
           <textarea class="field pnote" name="text" rows="3" maxlength="${MAX_PHONE_TEXT}" required style="--h:${HUES[draft.zone] ?? 48}">${esc(draft.text)}</textarea>
-          <span class="pcount" id="pcount">${draft.text.length} / ${MAX_PHONE_TEXT}</span></label>
+          <span class="pnote-foot"><span class="pkbd">Ctrl + Entrée pour envoyer</span><span class="pcount" id="pcount">${draft.text.length} / ${MAX_PHONE_TEXT}</span></span></label>
         <button type="submit" class="btn btn-primary btn-block" ${sending ? 'disabled' : ''}>${sending ? 'Envoi…' : 'Envoyer sur l\'écran'}</button>
       </form>`;
   }
@@ -212,7 +212,7 @@ function renderJoin() {
   main.innerHTML = `<section class="pcard">
     <p class="kicker">Atelier Produit</p>
     <h1>Rejoindre un atelier</h1>
-    <p>Saisissez le code affiché à l'écran, ou scannez le QR code.</p>
+    <p>Saisissez le code affiché à l'écran.</p>
     <form class="pform" id="codeform">
       <label class="field-wrap"><span class="field-label">Code de l'atelier</span>
         <input class="field pcode" name="code" maxlength="${CODE_LENGTH + 2}" autocomplete="off" autocapitalize="characters" spellcheck="false" required inputmode="text" aria-describedby="code-error"></label>
@@ -243,6 +243,14 @@ main.addEventListener('input', (e) => {
     draft.text = e.target.value;
     const c = $('#pcount');
     if (c) c.textContent = `${draft.text.length} / ${MAX_PHONE_TEXT}`;
+  }
+});
+
+// Sur ordinateur : Ctrl + Entrée (ou Cmd + Entrée) envoie le post-it.
+main.addEventListener('keydown', (e) => {
+  if (e.key === 'Enter' && (e.ctrlKey || e.metaKey) && e.target.name === 'text') {
+    e.preventDefault();
+    e.target.form?.requestSubmit();
   }
 });
 
@@ -318,7 +326,7 @@ main.addEventListener('submit', async (e) => {
 
 async function startPage() {
   setupTheme($('#theme-toggle'));
-  if (!firebaseConfig) { message('Envoi non configuré', 'L\'envoi de post-its depuis les téléphones n\'est pas activé pour cet outil.'); return; }
+  if (!firebaseConfig) { message('Participation non configurée', 'La participation à distance n\'est pas activée pour cet outil.'); return; }
   try {
     const { createStore } = await import('./store.js?v=__VERSION__');
     store = createStore();
