@@ -2,7 +2,7 @@
 // Testée avec Node.js (tests/session-core.test.mjs). Les règles de database.rules.json appliquent
 // les mêmes contraintes côté base (branche atelierProduit).
 
-import { STEP_IDS, PERSONA_IDS, ZONE_IDS, IMPACT_KINDS, MAX_AUTHOR, TOOL_IDS, PHASE_IDS, newId, situationVerdict } from './core.js?v=__VERSION__';
+import { STEP_IDS, PERSONA_IDS, ZONE_IDS, IMPACT_KINDS, MAX_AUTHOR, TOOL_IDS, PLACE_IDS, newId, situationVerdict } from './core.js?v=__VERSION__';
 import { PHONE_STEPS, SITUATIONS, SITUATION_CHOICES, TOOL_PHASES } from './content.js?v=__VERSION__';
 
 export const MAX_PHONE_TEXT = 140;
@@ -91,13 +91,13 @@ export function participantUrl(base, sid) {
 
 const cleanAuthor = (v) => String(v ?? '').replace(/\s+/g, ' ').trim().slice(0, MAX_AUTHOR);
 
-/** Nombre de réponses attendues : un rangement par outil, un choix par situation. */
+/** Nombre de réponses attendues : un rangement par notion (Design Thinking et trois outils), un choix par situation. */
 export const QUIZ_QUESTIONS = TOOL_IDS.length + SITUATIONS.length;
 export const QUIZ_MAX = QUIZ_QUESTIONS;
 
 /** Combien de réponses sont données dans un brouillon. */
 export function quizProgress({ placement = {}, answers = {} } = {}) {
-  return TOOL_IDS.filter((t) => PHASE_IDS.includes(placement[t])).length
+  return TOOL_IDS.filter((t) => PLACE_IDS.includes(placement[t])).length
     + SITUATIONS.filter((s) => SITUATION_CHOICES.includes(answers[s.id])).length;
 }
 
@@ -147,7 +147,7 @@ export function podium(entries, size = 3) {
 export function quizStats(entries) {
   const n = entries.length;
   const average = n ? entries.reduce((sum, e) => sum + e.score.points, 0) / n : 0;
-  const tools = Object.fromEntries(TOOL_IDS.map((t) => [t, Object.fromEntries(PHASE_IDS.map((p) => [p, entries.filter((e) => e.placement[t] === p).length]))]));
+  const tools = Object.fromEntries(TOOL_IDS.map((t) => [t, Object.fromEntries(PLACE_IDS.map((p) => [p, entries.filter((e) => e.placement[t] === p).length]))]));
   const situations = Object.fromEntries(SITUATIONS.map((s) => [s.id, Object.fromEntries(SITUATION_CHOICES.map((c) => [c, entries.filter((e) => e.answers[s.id] === c).length]))]));
   // La situation la moins réussie : la plus intéressante à discuter.
   let hardest = null;

@@ -3,7 +3,7 @@
 // Logique pure (ni DOM ni Firebase), testée avec Node.js.
 
 import {
-  STEPS, PERSONAS, EMPATHY_ZONES, STORY_LANES, BACKBONE_EXAMPLE, TOOL_PHASES, PHASES,
+  STEPS, PERSONAS, EMPATHY_ZONES, STORY_LANES, BACKBONE_EXAMPLE, TOOL_PHASES, PHASES, PLACES,
   SITUATIONS, SITUATION_CHOICES, TOOLS, CASE, IMPACT_LEVELS,
 } from './content.js?v=__VERSION__';
 
@@ -19,6 +19,8 @@ export const LANE_IDS = STORY_LANES.map((l) => l.id);
 export const IMPACT_KINDS = ['actor', 'impact', 'deliverable'];
 export const TOOL_IDS = Object.keys(TOOL_PHASES);
 export const PHASE_IDS = PHASES.map((p) => p.id);
+/** Où ranger une notion au débrief : une des quatre phases, ou tout le double diamant. */
+export const PLACE_IDS = PLACES.map((p) => p.id);
 
 const ID_RE = /^[a-z0-9]{4,24}$/;
 
@@ -353,7 +355,7 @@ export function mvpGaps(state) {
 export function setPlacement(state, tool, phase) {
   if (!TOOL_IDS.includes(tool)) return false;
   if (phase === null) delete state.debrief.placement[tool];
-  else if (PHASE_IDS.includes(phase)) state.debrief.placement[tool] = phase;
+  else if (PLACE_IDS.includes(phase)) state.debrief.placement[tool] = phase;
   else return false;
   state.debrief.checked = false;
   return true;
@@ -469,8 +471,7 @@ export function reportText(state, date = '') {
     for (const r of rows) lines.push(`- ${r.c.text} : ${r.list.map((n) => n.text).join(' ; ')}`);
   }
 
-  const score = situationScore(state);
-  lines.push('', 'DÉBRIEF', `Situations : ${String(score.points).replace('.', ',')} point${score.points > 1 ? 's' : ''} sur ${score.answered} réponse${score.answered > 1 ? 's' : ''} (${score.correct} bonne${score.correct > 1 ? 's' : ''}, ${score.defensible} défendable${score.defensible > 1 ? 's' : ''})`);
+  lines.push('', 'DÉBRIEF');
   if (state.debrief.takeaways.trim()) lines.push('Ce que l\'équipe retient :', state.debrief.takeaways.trim());
   return lines.join('\n');
 }
@@ -550,7 +551,7 @@ export function sanitize(raw) {
     for (const p of PERSONA_IDS) if (raw.compare[p] === true) state.compare[p] = true;
   }
   const d = raw.debrief ?? {};
-  for (const tool of TOOL_IDS) if (PHASE_IDS.includes(d.placement?.[tool])) state.debrief.placement[tool] = d.placement[tool];
+  for (const tool of TOOL_IDS) if (PLACE_IDS.includes(d.placement?.[tool])) state.debrief.placement[tool] = d.placement[tool];
   state.debrief.checked = d.checked === true;
   state.debrief.mode = d.mode === 'quiz' ? 'quiz' : 'team';
   for (const s of SITUATIONS) if (SITUATION_CHOICES.includes(d.answers?.[s.id])) state.debrief.answers[s.id] = d.answers[s.id];

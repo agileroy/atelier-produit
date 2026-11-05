@@ -55,7 +55,7 @@ import { quizPayload, quizProgress, quizScore, readQuizEntries, podium, quizStat
 import { SITUATIONS } from '../site/js/content.js';
 
 const perfect = {
-  placement: { empathy: 'discover', impact: 'define', story: 'deliver' },
+  placement: { designThinking: 'all', empathy: 'discover', impact: 'define', story: 'deliver' },
   answers: Object.fromEntries(SITUATIONS.map((s) => [s.id, s.answer])),
 };
 
@@ -66,7 +66,8 @@ test('quiz : une copie incomplète ne part pas', () => {
   assert.ok(quizPayload({ author: 'Léa', ...perfect }));
 });
 
-test('quiz : note sur 11, demi-point pour une réponse défendable', () => {
+test('quiz : note sur 12, demi-point pour une réponse défendable', () => {
+  assert.equal(QUIZ_MAX, 12, 'quatre notions à ranger et huit situations');
   assert.equal(quizScore(perfect).points, QUIZ_MAX);
   const one = structuredClone(perfect);
   one.placement.impact = 'deliver';
@@ -93,7 +94,7 @@ test('quiz : podium à trois, égalité départagée par l\'ordre de validation'
   assert.equal(stats.count, 4);
   assert.equal(stats.situations.backlog.empathy, 2);
   assert.equal(stats.hardest.id, 'backlog');
-  assert.equal(stats.average, (11 + 11 + 10 + 10) / 4);
+  assert.equal(stats.average, (12 + 12 + 11 + 11) / 4);
 });
 
 import { newCode, isCode, normalizeCode, nameKey, readPresence, waitingFor, CODE_ALPHABET } from '../site/js/session-core.js';

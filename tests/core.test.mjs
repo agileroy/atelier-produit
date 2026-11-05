@@ -172,7 +172,8 @@ test('débrief : rangement sur le double diamant', () => {
   setPlacement(s, 'empathy', 'discover');
   setPlacement(s, 'impact', 'deliver');
   setPlacement(s, 'story', 'deliver');
-  assert.deepEqual(checkPlacement(s), { empathy: true, impact: false, story: true });
+  setPlacement(s, 'designThinking', 'all');
+  assert.deepEqual(checkPlacement(s), { designThinking: true, empathy: true, impact: false, story: true });
   setPlacement(s, 'story', null);
   assert.equal(checkPlacement(s).story, null);
   assert.equal(setPlacement(s, 'story', 'mars'), false);

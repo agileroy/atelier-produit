@@ -71,14 +71,14 @@ test('quiz : chacun écrit sa copie une seule fois, pendant que le quiz est ouve
 });
 
 test('quiz : les valeurs acceptées par la base sont celles de l\'outil', async () => {
-  const { SITUATIONS, SITUATION_CHOICES, PHASES, TOOL_PHASES } = await import('../site/js/content.js');
+  const { SITUATIONS, SITUATION_CHOICES, PLACES, TOOL_PHASES } = await import('../site/js/content.js');
   const { QUIZ_STATES } = await import('../site/js/session-core.js');
   const c = session.quiz.$uid;
   for (const s of SITUATIONS) {
     assert.ok(c.answers[s.id], `réponse ${s.id}`);
     for (const ch of SITUATION_CHOICES) assert.ok(c.answers[s.id]['.validate'].includes(ch), `${s.id} : ${ch}`);
   }
-  for (const t of Object.keys(TOOL_PHASES)) for (const p of PHASES) assert.ok(c.placement[t]['.validate'].includes(p.id), `${t} : ${p.id}`);
+  for (const t of Object.keys(TOOL_PHASES)) for (const p of PLACES) assert.ok(c.placement[t]['.validate'].includes(p.id), `${t} : ${p.id}`);
   for (const q of QUIZ_STATES) assert.ok(session.meta.quiz['.validate'].includes(q), q);
   assert.equal(c.$other['.validate'], false);
   assert.ok(c.submittedAt['.validate'].includes('now'));

@@ -9,7 +9,7 @@ import {
   nameKey, normalizeCode, isCode, CODE_LENGTH,
 } from './session-core.js?v=__VERSION__';
 import {
-  STEPS, PHONE_STEPS, EMPATHY_ZONES, IMPACT_LEVELS, PHASES, TOOL_PHASES, TOOLS, SITUATIONS, SITUATION_CHOICES, PLACEMENT_FEEDBACK,
+  STEPS, PHONE_STEPS, EMPATHY_ZONES, IMPACT_LEVELS, PHASES, PLACES, TOOL_PHASES, TOOLS, SITUATIONS, SITUATION_CHOICES, PLACEMENT_FEEDBACK,
 } from './content.js?v=__VERSION__';
 import { personaById, MAX_AUTHOR, TOOL_IDS } from './core.js?v=__VERSION__';
 import { $, esc, load, save, toast, announce, setupTheme } from './shared.js?v=__VERSION__';
@@ -35,7 +35,7 @@ const quizDraft = { placement: {}, answers: {}, ...(load(QUIZ_KEY) ?? {}) };
 let myQuiz = null;
 const CHOICE_LABELS = { empathy: 'Empathy map', impact: 'Impact mapping', story: 'Story mapping', designThinking: 'La démarche complète (Design Thinking)' };
 const fmt = (n) => String(n).replace('.', ',');
-const phaseLabel = (id) => PHASES.find((p) => p.id === id)?.label ?? '';
+const phaseLabel = (id) => PLACES.find((p) => p.id === id)?.label ?? '';
 const inQuiz = () => meta?.step === 'debrief' && meta.quiz !== 'off';
 
 const ZONE_INFO = {
@@ -107,10 +107,10 @@ function quizForm() {
   return `<form class="pform pquiz" id="quizform">
     <div class="pprogress" aria-live="polite"><p><span id="qprogress">${done} / ${QUIZ_QUESTIONS}</span> réponses</p>
       <i><b id="qbar" style="width:${(done / QUIZ_QUESTIONS) * 100}%"></b></i></div>
-    <h2 class="pq-title">1. Où chaque outil sert-il le plus ?</h2>
+    <h2 class="pq-title">1. Où se range chaque notion sur le double diamant ?</h2>
     ${TOOL_IDS.map((t) => `<fieldset class="pq">
       <legend><span class="tchip tchip--${t}">${esc(TOOLS[t].name)}</span></legend>
-      <div class="pq-choices pq-choices--phases">${PHASES.map((p) => `<label class="pq-choice"><input type="radio" name="t:${t}" value="${p.id}" ${quizDraft.placement[t] === p.id ? 'checked' : ''}>
+      <div class="pq-choices pq-choices--phases">${PLACES.map((p) => `<label class="pq-choice"><input type="radio" name="t:${t}" value="${p.id}" ${quizDraft.placement[t] === p.id ? 'checked' : ''}>
         <span><strong>${esc(p.label)}</strong><small>${esc(p.plain)}</small></span></label>`).join('')}</div>
     </fieldset>`).join('')}
     <h2 class="pq-title">2. Quel outil pour quelle situation ?</h2>
@@ -128,7 +128,7 @@ function quizCorrection() {
   const sc = quizScore(myQuiz);
   const verdictLabel = { right: 'Oui, c\'est le plus adapté.', ok: 'Défendable (½ point).', wrong: 'Pas le meilleur choix.' };
   return `<div class="pscore"><strong>${fmt(sc.points)}</strong> / ${QUIZ_MAX}<span>Votre score</span></div>
-    <h2 class="pq-title">1. Les outils sur le double diamant</h2>
+    <h2 class="pq-title">1. Les notions sur le double diamant</h2>
     <ul class="pcorr">${sc.tools.map((t) => `<li class="dresult ${t.ok ? 'is-right' : 'is-wrong'}">
       <p class="dresult-head"><span class="tchip tchip--${t.tool}">${esc(TOOLS[t.tool].name)}</span> <span>vous : <strong>${esc(phaseLabel(t.phase))}</strong></span></p>
       <p class="dresult-verdict">${t.ok ? 'Bien vu.' : `Sa place : ${esc(TOOL_PHASES[t.tool].map(phaseLabel).join(' et '))}.`}</p>
@@ -227,7 +227,7 @@ function renderName() {
   main.innerHTML = `<section class="pcard">
     <p class="kicker">Atelier Produit</p>
     <h1>Bienvenue !</h1>
-    <p>Vos post-its apparaîtront sur l'écran de l'atelier avec votre prénom, et c'est sous ce prénom que vous jouerez au quiz final.</p>
+    <p>Vos post-its apparaîtront sur l'écran de l'atelier, avec votre prénom.</p>
     <form class="pform" id="nameform">
       <label class="field-wrap"><span class="field-label">Votre prénom</span>
         <input class="field" name="author" maxlength="${MAX_AUTHOR}" autocomplete="given-name" required value="${esc(author)}" ${nameError ? 'aria-invalid="true" aria-describedby="name-error"' : ''}></label>

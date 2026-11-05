@@ -36,12 +36,17 @@ export const PHASES = [
   { id: 'deliver', label: 'Livrer', plain: 'Essayer des solutions concrètes et les améliorer avec les utilisateurs', diamond: 2, mode: 'fermer' },
 ];
 
+/** Au débrief, une notion peut aussi couvrir tout le double diamant (le Design Thinking). */
+export const ALL_PLACE = { id: 'all', label: 'Tout le double diamant', plain: 'Toute la démarche, du problème à la livraison, avec les allers-retours' };
+export const PLACES = [...PHASES, ALL_PLACE];
+
 /** Le message du double diamant, et l'aller-retour entre les phases. */
 export const DIAMOND_MESSAGE = 'On ouvre les possibilités, puis on fait des choix : d\'abord sur le problème, ensuite sur la solution.';
 export const DIAMOND_LOOP = 'On revient en arrière selon ce qu\'on apprend : les diamants ne se parcourent pas une seule fois.';
 
 /** Où chaque outil se range sur le double diamant (une ou plusieurs phases acceptées). */
 export const TOOL_PHASES = {
+  designThinking: ['all'],
   empathy: ['discover'],
   impact: ['define'],
   story: ['develop', 'deliver'],
@@ -49,19 +54,29 @@ export const TOOL_PHASES = {
 
 /** Correction du rangement au débrief : pour chaque outil, une explication par phase choisie. */
 export const PLACEMENT_FEEDBACK = {
+  designThinking: {
+    all: 'C\'est toute la démarche : les deux diamants, et les allers-retours entre eux. Les trois autres outils viennent s\'y ranger.',
+    discover: 'C\'est là qu\'il commence, mais il ne s\'y arrête pas : le Design Thinking, c\'est toute la démarche, les deux diamants et les allers-retours.',
+    define: 'Ce n\'est pas une phase parmi d\'autres : le Design Thinking, c\'est toute la démarche, les deux diamants et les allers-retours.',
+    develop: 'Ce n\'est pas une phase parmi d\'autres : le Design Thinking, c\'est toute la démarche, les deux diamants et les allers-retours.',
+    deliver: 'Il ne s\'arrête pas à la livraison : le Design Thinking, c\'est toute la démarche, les deux diamants et les allers-retours.',
+  },
   empathy: {
+    all: 'Elle ne couvre pas tout le chemin : elle sert au début, pour comprendre les personnes (Découvrir).',
     discover: 'On l\'utilise pour comprendre les personnes avant de chercher quoi que ce soit, à partir de ce qu\'on a vu et entendu.',
     define: 'Elle nourrit la définition du problème, mais elle ne choisit rien : elle rassemble ce qu\'on a appris. Elle sert juste avant, pour Découvrir.',
     develop: 'Elle ne produit aucune solution. Elle sert bien avant, pour comprendre les personnes : c\'est la phase Découvrir.',
     deliver: 'On ne livre pas une empathy map. On peut la compléter après un test, mais son rôle est de comprendre les personnes au départ : Découvrir.',
   },
   impact: {
+    all: 'Elle ne couvre pas tout le chemin : elle cadre l\'objectif et les comportements à changer (Définir).',
     discover: 'Elle part d\'un objectif déjà choisi : elle n\'explore pas les besoins. Elle vient juste après, pour Définir l\'objectif et les comportements à changer.',
     define: 'Elle fixe le pourquoi (un objectif mesurable) et les comportements à changer : c\'est le choix du problème à résoudre.',
     develop: 'Ses livrables sont des pistes de solution, c\'est vrai. Mais son cœur, l\'objectif et les impacts, sert à cadrer le problème : Définir.',
     deliver: 'Elle ne découpe pas ce qu\'on livre. Elle sert avant, à choisir l\'objectif et les comportements à changer : Définir.',
   },
   story: {
+    all: 'Elle ne couvre pas tout le chemin : elle organise et découpe la solution, dans le second diamant (Développer et Livrer).',
     discover: 'Elle suppose qu\'on sait déjà pour qui et pourquoi : elle organise des solutions. Elle arrive dans le second diamant, Développer et Livrer.',
     define: 'Elle ne choisit pas le problème, elle organise la solution le long du parcours. Elle vient dans le second diamant, Développer et Livrer.',
     develop: 'On y organise les solutions imaginées le long du parcours utilisateur. Elle sert aussi à Livrer, en découpant des versions.',
@@ -338,9 +353,10 @@ export const BRIEFS = {
   debrief: {
     duration: '20 min',
     steps: [
-      'Rangez chaque outil sur le double diamant.',
-      'Pour chaque situation, choisissez l\'outil le plus adapté.',
-      'Notez ce que l\'équipe retient, puis gardez une trace de l\'atelier.',
+      'Lancez le quiz quand tout le monde est connecté.',
+      'Chacun range les quatre notions sur le double diamant, puis choisit l\'outil adapté à huit situations.',
+      'Révélez les réponses : correction sur chaque téléphone, podium et répartition à l\'écran.',
+      'Discutez des situations les moins réussies, puis notez ce que l\'équipe retient.',
     ],
   },
 };

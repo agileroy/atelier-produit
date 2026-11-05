@@ -1,7 +1,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import {
-  PERSONAS, EMPATHY_ZONES, TOOLS, TOOL_PHASES, PHASES, SITUATIONS, SITUATION_CHOICES, BRIEFS, STEPS, STEP_PHASES, PHONE_STEPS, DIAMOND_MESSAGE, DIAMOND_LOOP,
+  PERSONAS, EMPATHY_ZONES, TOOLS, TOOL_PHASES, PHASES, SITUATIONS, SITUATION_CHOICES, BRIEFS, STEPS, STEP_PHASES, PHONE_STEPS, DIAMOND_MESSAGE, DIAMOND_LOOP, PLACES,
   PLACEMENT_FEEDBACK, IMPACT_EXAMPLE, STORY_EXAMPLE,
 } from '../site/js/content.js';
 
@@ -35,7 +35,7 @@ test('fiches-outil complètes', () => {
 });
 
 test('double diamant : chaque outil se range sur des phases connues', () => {
-  const phaseIds = PHASES.map((p) => p.id);
+  const phaseIds = PLACES.map((p) => p.id);
   for (const [tool, phases] of Object.entries(TOOL_PHASES)) {
     assert.ok(TOOLS[tool], tool);
     for (const p of phases) assert.ok(phaseIds.includes(p), `${tool} : ${p}`);
@@ -73,7 +73,7 @@ test('situations : une explication pour chaque autre choix, au moins une « déf
 
 test('débrief : une explication pour chaque outil posé sur chaque phase', () => {
   for (const tool of Object.keys(TOOL_PHASES)) {
-    for (const p of PHASES) assert.ok(PLACEMENT_FEEDBACK[tool]?.[p.id], `${tool} : ${p.id}`);
+    for (const p of PLACES) assert.ok(PLACEMENT_FEEDBACK[tool]?.[p.id], `${tool} : ${p.id}`);
   }
 });
 

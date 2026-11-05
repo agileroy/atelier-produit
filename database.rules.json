@@ -91,15 +91,18 @@
                 ".validate": "newData.isString() && newData.val().length >= 1 && newData.val().length <= 30"
               },
               "placement": {
-                ".validate": "newData.hasChildren(['empathy', 'impact', 'story'])",
+                ".validate": "newData.hasChildren(['designThinking', 'empathy', 'impact', 'story'])",
                 "empathy": {
-                  ".validate": "newData.isString() && newData.val().matches(/^(discover|define|develop|deliver)$/)"
+                  ".validate": "newData.isString() && newData.val().matches(/^(discover|define|develop|deliver|all)$/)"
                 },
                 "impact": {
-                  ".validate": "newData.isString() && newData.val().matches(/^(discover|define|develop|deliver)$/)"
+                  ".validate": "newData.isString() && newData.val().matches(/^(discover|define|develop|deliver|all)$/)"
                 },
                 "story": {
-                  ".validate": "newData.isString() && newData.val().matches(/^(discover|define|develop|deliver)$/)"
+                  ".validate": "newData.isString() && newData.val().matches(/^(discover|define|develop|deliver|all)$/)"
+                },
+                "designThinking": {
+                  ".validate": "newData.isString() && newData.val().matches(/^(discover|define|develop|deliver|all)$/)"
                 },
                 "$other": {
                   ".validate": false

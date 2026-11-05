@@ -386,26 +386,27 @@ textarea.field { resize: vertical; line-height: 1.45; }
 .dphase--deliver { left: 74.5%; }
 .dphase-label { font-family: var(--display); font-weight: 700; font-size: clamp(14px, 1.8vw, 19px); }
 
-.dphase-head { display: inline-flex; align-items: center; gap: 6px; }
+.dphase-head { position: relative; display: inline-flex; align-items: center; gap: 6px; }
 .dinfo {
   width: 20px; height: 20px; padding: 0; flex: none; display: grid; place-items: center; border-radius: 50%;
   border: 1.5px solid var(--accent); background: var(--surface); color: var(--accent); cursor: help;
   font: italic 700 12px/1 Georgia, "Times New Roman", serif;
 }
 .dinfo:hover, .dinfo[aria-expanded="true"] { background: var(--accent); color: var(--accent-ink); }
-/* Bulle explicative : au survol, au focus, ou ouverte au clic / au toucher. */
+/* Bulle explicative au-dessus du nom de la phase (elle ne masque ni le nom ni les outils) :
+   au survol, au focus, ou ouverte au clic / au toucher. */
 .dphase { z-index: 1; }
 .dphase:has(.dinfo:hover), .dphase:has(.dinfo:focus-visible), .dphase:has(.dtip.is-open) { z-index: 5; }
 .dtip {
-  position: absolute; left: 50%; top: 2.2em; transform: translateX(-50%); z-index: 6;
-  width: max(180px, 115%); padding: 10px 12px; border-radius: 10px;
-  background: var(--fg); color: var(--bg); font-size: 14px; line-height: 1.35; font-weight: 500; text-align: center;
+  position: absolute; left: 50%; bottom: calc(100% + 10px); transform: translateX(-50%); z-index: 6;
+  width: max-content; max-width: 220px; padding: 10px 12px; border-radius: 10px;
+  background: var(--fg); color: var(--bg); font-family: var(--body); font-size: 14px; line-height: 1.35; font-weight: 500; text-align: center;
   box-shadow: 0 12px 24px -10px rgba(0, 0, 0, .45);
   opacity: 0; visibility: hidden; transition: opacity .15s ease;
   pointer-events: none;
 }
-.dtip::before { content: ""; position: absolute; left: 50%; top: -6px; margin-left: -6px; border: 6px solid transparent; border-top: 0; border-bottom-color: var(--fg); }
-.dphase-head:has(.dinfo:hover) + .dtip, .dphase-head:has(.dinfo:focus-visible) + .dtip, .dtip.is-open { opacity: 1; visibility: visible; }
+.dtip::after { content: ""; position: absolute; left: 50%; bottom: -6px; margin-left: -6px; border: 6px solid transparent; border-bottom: 0; border-top-color: var(--fg); }
+.dphase-head:has(.dinfo:hover) .dtip, .dphase-head:has(.dinfo:focus-visible) .dtip, .dtip.is-open { opacity: 1; visibility: visible; }
 @media (prefers-reduced-motion: reduce) { .dtip { transition: none; } }
 .dphase-mode { font-size: 11px; color: var(--muted); letter-spacing: .04em; }
 .dloop {
@@ -443,9 +444,19 @@ button.tchip { cursor: grab; touch-action: manipulation; }
   .dphase { position: static; width: auto; height: auto; min-height: 96px; background: var(--surface); border: 1px solid var(--line); }
   .dloop { position: static; grid-column: 1 / -1; transform: none; width: auto; max-width: none; background: none; }
   .dphase { position: relative; inset: auto; }
-  .dtip { left: 0; right: 0; width: auto; transform: none; font-size: 13px; }
+  .dtip { max-width: 170px; font-size: 13px; }
   .dboard--drop .dphase { border: 2px dashed var(--line); }
 }
+
+/* « Tout le double diamant » : la place du Design Thinking */
+.dall {
+  display: flex; flex-wrap: wrap; align-items: center; justify-content: center; gap: 8px 16px;
+  margin-top: 6px; padding: 10px 16px; border-radius: 12px;
+  border: 2px solid var(--accent); background: color-mix(in srgb, var(--accent) 6%, var(--surface));
+}
+.dall-label { font-size: 14px; color: var(--muted); }
+.dall-label strong { font-family: var(--display); font-size: 16px; color: var(--fg); margin-right: 4px; }
+.dall .dphase-chips { min-height: 0; margin: 0; }
 
 /* ---------- Étape « cadre » ---------- */
 
@@ -739,7 +750,26 @@ button.tchip { cursor: grab; touch-action: manipulation; }
 .perror { margin: 0; color: var(--danger); font-size: 14px; font-weight: 500; }
 .pcode { font-family: var(--display); font-size: 28px; font-weight: 800; letter-spacing: .3em; text-transform: uppercase; text-align: center; }
 
-/* ---------- Débrief : choix du mode, quiz, révélation ---------- */
+/* Bouton « Rejoindre » permanent et grand QR code */
+.join-pill {
+  position: fixed; left: max(16px, env(safe-area-inset-left, 0px)); bottom: 16px; z-index: 25;
+  display: inline-flex; align-items: center; gap: 8px; padding: 8px 10px 8px 14px; border-radius: 999px; cursor: pointer;
+  background: var(--surface); color: var(--fg); border: 1px solid var(--line); box-shadow: var(--shadow); font-size: 14px; font-weight: 600;
+}
+.join-pill:hover { border-color: var(--accent); color: var(--accent); }
+.join-pill svg { width: 18px; height: 18px; fill: none; stroke: currentColor; stroke-width: 1.8; }
+.join-pill strong { letter-spacing: .12em; color: var(--accent); }
+.join-pill-n { min-width: 22px; height: 22px; padding: 0 6px; display: grid; place-items: center; border-radius: 999px; background: var(--ok); color: var(--surface); font-size: 12px; }
+.dialog.dialog--join { width: min(860px, calc(100vw - 24px)); }
+.join-big { grid-template-columns: minmax(0, 1.1fr) minmax(0, 1fr); gap: 24px; align-items: center; }
+.join-big-qr { background: #fff; border-radius: 14px; padding: 10px; border: 1px solid var(--line); }
+.join-big-qr svg { display: block; width: 100%; height: auto; }
+.join-big-info { display: grid; gap: 12px; font-size: 18px; }
+.room-code--big strong { font-size: 2em; }
+@media (max-width: 600px) { .join-big { grid-template-columns: minmax(0, 1fr); } }
+@media print { .join-pill { display: none !important; } }
+
+/* ---------- Débrief : quiz, révélation ---------- */
 
 .mode-switch { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
 .mode-switch button {
@@ -805,6 +835,7 @@ button.tchip { cursor: grab; touch-action: manipulation; }
 .pq-n { flex: none; display: grid; place-items: center; width: 24px; height: 24px; border-radius: 50%; background: var(--surface); border: 1px solid var(--line); font-size: 12px; font-weight: 700; color: var(--muted); }
 .pq-choices { display: grid; gap: 6px; clear: both; }
 .pq-choices--phases { grid-template-columns: 1fr 1fr; }
+.pq-choices--phases .pq-choice:last-child { grid-column: 1 / -1; }
 .pq-choice { display: flex; gap: 8px; align-items: flex-start; padding: 10px; border-radius: 10px; background: var(--surface); border: 1.5px solid var(--line); cursor: pointer; }
 .pq-choice:has(input:checked) { border-color: var(--accent); box-shadow: 0 0 0 2px var(--accent-soft); }
 .pq-choice input { margin: 2px 0 0; width: 18px; height: 18px; flex: none; accent-color: var(--accent); }
