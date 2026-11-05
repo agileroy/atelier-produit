@@ -1,0 +1,21 @@
+schema: spec-driven
+
+# Project context: constraints an agent cannot infer from the code.
+context: |
+  Rédiger tous les artefacts OpenSpec (proposal, design, specs, tasks) en français.
+  Atelier guidé pour découvrir les techniques produit sur un cas fil rouge (Covoit'Boulot) :
+  Design Thinking (double diamant), empathy map, impact mapping, story mapping, puis débrief. Sans publicité, dépôt public.
+  Cas, personas, extraits d'interview, fiches-outil et situations sont une création originale (site/js/content.js).
+  Interface en français uniquement pour l'instant.
+  Hébergement : site statique sur GitHub Pages (https://agileroy.github.io/atelier-produit/), sans serveur.
+  L'écran animateur (index.html) est projeté ; l'état vit dans le navigateur (localStorage), export .json.
+  Post-its depuis les téléphones (postit.html) : Firebase Realtime Database (offre gratuite, connexion anonyme)
+  dans un projet dédié (atelier-produit-vleroy), branche atelierProduit ; Firebase n'est chargé qu'à la demande et
+  l'atelier fonctionne sans. database.rules.json est publié par GitHub Actions après les tests (secret FIREBASE_SERVICE_ACCOUNT).
+  Le VPN de l'entreprise (proxy Zscaler) bloque Firebase : séance téléphones hors VPN ou depuis un téléphone.
+  Stack : HTML/CSS/JavaScript vanilla en modules ES, sans framework ni étape de build (dossier site/).
+  Architecture : content.js, core.js et session-core.js sont purs (sans DOM ni Firebase), testés avec Node.js ;
+  store.js est le seul module qui parle à Firebase.
+  Thème clair / sombre mémorisé sous la même clé que la boîte à outils (agileroy.github.io/outils/).
+  Tests : lanceur intégré de Node.js (npm test), à faire évoluer avec chaque changement de comportement ;
+  la publication GitHub Actions est bloquée si un test échoue.

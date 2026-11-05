@@ -1,0 +1,9 @@
+{
+  "name": "atelier-produit",
+  "private": true,
+  "type": "module",
+  "description": "Atelier guidé pour découvrir les techniques produit : Design Thinking, empathy map, impact mapping, story mapping",
+  "scripts": {
+    "test": "node --test"
+  }
+}

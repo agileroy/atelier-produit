@@ -1,0 +1,87 @@
+{
+  "rules": {
+    ".read": false,
+    ".write": false,
+    "atelierProduit": {
+      "keys": {
+        "$sid": {
+          ".write": "auth != null && ((!data.exists() && newData.exists() && !root.child('atelierProduit/sessions/' + $sid).exists()) || (!newData.exists() && root.child('atelierProduit/sessions/' + $sid + '/owners/' + auth.uid).exists()))",
+          ".validate": "$sid.matches(/^[a-z0-9]{12}$/) && newData.isString() && newData.val().matches(/^[a-z0-9]{24}$/)"
+        }
+      },
+      "sessions": {
+        "$sid": {
+          ".write": "auth != null && !newData.exists() && root.child('atelierProduit/sessions/' + $sid + '/owners/' + auth.uid).exists()",
+          ".validate": "$sid.matches(/^[a-z0-9]{12}$/) && newData.child('meta').exists()",
+          "meta": {
+            ".read": "auth != null",
+            ".write": "auth != null && ((!data.exists() && newData.exists() && newData.parent().child('owners').child(auth.uid).exists()) || (data.exists() && newData.exists() && root.child('atelierProduit/sessions/' + $sid + '/owners/' + auth.uid).exists()))",
+            ".validate": "newData.hasChildren(['title', 'step', 'persona', 'closed', 'createdAt'])",
+            "title": {
+              ".validate": "newData.isString() && newData.val().length >= 1 && newData.val().length <= 80"
+            },
+            "step": {
+              ".validate": "newData.isString() && newData.val().matches(/^(frame|empathy|impact|story|debrief)$/)"
+            },
+            "persona": {
+              ".validate": "newData.isString() && newData.val().matches(/^(sophie|karim)$/)"
+            },
+            "closed": {
+              ".validate": "newData.isBoolean()"
+            },
+            "createdAt": {
+              ".validate": "newData.isNumber() && ((data.exists() && newData.val() === data.val()) || (!data.exists() && newData.val() === now))"
+            },
+            "$other": {
+              ".validate": false
+            }
+          },
+          "owners": {
+            ".read": "auth != null && data.child(auth.uid).exists()",
+            "$uid": {
+              ".write": "auth != null && auth.uid === $uid && newData.exists()",
+              ".validate": "newData.isString() && newData.val() === newData.parent().parent().parent().parent().child('keys').child($sid).val()"
+            }
+          },
+          "notes": {
+            ".read": "auth != null && data.parent().child('owners').child(auth.uid).exists()",
+            "$uid": {
+              ".read": "auth != null && auth.uid === $uid",
+              "$nid": {
+                ".write": "auth != null && auth.uid === $uid && !data.exists() && newData.exists() && root.child('atelierProduit/sessions/' + $sid + '/meta/closed').val() === false && root.child('atelierProduit/sessions/' + $sid + '/meta/step').val() === newData.child('step').val()",
+                ".validate": "$nid.matches(/^[a-z0-9]{12}$/) && newData.hasChildren(['author', 'step', 'zone', 'persona', 'text', 'createdAt'])",
+                "author": {
+                  ".validate": "newData.isString() && newData.val().length >= 1 && newData.val().length <= 30"
+                },
+                "step": {
+                  ".validate": "newData.isString() && newData.val().matches(/^(empathy|impact|story)$/)"
+                },
+                "zone": {
+                  ".validate": "newData.isString() && ((newData.parent().child('step').val() === 'empathy' && newData.val().matches(/^(says|thinks|does|feels|pains|gains)$/)) || (newData.parent().child('step').val() === 'impact' && newData.val().matches(/^(actor|impact|deliverable)$/)) || (newData.parent().child('step').val() === 'story' && newData.val() === 'story'))"
+                },
+                "persona": {
+                  ".validate": "newData.isString() && ((newData.parent().child('step').val() === 'empathy' && newData.val().matches(/^(sophie|karim)$/)) || (newData.parent().child('step').val() !== 'empathy' && newData.val() === ''))"
+                },
+                "text": {
+                  ".validate": "newData.isString() && newData.val().length >= 1 && newData.val().length <= 140"
+                },
+                "createdAt": {
+                  ".validate": "newData.isNumber() && newData.val() === now"
+                },
+                "$other": {
+                  ".validate": false
+                }
+              }
+            }
+          },
+          "$other": {
+            ".validate": false
+          }
+        }
+      },
+      "$other": {
+        ".validate": false
+      }
+    }
+  }
+}
