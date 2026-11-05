@@ -12,6 +12,13 @@ L'atelier SHALL proposer les étapes Cadre, Empathy map, Impact mapping, Story m
 - **WHEN** une étape outil a été visitée
 - **THEN** l'outil apparaît sur sa phase du double diamant de l'étape Cadre
 
+### Requirement: Double diamant lisible par des néophytes
+Le double diamant SHALL garder les noms officiels des phases (Découvrir, Définir, Développer, Livrer), chacun accompagné d'un verbe simple et d'une phrase (Explorer, Cadrer, Imaginer, Tester), de l'indication « on ouvre » ou « on choisit », du message « on ouvre les possibilités, puis on fait des choix : d'abord sur le problème, ensuite sur la solution », et d'une flèche de retour indiquant qu'on revient en arrière selon ce qu'on apprend.
+
+#### Scenario: La première version est un test
+- **WHEN** l'équipe relit la première version de la story map
+- **THEN** l'outil rappelle qu'elle sert aussi à tester auprès des utilisateurs et peut renvoyer au premier diamant
+
 ### Requirement: Fiche-outil et consigne
 Chaque étape outil SHALL afficher une consigne « À faire » avec sa durée et donner accès à une fiche-outil (à quoi ça sert, quand, comment, pièges, origine), dans un panneau qui ne bloque pas le tableau.
 

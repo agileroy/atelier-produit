@@ -1,7 +1,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import {
-  PERSONAS, EMPATHY_ZONES, TOOLS, TOOL_PHASES, PHASES, SITUATIONS, SITUATION_CHOICES, BRIEFS, STEPS, STEP_PHASES, PHONE_STEPS,
+  PERSONAS, EMPATHY_ZONES, TOOLS, TOOL_PHASES, PHASES, SITUATIONS, SITUATION_CHOICES, BRIEFS, STEPS, STEP_PHASES, PHONE_STEPS, DIAMOND_MESSAGE, DIAMOND_LOOP,
 } from '../site/js/content.js';
 
 const zoneIds = EMPATHY_ZONES.map((z) => z.id);
@@ -40,6 +40,12 @@ test('double diamant : chaque outil se range sur des phases connues', () => {
     for (const p of phases) assert.ok(phaseIds.includes(p), `${tool} : ${p}`);
   }
   for (const s of STEPS) assert.ok(Array.isArray(STEP_PHASES[s.id]), s.id);
+});
+
+test('double diamant : chaque phase a son nom officiel et son verbe simple', () => {
+  assert.deepEqual(PHASES.map((p) => p.label), ['Découvrir', 'Définir', 'Développer', 'Livrer']);
+  for (const p of PHASES) assert.ok(p.verb && p.plain && ['ouvrir', 'fermer'].includes(p.mode), p.id);
+  assert.ok(DIAMOND_MESSAGE && DIAMOND_LOOP);
 });
 
 test('situations : réponses possibles, chaque choix sert au moins une fois', () => {

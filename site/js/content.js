@@ -30,11 +30,15 @@ export const CASE = {
 /* ---------- Le double diamant (Design Council, 2005) ---------- */
 
 export const PHASES = [
-  { id: 'discover', label: 'Découvrir', diamond: 1, mode: 'ouvrir', hint: 'Comprendre les utilisateurs et leur problème, sans présupposer la solution.' },
-  { id: 'define', label: 'Définir', diamond: 1, mode: 'fermer', hint: 'Choisir le problème à résoudre et l\'objectif à atteindre.' },
-  { id: 'develop', label: 'Développer', diamond: 2, mode: 'ouvrir', hint: 'Imaginer des solutions, les organiser, en tester plusieurs.' },
-  { id: 'deliver', label: 'Livrer', diamond: 2, mode: 'fermer', hint: 'Découper, livrer par incréments, apprendre de chaque livraison.' },
+  { id: 'discover', label: 'Découvrir', verb: 'Explorer', plain: 'comprendre les personnes, leurs besoins et leurs difficultés', diamond: 1, mode: 'ouvrir' },
+  { id: 'define', label: 'Définir', verb: 'Cadrer', plain: 'choisir le problème à résoudre', diamond: 1, mode: 'fermer' },
+  { id: 'develop', label: 'Développer', verb: 'Imaginer', plain: 'explorer plusieurs solutions possibles', diamond: 2, mode: 'ouvrir' },
+  { id: 'deliver', label: 'Livrer', verb: 'Tester', plain: 'essayer des solutions concrètes et les améliorer avec les utilisateurs', diamond: 2, mode: 'fermer' },
 ];
+
+/** Le message du double diamant, et l'aller-retour entre les phases. */
+export const DIAMOND_MESSAGE = 'On ouvre les possibilités, puis on fait des choix : d\'abord sur le problème, ensuite sur la solution.';
+export const DIAMOND_LOOP = 'On revient en arrière selon ce qu\'on apprend : les diamants ne se parcourent pas une seule fois.';
 
 /** Où chaque outil se range sur le double diamant (une ou plusieurs phases acceptées). */
 export const TOOL_PHASES = {
@@ -158,10 +162,10 @@ export const TOOLS = {
       'Des avis qui s\'opposent sans que personne n\'ait parlé aux utilisateurs',
     ],
     how: [
-      'Découvrir : aller voir les utilisateurs, observer, interviewer.',
-      'Définir : formuler le problème et l\'objectif à atteindre.',
-      'Développer : imaginer plusieurs solutions, prototyper vite.',
-      'Livrer : tester, découper, livrer par petits incréments, recommencer.',
+      'Découvrir (explorer) : aller voir les personnes, comprendre leurs besoins et leurs difficultés.',
+      'Définir (cadrer) : choisir le problème à résoudre et l\'objectif à atteindre.',
+      'Développer (imaginer) : explorer plusieurs solutions possibles, prototyper vite.',
+      'Livrer (tester) : essayer des solutions concrètes avec les utilisateurs, les améliorer, livrer par petits incréments.',
     ],
     pitfalls: [
       'Sauter le premier diamant parce que « on sait déjà ce qu\'il faut faire ».',
@@ -263,7 +267,7 @@ export const BRIEFS = {
       'Posez la colonne vertébrale : les grandes étapes du parcours d\'un covoitureur.',
       'Glissez les livrables retenus sous les étapes, ajoutez les stories qui manquent.',
       'Rangez-les dans les versions : la première version doit traverser tout le parcours.',
-      'Relisez la première version : peut-on vraiment covoiturer avec ?',
+      'Relisez la première version : peut-on vraiment covoiturer avec ? C\'est elle qu\'on fera tester aux utilisateurs pour apprendre.',
     ],
   },
   debrief: {

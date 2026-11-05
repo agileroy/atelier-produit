@@ -3,7 +3,7 @@
 
 import {
   STEPS, CASE, PERSONAS, EMPATHY_ZONES, IMPACT_LEVELS, STORY_LANES, TOOLS, PHASES, TOOL_PHASES,
-  STEP_PHASES, BRIEFS, SITUATIONS, SITUATION_CHOICES, GOAL_EXAMPLE, PHONE_STEPS,
+  STEP_PHASES, BRIEFS, SITUATIONS, SITUATION_CHOICES, GOAL_EXAMPLE, PHONE_STEPS, DIAMOND_MESSAGE, DIAMOND_LOOP,
 } from './content.js?v=__VERSION__';
 import {
   newState, setStep, nextStep, prevStep, stepIndex, addNote, updateNote, moveNote, moveBlocker, removeNote,
@@ -133,16 +133,20 @@ function diamondMini(highlight) {
  */
 function diamondBoard({ chips, droppable = false, results = null }) {
   return `<div class="dboard ${droppable ? 'dboard--drop' : ''}">
-    <svg viewBox="0 0 800 260" aria-hidden="true" class="dboard-svg">
+    <svg viewBox="0 0 800 320" aria-hidden="true" class="dboard-svg">
+      <defs><marker id="dloop-head" viewBox="0 0 10 10" refX="5" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0 0 10 5 0 10z"/></marker></defs>
       <polygon points="20,130 200,16 380,130 200,244"/>
       <polygon points="420,130 600,16 780,130 600,244"/>
       <line x1="200" y1="16" x2="200" y2="244"/><line x1="600" y1="16" x2="600" y2="244"/>
+      <path class="dloop-path" d="M690 228 C 680 300, 120 300, 110 236" marker-end="url(#dloop-head)"/>
     </svg>
     ${PHASES.map((p) => `<div class="dphase dphase--${p.id}" ${droppable ? `data-drop="phase:${p.id}" data-axis="x"` : ''} ${droppable && ui.selectedTool ? `role="button" tabindex="0" data-place-tool="${p.id}" aria-label="Ranger ${esc(toolName(ui.selectedTool))} dans ${esc(p.label)}"` : ''}>
       <span class="dphase-label">${esc(p.label)}</span>
-      <span class="dphase-mode">${p.mode === 'ouvrir' ? '◁ ouvrir ▷' : '▷ fermer ◁'}</span>
+      <span class="dphase-plain"><strong>${esc(p.verb)}</strong> : ${esc(p.plain)}</span>
+      <span class="dphase-mode">${p.mode === 'ouvrir' ? '◁ on ouvre ▷' : '▷ on choisit ◁'}</span>
       <span class="dphase-chips">${(chips[p.id] ?? []).map((t) => toolChip(t, { draggable: droppable, result: results?.[t] })).join('')}</span>
     </div>`).join('')}
+    <p class="dloop">↺ ${esc(DIAMOND_LOOP)}</p>
   </div>`;
 }
 
@@ -233,7 +237,8 @@ function viewFrame() {
       <h2>Le double diamant</h2>
       <button type="button" class="btn btn-quiet btn-small" data-act="sheet" data-focus="sheet">${ICONS.book} Fiche Design Thinking</button>
     </div>
-    <p class="hint">On ouvre le problème avant de le refermer, puis on ouvre les solutions avant de les refermer. Au fil de l'atelier, chaque outil vient prendre sa place.</p>
+    <p class="diamond-message">${esc(DIAMOND_MESSAGE)}</p>
+    <p class="hint">Au fil de l'atelier, chaque outil vient prendre sa place sur le diamant.</p>
     ${diamondBoard({ chips })}
   </section>
 
@@ -442,7 +447,8 @@ function viewStory() {
     <div><h2>Peut-on covoiturer avec la première version ?</h2>
     ${gaps.length
       ? `<p>Étapes sans rien en première version : <strong>${esc(gaps.map((g) => g.text).join(', '))}</strong>. Une première version doit traverser tout le parcours, même de façon rudimentaire.</p>`
-      : '<p>La première version traverse tout le parcours. Relisez-la : est-ce vraiment le minimum ? Que pourrait-on encore retirer ?</p>'}</div>
+      : '<p>La première version traverse tout le parcours. Relisez-la : est-ce vraiment le minimum ? Que pourrait-on encore retirer ?</p>'}
+      <p>Cette première version, c'est aussi un test : on la met entre les mains des utilisateurs pour apprendre, et ce qu'on apprend peut renvoyer au premier diamant.</p></div>
   </section>` : ''}
   ${stepNav()}`;
 }
