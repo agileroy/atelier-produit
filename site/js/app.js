@@ -132,21 +132,25 @@ function diamondMini(highlight) {
  * à l'étape « cadre », ceux déjà vus ; au débrief, ceux que l'équipe y range (zone de dépôt).
  */
 function diamondBoard({ chips, droppable = false, results = null }) {
-  return `<div class="dboard ${droppable ? 'dboard--drop' : ''}">
-    <svg viewBox="0 0 800 320" aria-hidden="true" class="dboard-svg">
+  return `<div class="dwrap">
+  <ol class="dlegend" aria-hidden="true">${PHASES.map((p) => `<li>${esc(p.plain.charAt(0).toUpperCase() + p.plain.slice(1))}</li>`).join('')}</ol>
+  <div class="dboard ${droppable ? 'dboard--drop' : ''}">
+    <svg viewBox="0 0 800 340" aria-hidden="true" class="dboard-svg">
       <defs><marker id="dloop-head" viewBox="0 0 10 10" refX="5" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0 0 10 5 0 10z"/></marker></defs>
-      <polygon points="20,130 200,16 380,130 200,244"/>
-      <polygon points="420,130 600,16 780,130 600,244"/>
-      <line x1="200" y1="16" x2="200" y2="244"/><line x1="600" y1="16" x2="600" y2="244"/>
-      <path class="dloop-path" d="M690 228 C 680 300, 120 300, 110 236" marker-end="url(#dloop-head)"/>
+      <polygon points="20,150 200,8 380,150 200,292"/>
+      <polygon points="420,150 600,8 780,150 600,292"/>
+      <line x1="200" y1="8" x2="200" y2="292"/><line x1="600" y1="8" x2="600" y2="292"/>
+      <path class="dloop-path" d="M690 262 C 680 330, 120 330, 110 268" marker-end="url(#dloop-head)"/>
     </svg>
     ${PHASES.map((p) => `<div class="dphase dphase--${p.id}" ${droppable ? `data-drop="phase:${p.id}" data-axis="x"` : ''} ${droppable && ui.selectedTool ? `role="button" tabindex="0" data-place-tool="${p.id}" aria-label="Ranger ${esc(toolName(ui.selectedTool))} dans ${esc(p.label)}"` : ''}>
       <span class="dphase-label">${esc(p.label)}</span>
-      <span class="dphase-plain"><strong>${esc(p.verb)}</strong> : ${esc(p.plain)}</span>
+      <span class="dphase-verb">${esc(p.verb)}</span>
+      <span class="dphase-plain">${esc(p.plain)}</span>
       <span class="dphase-mode">${p.mode === 'ouvrir' ? '◁ on ouvre ▷' : '▷ on choisit ◁'}</span>
       <span class="dphase-chips">${(chips[p.id] ?? []).map((t) => toolChip(t, { draggable: droppable, result: results?.[t] })).join('')}</span>
     </div>`).join('')}
     <p class="dloop">↺ ${esc(DIAMOND_LOOP)}</p>
+  </div>
   </div>`;
 }
 
