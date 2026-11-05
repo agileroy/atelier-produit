@@ -83,3 +83,25 @@ test('quiz : les valeurs acceptées par la base sont celles de l\'outil', async 
   assert.equal(c.$other['.validate'], false);
   assert.ok(c.submittedAt['.validate'].includes('now'));
 });
+
+test('salle : un code ne se réserve qu\'une fois et pointe vers la séance qui le porte', () => {
+  const code = branch.codes.$code;
+  assert.equal(code['.read'], 'auth != null', 'on lit un code précis…');
+  assert.equal(branch.codes['.read'], undefined, '…mais pas la liste des codes');
+  assert.match(code['.write'], /!data\.exists\(\) && newData\.exists\(\)/);
+  assert.match(code['.validate'], /child\('meta'\)\.child\('code'\)\.val\(\) === \$code/);
+  assert.match(session.meta.code['.validate'], /newData\.val\(\) === data\.val\(\)/, 'le code d\'une séance ne change pas');
+});
+
+test('salle : un prénom réservé appartient à celui qui l\'a pris', () => {
+  const n = session.names.$key;
+  assert.match(n['.write'], /!data\.exists\(\) && newData\.val\(\) === auth\.uid/);
+  assert.match(n['.write'], /data\.val\(\) === auth\.uid && !newData\.exists\(\)/, 'on ne libère que son propre prénom');
+});
+
+test('salle : chacun écrit sa présence, seul l\'animateur voit la liste', () => {
+  const pr = session.presence;
+  assert.match(pr['.read'], /owners'\)\.child\(auth\.uid\)\.exists\(\)/);
+  assert.equal(pr.$uid['.write'], 'auth != null && auth.uid === $uid');
+  assert.equal(pr.$uid.$other['.validate'], false);
+});

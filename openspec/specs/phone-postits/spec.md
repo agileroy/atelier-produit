@@ -30,3 +30,10 @@ L'animateur SHALL pouvoir choisir, au débrief, entre le débrief en équipe à 
 
 ### Requirement: Rejoindre dès l'arrivée
 L'étape Cadre SHALL afficher le QR code de la séance téléphones dès qu'elle est ouverte, pour que chacun rejoigne avec son prénom en arrivant.
+
+### Requirement: Salle de la séance
+Chaque séance SHALL avoir un code court de quatre caractères sans ambiguïté (ni 0, O, 1, I, L), réservé de façon unique dans la base, qui permet de rejoindre sans QR code. Un prénom SHALL être unique dans la salle (accents et majuscules ignorés) ; un prénom déjà pris est refusé avec une suggestion. Chaque participant SHALL apparaître dans la liste des présents de l'animateur tant que sa page est ouverte, et en disparaître à la déconnexion.
+
+#### Scenario: Qui n'a pas encore répondu
+- **WHEN** le quiz est ouvert
+- **THEN** l'écran affiche le nombre de copies sur le nombre de présents, et les prénoms de ceux qui n'ont pas encore validé

@@ -8,10 +8,10 @@
 import { initializeApp } from 'https://www.gstatic.com/firebasejs/12.19.0/firebase-app.js';
 import { getAuth, signInAnonymously, onAuthStateChanged } from 'https://www.gstatic.com/firebasejs/12.19.0/firebase-auth.js';
 import {
-  getDatabase, ref, onValue, get, set, update, remove, serverTimestamp,
+  getDatabase, ref, onValue, get, set, update, remove, serverTimestamp, onDisconnect,
 } from 'https://www.gstatic.com/firebasejs/12.19.0/firebase-database.js';
 import { firebaseConfig } from './firebase-config.js?v=__VERSION__';
-import { newId, metaFor } from './session-core.js?v=__VERSION__';
+import { newId, newCode, metaFor } from './session-core.js?v=__VERSION__';
 
 /** Branche de la base réservée à cet outil. */
 const ROOT = 'atelierProduit';
@@ -40,17 +40,31 @@ export function createStore() {
     });
   }
 
-  /** Crée une séance ; ce navigateur en devient l'animateur. Renvoie { sid, key }. */
+  /**
+   * Crée une séance et réserve son code court ; ce navigateur en devient l'animateur.
+   * Renvoie { sid, key, code }. Un code déjà pris est refusé par la base : on en tire un autre.
+   */
   async function createSession(fields) {
-    const sid = newId(12);
-    const key = newId(24);
-    await update(ref(db, ROOT), {
-      [`keys/${sid}`]: key,
-      [`sessions/${sid}/meta`]: { ...metaFor(fields), createdAt: serverTimestamp() },
-      [`sessions/${sid}/owners/${uid}`]: key,
-    });
-    return { sid, key };
+    for (let attempt = 0; ; attempt++) {
+      const sid = newId(12);
+      const key = newId(24);
+      const code = newCode();
+      try {
+        await update(ref(db, ROOT), {
+          [`keys/${sid}`]: key,
+          [`sessions/${sid}/meta`]: { ...metaFor({ ...fields, code }), createdAt: serverTimestamp() },
+          [`sessions/${sid}/owners/${uid}`]: key,
+          [`codes/${code}`]: sid,
+        });
+        return { sid, key, code };
+      } catch (e) {
+        if (attempt >= 4) throw e;
+      }
+    }
   }
+
+  /** Séance correspondant à un code court, ou null. */
+  const resolveCode = (code) => get(at(`codes/${code}`)).then((s) => s.val()).catch(() => null);
 
   /** Rejoint une séance comme animateur avec sa clé (sans effet si c'est déjà le cas). */
   const claimOwner = (sid, key) => set(at(`sessions/${sid}/owners/${uid}`), key);
@@ -71,8 +85,35 @@ export function createStore() {
   const submitQuiz = (sid, payload) => set(at(`sessions/${sid}/quiz/${uid}`), { ...payload, submittedAt: serverTimestamp() });
   const onMyQuiz = (sid, cb, onError) => onValue(at(`sessions/${sid}/quiz/${uid}`), (s) => cb(s.val()), onError);
 
-  /** Supprime la séance, ses post-its et sa clé. */
-  const deleteSession = (sid) => update(ref(db, ROOT), { [`keys/${sid}`]: null, [`sessions/${sid}`]: null });
+  /** Supprime la séance, ses post-its, sa clé et son code. */
+  const deleteSession = (sid, code) => update(ref(db, ROOT), {
+    [`keys/${sid}`]: null, [`sessions/${sid}`]: null, ...(code ? { [`codes/${code}`]: null } : {}),
+  });
+
+  /** Présents (animateur seulement). */
+  const onPresence = (sid, cb, onError) => onValue(at(`sessions/${sid}/presence`), (s) => cb(s.val() ?? {}), onError);
+
+  // ---- Salle, côté participant
+  /** Réserve un prénom dans la salle ; refusé (exception) s'il appartient déjà à quelqu'un d'autre. */
+  async function claimName(sid, key) {
+    const current = await get(at(`sessions/${sid}/names/${key}`)).then((s) => s.val()).catch(() => null);
+    if (current === uid) return;
+    await set(at(`sessions/${sid}/names/${key}`), uid);
+  }
+  const releaseName = (sid, key) => remove(at(`sessions/${sid}/names/${key}`)).catch(() => {});
+
+  /**
+   * Se déclarer présent : la ligne est retirée par la base à la déconnexion, et réécrite à chaque reconnexion.
+   * Renvoie une fonction pour quitter.
+   */
+  function goOnline(sid, author) {
+    const mine = at(`sessions/${sid}/presence/${uid}`);
+    const stop = onValue(ref(db, '.info/connected'), (snap) => {
+      if (snap.val() !== true) return;
+      onDisconnect(mine).remove().then(() => set(mine, { author, at: serverTimestamp() })).catch(() => {});
+    });
+    return () => { stop(); remove(mine).catch(() => {}); };
+  }
 
   // ---- Côté participant
   const sendNote = (sid, payload) => set(at(`sessions/${sid}/notes/${uid}/${newId(12)}`), { ...payload, createdAt: serverTimestamp() });
@@ -81,6 +122,7 @@ export function createStore() {
   return {
     start, createSession, claimOwner, getMeta, onMeta, setStep, setClosed, onNotes, deleteSession,
     sendNote, onMyNotes, setQuiz, onQuiz, clearQuiz, submitQuiz, onMyQuiz,
+    resolveCode, onPresence, claimName, releaseName, goOnline,
     get uid() { return uid; },
   };
 }

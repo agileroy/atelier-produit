@@ -18,8 +18,9 @@ export const PHONE_ZONES = {
 };
 
 /** Fiche d'une séance, prête à écrire (createdAt est ajouté par le magasin). */
-export function metaFor({ title, step, persona }) {
+export function metaFor({ title, step, persona, code }) {
   return {
+    ...(isCode(code) ? { code } : {}),
     title: String(title ?? '').trim().slice(0, 80) || 'Atelier Produit',
     step: STEP_IDS.includes(step) ? step : 'frame',
     persona: PERSONA_IDS.includes(persona) ? persona : PERSONA_IDS[0],
@@ -40,6 +41,7 @@ export function readMeta(raw) {
     persona: PERSONA_IDS.includes(raw.persona) ? raw.persona : PERSONA_IDS[0],
     closed: raw.closed === true,
     quiz: QUIZ_STATES.includes(raw.quiz) ? raw.quiz : 'off',
+    code: isCode(raw.code) ? raw.code : '',
     createdAt: typeof raw.createdAt === 'number' ? raw.createdAt : null,
   };
 }
@@ -156,4 +158,44 @@ export function quizStats(entries) {
     }
   }
   return { count: n, average, tools, situations, hardest };
+}
+
+/* ---------- Salle : code court, prénoms uniques, présence ---------- */
+
+/** Alphabet du code de salle : sans caractères ambigus (0/O, 1/I/L). */
+export const CODE_ALPHABET = 'ABCDEFGHJKMNPQRSTUVWXYZ23456789';
+export const CODE_LENGTH = 4;
+export const isCode = (v) => typeof v === 'string' && new RegExp(`^[${CODE_ALPHABET}]{${CODE_LENGTH}}$`).test(v);
+
+export function newCode() {
+  const bytes = new Uint8Array(CODE_LENGTH);
+  globalThis.crypto.getRandomValues(bytes);
+  return [...bytes].map((b) => CODE_ALPHABET[b % CODE_ALPHABET.length]).join('');
+}
+
+/** Code saisi par un participant : majuscules, sans espaces ni tirets. */
+export function normalizeCode(input) {
+  return String(input ?? '').toUpperCase().replace(/[^A-Z0-9]/g, '').slice(0, CODE_LENGTH);
+}
+
+/**
+ * Clé d'unicité d'un prénom dans la salle : sans accents, minuscules, lettres et chiffres seulement.
+ * « Thomas », « thomas » et « THOMAS » se confondent ; « Thomas B. » est différent.
+ */
+export function nameKey(name) {
+  return String(name ?? '').normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase().replace(/[^a-z0-9]/g, '').slice(0, 30);
+}
+
+/** Présents lus dans la base (presence/{uid}), par ordre d'arrivée. */
+export function readPresence(tree) {
+  return Object.entries(tree ?? {})
+    .map(([uid, raw]) => ({ uid, author: cleanAuthor(raw?.author), at: typeof raw?.at === 'number' ? raw.at : 0 }))
+    .filter((p) => p.author)
+    .sort((x, y) => x.at - y.at || x.uid.localeCompare(y.uid));
+}
+
+/** Présents qui n'ont pas encore rendu leur copie. */
+export function waitingFor(presence, entries) {
+  const done = new Set(entries.map((e) => e.uid));
+  return presence.filter((p) => !done.has(p.uid));
 }

@@ -35,6 +35,9 @@
             "quiz": {
               ".validate": "newData.isString() && newData.val().matches(/^(off|open|revealed)$/)"
             },
+            "code": {
+              ".validate": "newData.isString() && newData.val().matches(/^[ABCDEFGHJKMNPQRSTUVWXYZ23456789]{4}$/) && (!data.exists() || newData.val() === data.val())"
+            },
             "$other": {
               ".validate": false
             }
@@ -140,9 +143,39 @@
               }
             }
           },
+          "names": {
+            "$key": {
+              ".write": "auth != null && ((!data.exists() && newData.val() === auth.uid) || (data.val() === auth.uid && !newData.exists()))",
+              ".validate": "$key.matches(/^[a-z0-9]{1,30}$/) && newData.isString() && newData.val() === auth.uid"
+            }
+          },
+          "presence": {
+            ".read": "auth != null && data.parent().child('owners').child(auth.uid).exists()",
+            "$uid": {
+              ".read": "auth != null && auth.uid === $uid",
+              ".write": "auth != null && auth.uid === $uid",
+              ".validate": "newData.hasChildren(['author', 'at'])",
+              "author": {
+                ".validate": "newData.isString() && newData.val().length >= 1 && newData.val().length <= 30"
+              },
+              "at": {
+                ".validate": "newData.isNumber() && newData.val() === now"
+              },
+              "$other": {
+                ".validate": false
+              }
+            }
+          },
           "$other": {
             ".validate": false
           }
+        }
+      },
+      "codes": {
+        "$code": {
+          ".read": "auth != null",
+          ".write": "auth != null && ((!data.exists() && newData.exists()) || (!newData.exists() && root.child('atelierProduit/sessions/' + data.val() + '/owners/' + auth.uid).exists()))",
+          ".validate": "$code.matches(/^[ABCDEFGHJKMNPQRSTUVWXYZ23456789]{4}$/) && newData.isString() && newData.val().matches(/^[a-z0-9]{12}$/) && newData.parent().parent().child('sessions').child(newData.val()).child('meta').child('code').val() === $code"
         }
       },
       "$other": {

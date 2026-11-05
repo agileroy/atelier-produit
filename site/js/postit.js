@@ -6,6 +6,7 @@ import { firebaseConfig } from './firebase-config.js?v=__VERSION__';
 import {
   readMeta, notePayload, flattenNotes, isSessionId, PHONE_ZONES, MAX_PHONE_TEXT,
   quizPayload, quizProgress, quizScore, QUIZ_QUESTIONS, QUIZ_MAX,
+  nameKey, normalizeCode, isCode, CODE_LENGTH,
 } from './session-core.js?v=__VERSION__';
 import {
   STEPS, PHONE_STEPS, EMPATHY_ZONES, IMPACT_LEVELS, PHASES, TOOL_PHASES, TOOLS, SITUATIONS, SITUATION_CHOICES, PLACEMENT_FEEDBACK,
@@ -22,6 +23,9 @@ let meta = null;
 let mine = [];
 let author = load(AUTHOR_KEY) ?? '';
 let editingName = !author;
+let nameError = '';
+let leaveRoom = null; // retire la présence
+const NAME_KEY = `atelier-produit.name.${sid}`; // clé du prénom réservé dans cette salle
 const draft = { text: '', zone: '' };
 let sending = false;
 
@@ -172,6 +176,53 @@ function updateQuizProgress() {
   if (btn) btn.disabled = done !== QUIZ_QUESTIONS || sending;
 }
 
+/**
+ * Réserve le prénom dans la salle (unique, accents et majuscules ignorés), libère l'ancien,
+ * puis se déclare présent. Renvoie faux si le prénom est pris.
+ */
+async function takeName(value) {
+  const key = nameKey(value);
+  if (!key) { nameError = 'Utilisez au moins une lettre ou un chiffre.'; editingName = true; return false; }
+  try {
+    await store.claimName(sid, key);
+  } catch {
+    nameError = `« ${value} » est déjà pris dans cette salle : ajoutez une initiale (par exemple « ${value} ${'B'}. »).`;
+    editingName = true;
+    return false;
+  }
+  const previous = load(NAME_KEY);
+  if (previous && previous !== key) store.releaseName(sid, previous);
+  save(NAME_KEY, key);
+  author = value;
+  save(AUTHOR_KEY, author);
+  nameError = '';
+  editingName = false;
+  leaveRoom?.();
+  leaveRoom = store.goOnline(sid, author);
+  return true;
+}
+
+function codeError(text) {
+  const p = $('#code-error');
+  if (p) { p.textContent = text; p.hidden = false; }
+  $('input[name=code]', main)?.setAttribute('aria-invalid', 'true');
+}
+
+function renderJoin() {
+  main.innerHTML = `<section class="pcard">
+    <p class="kicker">Atelier Produit</p>
+    <h1>Rejoindre un atelier</h1>
+    <p>Saisissez le code affiché à l'écran, ou scannez le QR code.</p>
+    <form class="pform" id="codeform">
+      <label class="field-wrap"><span class="field-label">Code de l'atelier</span>
+        <input class="field pcode" name="code" maxlength="${CODE_LENGTH + 2}" autocomplete="off" autocapitalize="characters" spellcheck="false" required inputmode="text" aria-describedby="code-error"></label>
+      <p class="perror" id="code-error" role="alert" hidden></p>
+      <button type="submit" class="btn btn-primary btn-block">Rejoindre</button>
+    </form>
+  </section>`;
+  main.querySelector('input').focus();
+}
+
 function renderName() {
   main.innerHTML = `<section class="pcard">
     <p class="kicker">Atelier Produit</p>
@@ -179,7 +230,8 @@ function renderName() {
     <p>Vos post-its apparaîtront sur l'écran de l'atelier avec votre prénom, et c'est sous ce prénom que vous jouerez au quiz final.</p>
     <form class="pform" id="nameform">
       <label class="field-wrap"><span class="field-label">Votre prénom</span>
-        <input class="field" name="author" maxlength="${MAX_AUTHOR}" autocomplete="given-name" required value="${esc(author)}"></label>
+        <input class="field" name="author" maxlength="${MAX_AUTHOR}" autocomplete="given-name" required value="${esc(author)}" ${nameError ? 'aria-invalid="true" aria-describedby="name-error"' : ''}></label>
+      ${nameError ? `<p class="perror" id="name-error" role="alert">${esc(nameError)}</p>` : ''}
       <button type="submit" class="btn btn-primary btn-block">C'est parti</button>
     </form>
   </section>`;
@@ -217,10 +269,16 @@ main.addEventListener('submit', async (e) => {
   if (e.target.id === 'nameform') {
     const value = e.target.elements.author.value.replace(/\s+/g, ' ').trim().slice(0, MAX_AUTHOR);
     if (!value) return;
-    author = value;
-    save(AUTHOR_KEY, author);
-    editingName = false;
-    render();
+    if (await takeName(value)) render();
+    else { renderName(); }
+    return;
+  }
+  if (e.target.id === 'codeform') {
+    const code = normalizeCode(e.target.elements.code.value);
+    if (!isCode(code)) { codeError(`Le code fait ${CODE_LENGTH} caractères, lettres et chiffres.`); return; }
+    const found = await store.resolveCode(code);
+    if (found) location.replace(`postit.html?atelier=${found}`);
+    else codeError('Aucun atelier avec ce code. Vérifiez-le sur l\'écran.');
     return;
   }
   if (e.target.id === 'quizform') {
@@ -260,15 +318,24 @@ main.addEventListener('submit', async (e) => {
 
 async function startPage() {
   setupTheme($('#theme-toggle'));
-  if (!isSessionId(sid)) { message('Lien incomplet', 'Scannez à nouveau le QR code affiché à l\'écran.'); return; }
   if (!firebaseConfig) { message('Envoi non configuré', 'L\'envoi de post-its depuis les téléphones n\'est pas activé pour cet outil.'); return; }
   try {
     const { createStore } = await import('./store.js?v=__VERSION__');
     store = createStore();
     await store.start();
+    if (!isSessionId(sid)) {
+      // Pas de lien direct : on rejoint par le code court (?code=K7PM ou saisi).
+      const code = normalizeCode(new URLSearchParams(location.search).get('code'));
+      const found = isCode(code) ? await store.resolveCode(code) : null;
+      if (found) { location.replace(`postit.html?atelier=${found}`); return; }
+      renderJoin();
+      if (code) codeError('Aucun atelier avec ce code. Vérifiez-le sur l\'écran.');
+      return;
+    }
     const first = readMeta(await store.getMeta(sid));
     if (!first) { message('Atelier introuvable', 'Il est peut-être terminé. Demandez le lien à l\'animateur.'); return; }
     meta = first;
+    if (author) await takeName(author); // réserve le prénom mémorisé (ou demande d'en changer)
     render();
     store.onMeta(sid, (raw) => {
       const next = readMeta(raw);

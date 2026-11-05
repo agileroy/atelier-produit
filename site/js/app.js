@@ -15,7 +15,7 @@ import {
   serialize, parseSaved, sanitize, toolName, TOOL_IDS, MAX_TEXT,
 } from './core.js?v=__VERSION__';
 import { $, $$, esc, toast, announce, copyText, load, save, setupTheme, downloadJson, today, qrSvg, ICONS } from './shared.js?v=__VERSION__';
-import { podium, quizStats, QUIZ_MAX } from './session-core.js?v=__VERSION__';
+import { podium, quizStats, waitingFor, QUIZ_MAX } from './session-core.js?v=__VERSION__';
 import { setupDnd } from './dnd.js?v=__VERSION__';
 import { createPhones } from './phones.js?v=__VERSION__';
 
@@ -369,12 +369,16 @@ function joinCard() {
       <button type="button" class="btn btn-primary" data-act="phones-show" data-focus="phones-show">Ouvrir l'atelier aux téléphones</button>
     </section>`;
   }
+  const present = phones.presence;
   return `<section class="join">
     <div class="join-qr">${qrSvg(phones.url, 'QR code pour rejoindre l\'atelier')}</div>
-    <div><p class="kicker">Rejoignez l'atelier</p>
+    <div class="join-body"><p class="kicker">Rejoignez l'atelier</p>
       <h2>Scannez, puis entrez votre prénom</h2>
+      ${phones.code ? `<p class="join-alt">Sans QR code : <strong>${esc(phones.joinUrl.replace(/^https?:\/\//, '').replace(/\.html$/, ''))}</strong> puis le code <span class="room-code"><strong>${esc(phones.code)}</strong></span></p>` : `<p class="join-url">${esc(phones.url.replace(/^https?:\/\//, ''))}</p>`}
       <p class="hint">Gardez la page ouverte : elle suit l'écran, pour les post-its puis pour le quiz final.</p>
-      <p class="join-url">${esc(phones.url.replace(/^https?:\/\//, ''))}</p></div>
+      <div class="join-present"><p><strong>${present.length}</strong> connecté${present.length > 1 ? 's' : ''}</p>
+        ${present.length ? `<ul class="present">${present.map((p) => `<li>${esc(p.author)}</li>`).join('')}</ul>` : '<p class="hint">Les prénoms s\'afficheront ici à mesure que chacun rejoint.</p>'}</div>
+    </div>
   </section>`;
 }
 
@@ -683,6 +687,17 @@ function viewDebrief() {
 
 /* ---------- Débrief en quiz individuel ---------- */
 
+/** Où en est le quiz : copies reçues sur les présents, et qui n'a pas encore validé. */
+function quizProgressHtml(entries) {
+  const present = phones.presence;
+  const waiting = waitingFor(present, entries);
+  const total = Math.max(present.length, entries.length);
+  return `<p class="qcount"><strong>${entries.length}</strong>${total ? ` / ${total}` : ''} ont répondu</p>
+    ${entries.length ? `<ul class="qnames">${entries.map((e) => `<li>${esc(e.author)}</li>`).join('')}</ul>` : ''}
+    ${waiting.length ? `<p class="hint">En attente : ${waiting.map((p) => `<span class="qwaiting">${esc(p.author)}</span>`).join(' ')}</p>`
+      : entries.length ? '<p class="qall">Tout le monde a répondu : vous pouvez révéler.</p>' : '<p class="hint">Les prénoms s\'afficheront ici au fil des validations.</p>'}`;
+}
+
 function quizPanel() {
   const entries = ui.quizEntries;
   const fmt = (n) => String(Math.round(n * 10) / 10).replace('.', ',');
@@ -706,8 +721,7 @@ function quizPanel() {
           <p class="kicker">${open ? 'Quiz en cours' : 'Quiz prêt'}</p>
           <h2>${open ? 'Chacun répond sur son téléphone' : 'Lancez le quiz quand tout le monde est connecté'}</h2>
           <p class="hint">${QUIZ_MAX} questions : ranger les trois outils sur le double diamant, puis huit situations. Un point par bonne réponse, un demi-point pour une réponse défendable.</p>
-          ${open ? `<p class="qcount"><strong>${entries.length}</strong> copie${entries.length > 1 ? 's' : ''} reçue${entries.length > 1 ? 's' : ''}</p>
-            ${entries.length ? `<ul class="qnames">${entries.map((e) => `<li>${esc(e.author)}</li>`).join('')}</ul>` : '<p class="hint">Les prénoms s\'afficheront ici au fil des validations.</p>'}` : ''}
+          ${open ? quizProgressHtml(entries) : `<p class="hint"><strong>${phones.presence.length}</strong> connecté${phones.presence.length > 1 ? 's' : ''}${phones.presence.length ? ` : ${esc(phones.presence.map((p) => p.author).join(', '))}` : ''}.</p>`}
           <div class="qactions">
             ${open
               ? `<button type="button" class="btn btn-primary" data-act="quiz-reveal" data-focus="quiz-reveal" ${entries.length ? '' : 'disabled'}>Révéler les réponses</button>
@@ -1154,7 +1168,7 @@ function printReport() {
 let phonesSig = '';
 const phones = createPhones({
   onChange() {
-    const sig = `${phones.live}|${phones.quiz}|${phones.url}`;
+    const sig = `${phones.live}|${phones.quiz}|${phones.url}|${phones.code}|${phones.presence.map((p) => p.uid + p.author).join(',')}`;
     if (sig === phonesSig) return;
     phonesSig = sig;
     if (state.step === 'frame' || state.step === 'debrief') render();

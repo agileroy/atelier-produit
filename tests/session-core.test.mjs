@@ -95,3 +95,27 @@ test('quiz : podium à trois, égalité départagée par l\'ordre de validation'
   assert.equal(stats.hardest.id, 'backlog');
   assert.equal(stats.average, (11 + 11 + 10 + 10) / 4);
 });
+
+import { newCode, isCode, normalizeCode, nameKey, readPresence, waitingFor, CODE_ALPHABET } from '../site/js/session-core.js';
+
+test('salle : code court lisible, sans caractère ambigu', () => {
+  for (let i = 0; i < 50; i++) assert.ok(isCode(newCode()));
+  for (const c of '0O1IL') assert.ok(!CODE_ALPHABET.includes(c), c);
+  assert.equal(normalizeCode(' k7-pm '), 'K7PM');
+  assert.equal(isCode('K7P'), false);
+  assert.equal(metaFor({ code: 'K7PM' }).code, 'K7PM');
+  assert.equal(metaFor({ code: 'nope' }).code, undefined, 'pas de champ vide envoyé à la base');
+});
+
+test('salle : un prénom, une clé (accents et casse ignorés)', () => {
+  assert.equal(nameKey('Thomas'), nameKey(' THOMAS '));
+  assert.equal(nameKey('Élodie'), 'elodie');
+  assert.notEqual(nameKey('Thomas B.'), nameKey('Thomas'));
+  assert.equal(nameKey('!!!'), '');
+});
+
+test('salle : présents et copies en attente', () => {
+  const presence = readPresence({ u2: { author: 'Tom', at: 20 }, u1: { author: 'Léa', at: 10 }, u3: { author: '', at: 5 } });
+  assert.deepEqual(presence.map((p) => p.author), ['Léa', 'Tom']);
+  assert.deepEqual(waitingFor(presence, [{ uid: 'u1' }]).map((p) => p.author), ['Tom']);
+});
