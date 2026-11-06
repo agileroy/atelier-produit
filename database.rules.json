@@ -229,7 +229,7 @@
                   ".validate": "newData.isString() && newData.val().matches(/^(sophie|karim)$/)"
                 },
                 "compare": {
-                  ".write": "auth != null && (root.child('atelierProduit/sessions/' + $sid + '/owners/' + auth.uid).exists() || root.child('atelierProduit/sessions/' + $sid + '/members/' + auth.uid + '/group').val() === $g)",
+                  ".write": "auth != null && root.child('atelierProduit/sessions/' + $sid + '/owners/' + auth.uid).exists()",
                   ".validate": "newData.isBoolean()"
                 },
                 "$other": {

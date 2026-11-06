@@ -9,7 +9,7 @@ Manipuler des post-its sur les trois canevas, à la souris, au doigt ou au clavi
 Un post-it SHALL pouvoir être déplacé, réordonné, modifié ou supprimé, mais jamais déplacé vers le tableau d'une autre étape. Toute la surface d'une zone (titre et bouton « + » compris) SHALL accepter le dépôt.
 
 ### Requirement: Empathy map à partir d'extraits
-Chaque persona SHALL avoir sa carte en six zones et une pioche d'extraits d'interview ; un extrait posé quitte la pioche et peut y revenir. La comparaison avec la proposition de tri SHALL indiquer, pour chaque extrait posé, s'il est rangé comme la proposition, et l'outil SHALL signaler les zones vides.
+Chaque persona SHALL avoir sa carte en six zones et une pioche d'extraits d'interview ; un extrait posé quitte la pioche et peut y revenir. La comparaison avec la proposition de tri SHALL indiquer, pour chaque extrait posé, s'il est rangé comme la proposition, et montrer tous les extraits à l'endroit proposé, y compris ceux qui ne sont pas encore rangés ; l'outil SHALL signaler les zones vides. En séance partagée, seul l'animateur SHALL pouvoir dévoiler la proposition (contrôlé aussi par les règles de la base), en général à la restitution.
 
 ### Requirement: Arbre d'impact cohérent
 L'impact map SHALL accepter plusieurs objectifs (un par sous-groupe, par exemple), chacun avec ses acteurs ; un ancien atelier à objectif unique SHALL être repris avec cet objectif en post-it. Un objectif, un acteur ou un impact qui a des post-its rattachés SHALL ne pas changer de niveau ; sa suppression SHALL emporter ses post-its rattachés après confirmation.

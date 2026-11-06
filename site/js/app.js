@@ -491,6 +491,8 @@ function viewFrame() {
     <p class="lede">Le Design Thinking donne la démarche ; l'empathy map, l'impact mapping et le story mapping en sont des outils. Pour voir comment ils s'enchaînent, on les applique l'un après l'autre sur le même cas.</p>
   </header>
 
+  ${joinCard()}
+
   ${theoryBlock('frame')}
 
   <section class="frame-diamond">
@@ -507,8 +509,6 @@ function viewFrame() {
     <h2>L'exercice : un cas fil rouge</h2>
     <p class="hint">On applique maintenant chaque outil, l'un après l'autre, au même cas.</p>
   </section>
-
-  ${joinCard()}
 
   <section class="frame-grid">
     <article class="case">
@@ -650,11 +650,11 @@ function viewEmpathy() {
       <h2>Et maintenant ?</h2>
       ${comparing
         ? `<p><strong>${cmp.matching} extrait${cmp.matching > 1 ? 's' : ''} sur ${cmp.placed}</strong> rangé${cmp.matching > 1 ? 's' : ''} comme la proposition${pool.length ? `, et ${pool.length} pas encore rangé${pool.length > 1 ? 's' : ''}` : ''}. La proposition complète est juste en dessous. Il n'y a pas de tri parfait : un écart est une bonne occasion de discuter (dire n'est pas penser, faire n'est pas dire).</p>`
-        : '<p>Une fois les extraits rangés, comparez avec une proposition de tri.</p>'}
+        : HOST || !shared.on ? '<p>Une fois les extraits rangés, comparez avec une proposition de tri.</p>' : '<p>Rangez les extraits entre vous : l\'animateur dévoilera une proposition de tri au moment de la restitution.</p>'}
       ${empty.length ? `<p>Zones vides : <strong>${esc(empty.join(', '))}</strong>. Ce sont les questions de la prochaine interview.</p>` : '<p>Toutes les zones ont au moins un post-it.</p>'}
     </div>
-    <button type="button" class="btn ${comparing ? 'btn-quiet' : 'btn-primary'}" data-act="compare" data-focus="compare" ${cmp.placed ? '' : 'disabled'}>
-      ${comparing ? 'Masquer la proposition' : 'Comparer avec la proposition'}</button>
+    ${!shared.on || HOST ? `<button type="button" class="btn ${comparing ? 'btn-quiet' : 'btn-primary'}" data-act="compare" data-focus="compare" ${cmp.placed || shared.on ? '' : 'disabled'}>
+      ${comparing ? 'Masquer la proposition' : 'Comparer avec la proposition'}</button>` : ''}
   </section>
   ${comparing ? proposalHtml(persona) : ''}
   ${stepNav()}`;
@@ -1230,6 +1230,7 @@ const actions = {
     await phones.setQuiz('open');
   },
   compare() {
+    if (!HOST && shared.on) return;
     if (shared.on) { shared.setState(shared.group, 'compare', !state.compare[state.persona]); return; }
     state.compare[state.persona] = !state.compare[state.persona]; commit({ focus: 'compare' });
   },
