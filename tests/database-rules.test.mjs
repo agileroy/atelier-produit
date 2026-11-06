@@ -138,3 +138,13 @@ test('groupes : la base accepte exactement les emplacements de l\'outil', async 
   for (const p of ok) assert.ok(re.test(encodePlace(p)), encodePlace(p));
   for (const bad of ['empathy|bob|says', 'story|abcd1234|soon', 'actor|', 'goal|x', 'tray|empathy']) assert.ok(!re.test(bad), bad);
 });
+
+test('minuteur : écrit par l\'animateur (fiche de séance) ; « terminé » : par le groupe ou l\'animateur', () => {
+  const timer = session.meta.timer;
+  assert.match(timer.step['.validate'], /empathy\|impact\|story/);
+  assert.equal(timer.$other['.validate'], false);
+  const done = session.boards.$g.state.done.$step;
+  assert.match(done['.write'], /owners/);
+  assert.match(done['.write'], /members\/' \+ auth\.uid \+ '\/group'\)\.val\(\) === \$g/);
+  assert.match(done['.validate'], /isBoolean/);
+});

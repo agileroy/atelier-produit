@@ -769,15 +769,6 @@ button.tchip { cursor: grab; touch-action: manipulation; }
 .btn svg { flex: none; }
 
 /* Bouton « Rejoindre » permanent et grand QR code */
-.join-pill {
-  position: fixed; left: max(16px, env(safe-area-inset-left, 0px)); bottom: 16px; z-index: 25;
-  display: inline-flex; align-items: center; gap: 8px; padding: 8px 10px 8px 14px; border-radius: 999px; cursor: pointer;
-  background: var(--surface); color: var(--fg); border: 1px solid var(--line); box-shadow: var(--shadow); font-size: 14px; font-weight: 600;
-}
-.join-pill:hover { border-color: var(--accent); color: var(--accent); }
-.join-pill svg { width: 18px; height: 18px; fill: none; stroke: currentColor; stroke-width: 1.8; }
-.join-pill strong { letter-spacing: .12em; color: var(--accent); }
-.join-pill-n { min-width: 22px; height: 22px; padding: 0 6px; display: grid; place-items: center; border-radius: 999px; background: var(--ok); color: var(--surface); font-size: 12px; }
 .dialog.dialog--join { width: min(860px, calc(100vw - 24px)); }
 .join-big { grid-template-columns: minmax(0, 1.1fr) minmax(0, 1fr); gap: 24px; align-items: center; }
 .join-big-qr { background: #fff; border-radius: 14px; padding: 10px; border: 1px solid var(--line); }
@@ -1090,3 +1081,33 @@ body[data-mode="participant"] .brand { pointer-events: none; }
 .persona-pick { display: grid; gap: 8px; padding: 12px 14px; border-radius: 12px; background: var(--bg); }
 .persona-pick p { margin: 0; font-size: 14px; }
 .persona-pick .seg button small { font-weight: 400; margin-left: 4px; }
+
+/* Minuteur de l'étape et « Nous avons terminé » */
+.timer-dock {
+  position: fixed; left: 16px; bottom: 16px; z-index: 40; display: flex; align-items: center; gap: 14px; flex-wrap: wrap;
+  max-width: calc(100vw - 32px); padding: 10px 14px; background: var(--surface); color: var(--fg);
+  border: 1px solid var(--line); border-radius: 16px; box-shadow: 0 8px 28px rgb(15 20 32 / 0.16);
+}
+.timer-dock[hidden] { display: none; }
+.td-clock { display: grid; grid-template-columns: auto; gap: 2px; min-width: 104px; }
+.td-status { font-size: 11px; font-weight: 700; letter-spacing: .06em; text-transform: uppercase; color: var(--muted); }
+.td-time { font-family: 'Bricolage Grotesque', system-ui, sans-serif; font-size: 30px; font-weight: 800; line-height: 1; font-variant-numeric: tabular-nums; }
+.td-bar { display: block; height: 4px; border-radius: 4px; background: var(--line); overflow: hidden; }
+.td-bar b { display: block; height: 100%; background: var(--accent); transition: width 1s linear; }
+.td-clock.is-low .td-time, .td-clock.is-over .td-time { color: var(--danger); }
+.td-clock.is-low .td-bar b, .td-clock.is-over .td-bar b { background: var(--danger); }
+.td-clock:not(.is-running) .td-time { opacity: .75; }
+.td-controls { display: flex; gap: 6px; flex-wrap: wrap; }
+.td-btn { padding: 7px 12px; border-radius: 999px; border: 1px solid var(--line); background: var(--bg); color: var(--fg); font: inherit; font-size: 14px; font-weight: 600; cursor: pointer; }
+.td-btn:hover { border-color: var(--accent); color: var(--accent); }
+.td-btn--primary { background: var(--accent); border-color: var(--accent); color: var(--accent-ink, #fff); }
+.td-btn--primary:hover { color: var(--accent-ink, #fff); filter: brightness(1.1); }
+.td-btn--quiet { background: none; border-color: transparent; color: var(--muted); }
+.td-groups { display: flex; gap: 6px; flex-wrap: wrap; }
+.td-group { display: inline-flex; align-items: center; gap: 4px; padding: 4px 10px; border-radius: 999px; background: var(--bg); font-size: 13px; color: var(--muted); }
+.td-group.is-done { background: var(--ok-soft); color: var(--ok); font-weight: 600; }
+.td-group svg, .td-note svg { width: 14px; height: 14px; }
+.td-note { margin: 0; font-size: 14px; }
+.td-note--done { color: var(--ok); font-weight: 600; display: inline-flex; gap: 4px; align-items: center; }
+body:has(.timer-dock:not([hidden])) .footer { padding-bottom: 96px; }
+@media print { .timer-dock { display: none !important; } }

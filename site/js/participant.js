@@ -52,6 +52,8 @@ export async function startParticipant(api) {
     return null;
   };
   hooks.debriefView = debriefView;
+  /** « Nous avons terminé » (ou on reprend) pour son groupe, à l'étape en cours. */
+  hooks.setDone = (done) => (shared.myGroup ? store.setDone(sid, shared.myGroup, api.state.step, done) : Promise.reject(new Error('no-group')));
 
   const card = (title, text) => `<section class="pcard pcard--center"><h1>${esc(title)}</h1>${text ? `<p>${esc(text)}</p>` : ''}</section>`;
 
@@ -312,6 +314,8 @@ export async function startParticipant(api) {
     if (!meta) { show('message', { title: 'Atelier introuvable', text: 'Il est peut-être terminé. Demandez le lien à l\'animateur.' }); return; }
     shared.groups = meta.groups;
     shared.restitution = meta.restitution;
+    shared.timer = meta.timer;
+    store.onServerOffset((ms) => { shared.offset = ms; });
     api.setStep(meta.step);
     store.onMeta(sid, (raw) => {
       const next = readMeta(raw);
@@ -320,6 +324,7 @@ export async function startParticipant(api) {
       const revealed = next.quiz === 'revealed' && meta?.quiz !== 'revealed';
       meta = next;
       shared.groups = next.groups;
+      shared.timer = next.timer;
       shared.restitution = next.restitution;
       if (phase !== 'ready') return;
       syncBoards();

@@ -159,3 +159,42 @@ test('groupes : nouvelle répartition au hasard, équilibrée', () => {
   }
   assert.deepEqual(readMembers({ a: { group: 'g2' }, b: { group: 'g9' }, c: null }), { a: 'g2' });
 });
+
+test('minuteur : durée préconisée, pause, reprise, temps ajouté', async () => {
+  const sc = await import('../site/js/session-core.js');
+  const { stepDuration, startTimer, pauseTimer, resumeTimer, addTime, timerLeft, timerRunning, readTimer, formatClock } = sc;
+  assert.equal(stepDuration('empathy'), 25 * 60000);
+  assert.equal(stepDuration('frame'), 0);
+  assert.equal(timerLeft(null, 'impact', 0), 30 * 60000, 'pas démarré : durée pleine');
+  let t = startTimer('empathy', 1000);
+  assert.ok(timerRunning(t, 'empathy'));
+  assert.equal(timerLeft(t, 'empathy', 61000), 24 * 60000);
+  assert.equal(timerLeft(t, 'impact', 61000), 30 * 60000, 'minuteur d\'une autre étape ignoré');
+  t = pauseTimer(t, 'empathy', 61000);
+  assert.deepEqual(t, { step: 'empathy', left: 24 * 60000 });
+  assert.equal(timerLeft(t, 'empathy', 10 ** 9), 24 * 60000, 'en pause, le temps ne file pas');
+  t = addTime(t, 'empathy', 5 * 60000, 0);
+  assert.equal(t.left, 29 * 60000);
+  t = resumeTimer(t, 'empathy', 100);
+  assert.equal(t.endsAt, 100 + 29 * 60000);
+  assert.equal(timerLeft(t, 'empathy', 10 ** 9), 0);
+  assert.deepEqual(readTimer({ step: 'story', left: -1 }), null);
+  assert.deepEqual(readTimer({ step: 'story', endsAt: 5, over: true, x: 1 }), { step: 'story', endsAt: 5, over: true });
+  assert.equal(formatClock(25 * 60000), '25:00');
+  assert.equal(formatClock(59500), '1:00');
+  assert.equal(formatClock(3725000), '1:02:05');
+});
+
+test('restitution automatique : fin du temps ou tous les groupes ont terminé, une seule fois', async () => {
+  const { autoRestitution, startTimer } = await import('../site/js/session-core.js');
+  const base = { step: 'impact', now: 0, restitution: false, done: {}, groups: 2 };
+  const t = startTimer('impact', 0);
+  assert.equal(autoRestitution({ ...base, timer: t }), null);
+  assert.equal(autoRestitution({ ...base, timer: t, now: t.endsAt }), 'time');
+  assert.equal(autoRestitution({ ...base, timer: t, done: { g1: true } }), null, 'un seul groupe sur deux');
+  assert.equal(autoRestitution({ ...base, timer: t, done: { g1: true, g2: true } }), 'done');
+  assert.equal(autoRestitution({ ...base, timer: null, groups: 1, done: { g1: true } }), 'done');
+  assert.equal(autoRestitution({ ...base, timer: { ...t, over: true }, now: t.endsAt }), null, 'déjà déclenchée');
+  assert.equal(autoRestitution({ ...base, timer: t, now: t.endsAt, restitution: true }), null);
+  assert.equal(autoRestitution({ ...base, step: 'debrief', timer: null, done: { g1: true, g2: true } }), null);
+});

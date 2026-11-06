@@ -17,6 +17,7 @@ export function createPhones({ button, dialog, count, current, onRemote, onChang
   let status = firebaseConfig ? 'idle' : 'off'; // off | idle | connecting | live | error
   let session = null; // { sid, key }
   const personas = { ...DEFAULT_PERSONAS }; // persona de chaque groupe
+  let offset = 0; // horloge du serveur - horloge locale
   let meta = null;
   let notes = [];
   let quizEntries = [];
@@ -48,6 +49,7 @@ export function createPhones({ button, dialog, count, current, onRemote, onChang
       sync(...Object.values(current()));
       paint();
     }, () => { status = 'error'; paint(); }));
+    unsubs.push(store.onServerOffset((ms) => { offset = ms; }));
     unsubs.push(store.onPresence(session.sid, (tree) => {
       presence = readPresence(tree);
       autoAssign();
@@ -171,6 +173,8 @@ export function createPhones({ button, dialog, count, current, onRemote, onChang
   const writeBoard = (g, updates) => store.writeBoard(session.sid, g, updates);
   const setBoardState = (g, key, value) => store.setBoardState(session.sid, g, key, value);
   const setKept = (map) => store.setKept(session.sid, map);
+  const setTimer = (timer) => (status === 'live' ? store.setTimer(session.sid, timer) : Promise.resolve());
+  const setDone = (g, step, done) => store.setDone(session.sid, g, step, done);
 
   /** Quiz du débrief : 'open' (les téléphones répondent), 'revealed' (correction pour tous), 'off'. */
   async function setQuiz(mode) {
@@ -331,7 +335,10 @@ export function createPhones({ button, dialog, count, current, onRemote, onChang
 
   return {
     resume, sync, show, setQuiz, clearQuiz,
-    setGroups, shuffle, moveMember, setRestitution, writeBoard, setBoardState, setKept,
+    setGroups, shuffle, moveMember, setRestitution, writeBoard, setBoardState, setKept, setTimer, setDone,
+    get timer() { return meta?.timer ?? null; },
+    /** Heure du serveur (ms), pour que le minuteur soit le même sur tous les écrans. */
+    get now() { return Date.now() + offset; },
     get groups() { return meta?.groups ?? 2; },
     get restitution() { return meta?.restitution === true; },
     get members() { return members; },

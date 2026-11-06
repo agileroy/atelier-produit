@@ -18,7 +18,10 @@ import {
   serialize, parseSaved, sanitize, toolName, TOOL_IDS, MAX_TEXT,
 } from './core.js?v=__VERSION__';
 import { $, $$, esc, toast, announce, copyText, load, save, setupTheme, downloadJson, today, qrSvg, ICONS } from './shared.js?v=__VERSION__';
-import { podium, quizStats, waitingFor, QUIZ_MAX, groupIdsFor, groupName, DEFAULT_PERSONAS } from './session-core.js?v=__VERSION__';
+import {
+  podium, quizStats, waitingFor, QUIZ_MAX, groupIdsFor, groupName, DEFAULT_PERSONAS,
+  TIMER_STEPS, stepDuration, timerLeft, timerRunning, startTimer, pauseTimer, resumeTimer, addTime, autoRestitution, formatClock,
+} from './session-core.js?v=__VERSION__';
 import { setupDnd } from './dnd.js?v=__VERSION__';
 import { createPhones } from './phones.js?v=__VERSION__';
 
@@ -118,6 +121,7 @@ export function receiveBoard(g, tree) {
   shared.synced[g] = clone(shared.boards[g].notes);
   if (HOST) publishKept();
   if (g === 'g1') refreshSim();
+  renderDock();
   if (shared.on && g === shared.group) {
     showGroup(g);
     render();
@@ -191,6 +195,118 @@ function commit({ focus } = {}) {
   if (HOST) phones?.sync(state.step, state.persona);
 }
 
+/* ---------- Minuteur et « Nous avons terminé » ----------
+   Un minuteur commun par étape d'atelier, piloté par l'animateur (dans la fiche de séance, à l'heure
+   du serveur). À zéro, ou quand tous les groupes ont dit « Nous avons terminé », la restitution se
+   lance toute seule, une fois par étape. */
+
+const dock = $('#timer-dock');
+let dockSig = '';
+const timerNow = () => (HOST ? (phones?.now ?? Date.now()) : Date.now() + (shared.offset ?? 0));
+const currentTimer = () => (HOST ? phones?.timer : shared.timer) ?? null;
+const groupDone = (g, step = state.step) => shared.boards[g]?.state?.done?.[step] === true;
+
+function dockVisible() {
+  if (!shared.on || !TIMER_STEPS.includes(state.step)) return false;
+  return HOST ? !!phones?.live : !!shared.myGroup && !hooks.screen?.();
+}
+
+function renderDock() {
+  if (!dock) return;
+  const show = dockVisible();
+  dock.hidden = !show;
+  if (!show) { dockSig = ''; return; }
+  const step = state.step;
+  const timer = currentTimer();
+  const left = timerLeft(timer, step, timerNow());
+  const total = stepDuration(step);
+  const started = timer?.step === step;
+  const running = timerRunning(timer, step);
+  const status = shared.restitution ? 'Restitution' : started && left === 0 ? 'Temps écoulé' : running ? 'Temps restant' : started ? 'En pause' : 'Durée préconisée';
+  let body;
+  if (HOST) {
+    const chips = groupIdsFor(shared.groups).map((g) => {
+      const d = groupDone(g);
+      return `<span class="td-group ${d ? 'is-done' : ''}">${d ? ICONS.check : ''}${esc(shared.groups === 1 ? 'Le groupe' : groupName(g))} ${d ? 'a terminé' : 'travaille'}</span>`;
+    }).join('');
+    body = `<div class="td-controls">
+        ${running ? '<button type="button" class="td-btn" data-timer="pause">Pause</button>'
+          : `<button type="button" class="td-btn td-btn--primary" data-timer="${started ? 'resume' : 'start'}">${started ? 'Reprendre' : 'Démarrer'}</button>`}
+        <button type="button" class="td-btn" data-timer="plus" title="Ajouter 5 minutes">+5 min</button>
+        ${started ? '<button type="button" class="td-btn td-btn--quiet" data-timer="reset" title="Revenir à la durée préconisée, minuteur arrêté">Remettre à zéro</button>' : ''}
+      </div>
+      <div class="td-groups">${chips}</div>`;
+  } else if (shared.restitution) {
+    body = '<p class="td-note">Place à la restitution : suivez l\'animateur.</p>';
+  } else {
+    const mine = groupDone(shared.myGroup);
+    body = mine
+      ? `<p class="td-note td-note--done">${ICONS.check} Votre groupe a terminé</p><button type="button" class="td-btn td-btn--quiet" data-timer="undone">Finalement, on continue</button>`
+      : '<button type="button" class="td-btn td-btn--primary" data-timer="done">Nous avons terminé</button>';
+  }
+  const pct = total ? Math.max(0, Math.min(100, (left / total) * 100)) : 0;
+  const sig = `${HOST}|${status}|${body}`;
+  if (sig !== dockSig) {
+    dockSig = sig;
+    dock.innerHTML = `<div class="td-clock ${started && left === 0 ? 'is-over' : ''} ${running ? 'is-running' : ''}">
+        <span class="td-status">${esc(status)}</span>
+        <span class="td-time" aria-live="off"></span>
+        <i class="td-bar"><b></b></i>
+      </div>${body}`;
+  }
+  dock.querySelector('.td-time').textContent = formatClock(left);
+  dock.querySelector('.td-bar b').style.width = `${pct}%`;
+  dock.querySelector('.td-clock').classList.toggle('is-low', running && left > 0 && left <= 60000);
+}
+
+let autoBusy = false;
+/** Animateur : lance la restitution à la fin du temps, ou quand tous les groupes ont terminé. */
+async function checkAuto() {
+  if (!HOST || !phones?.live || !shared.on || autoBusy) return;
+  const step = state.step;
+  const done = Object.fromEntries(groupIdsFor(shared.groups).map((g) => [g, groupDone(g)]));
+  const why = autoRestitution({ timer: currentTimer(), step, now: timerNow(), restitution: shared.restitution, done, groups: shared.groups });
+  if (!why) return;
+  autoBusy = true;
+  try {
+    await phones.setTimer({ ...pauseTimer(currentTimer(), step, timerNow()), over: true });
+    await phones.setRestitution(true);
+    toast(why === 'time' ? 'Temps écoulé : place à la restitution.' : 'Tous les groupes ont terminé : place à la restitution.');
+  } catch { /* nouvel essai à la prochaine seconde */ }
+  autoBusy = false;
+}
+
+dock?.addEventListener('click', async (e) => {
+  const b = e.target.closest('[data-timer]');
+  if (!b) return;
+  const act = b.dataset.timer;
+  const step = state.step;
+  if (HOST) {
+    const t = currentTimer();
+    const now = timerNow();
+    const over = t?.step === step && t.over ? { over: true } : {};
+    const next = {
+      start: () => startTimer(step, now),
+      pause: () => pauseTimer(t, step, now),
+      resume: () => resumeTimer(t, step, now),
+      plus: () => addTime(t, step, 5 * 60000, now),
+      reset: () => ({ step, left: stepDuration(step), ...over }),
+    }[act]?.();
+    if (next) await phones.setTimer(next).catch(() => toast('Minuteur non enregistré : la connexion est peut-être coupée.'));
+    return;
+  }
+  if (act === 'done' || act === 'undone') {
+    try {
+      await hooks.setDone?.(act === 'done');
+      if (act === 'done') announce('Votre groupe a terminé : l\'animateur est prévenu.');
+    } catch {
+      toast('Envoi impossible : la connexion est peut-être coupée.');
+    }
+  }
+});
+
+setInterval(() => { renderDock(); checkAuto(); }, 1000);
+
 /** Rafraîchit le QR code en grand (pour les retardataires) s'il est affiché. */
 function refreshJoinDialog() {
   if (HOST && $('#join').open) $('#join').innerHTML = joinDialogBody();
@@ -237,6 +353,7 @@ function render(focus) {
   $$('.canvas-scroll').forEach((s, i) => { if (scroll[i]) s.scrollLeft = scroll[i]; });
   renderStepper();
   refreshJoinDialog();
+  renderDock();
   if (keep) main.querySelector(`[data-focus="${CSS.escape(keep)}"]`)?.focus({ preventScroll: true });
 }
 
@@ -1509,6 +1626,7 @@ function startHost() {
     onChange() {
       const sig = `${phones.live}|${phones.quiz}|${phones.url}|${phones.code}|${phones.groups}|${phones.restitution}|${phones.presence.map((p) => p.uid + p.author).join(',')}|${JSON.stringify(phones.members)}`;
       refreshJoinDialog();
+      renderDock();
       if (sig === phonesSig) return;
       phonesSig = sig;
       shared.groups = phones.groups;

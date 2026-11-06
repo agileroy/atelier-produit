@@ -118,6 +118,12 @@ export function createStore() {
   const setBoardState = (sid, g, key, value) => set(at(`sessions/${sid}/boards/${g}/state/${key}`), value);
   /** Livrables étoilés, communs aux groupes (écrits par l'animateur) : { id: { text, group, order } }. */
   const setKept = (sid, map) => set(at(`sessions/${sid}/kept`), map);
+  /** Minuteur de l'étape (animateur), ou null pour l'effacer. */
+  const setTimer = (sid, timer) => set(at(`sessions/${sid}/meta/timer`), timer);
+  /** « Nous avons terminé » : un groupe signale qu'il a fini l'exercice de l'étape. */
+  const setDone = (sid, g, step, done) => set(at(`sessions/${sid}/boards/${g}/state/done/${step}`), done ? true : null);
+  /** Écart entre l'horloge du navigateur et celle du serveur (ms), pour un minuteur identique partout. */
+  const onServerOffset = (cb) => onValue(ref(db, '.info/serverTimeOffset'), (s) => cb(Number(s.val()) || 0), () => {});
   const onKept = (sid, cb, onError) => onValue(at(`sessions/${sid}/kept`), (s) => cb(s.val() ?? {}), onError);
 
   /** Présents (animateur seulement). */
@@ -154,6 +160,7 @@ export function createStore() {
     sendNote, onMyNotes, setQuiz, onQuiz, clearQuiz, submitQuiz, onMyQuiz,
     resolveCode, assignCode, onPresence, claimName, releaseName, goOnline,
     setMeta, onMembers, setMembers, onMyMember, onBoard, writeBoard, setBoardState, setKept, onKept,
+    setTimer, setDone, onServerOffset,
     get uid() { return uid; },
   };
 }

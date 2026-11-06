@@ -3,7 +3,7 @@
 // les mêmes contraintes côté base (branche atelierProduit).
 
 import { STEP_IDS, PERSONA_IDS, ZONE_IDS, IMPACT_KINDS, MAX_AUTHOR, TOOL_IDS, PLACE_IDS, newId, situationVerdict } from './core.js?v=__VERSION__';
-import { PHONE_STEPS, SITUATIONS, SITUATION_CHOICES, TOOL_PHASES } from './content.js?v=__VERSION__';
+import { PHONE_STEPS, SITUATIONS, SITUATION_CHOICES, TOOL_PHASES, BRIEFS } from './content.js?v=__VERSION__';
 
 export const MAX_PHONE_TEXT = 140;
 export const isSessionId = (v) => typeof v === 'string' && /^[a-z0-9]{12}$/.test(v);
@@ -46,6 +46,7 @@ export function readMeta(raw) {
     code: isCode(raw.code) ? raw.code : '',
     groups: raw.groups === 1 ? 1 : 2,
     restitution: raw.restitution === true,
+    timer: readTimer(raw.timer),
     createdAt: typeof raw.createdAt === 'number' ? raw.createdAt : null,
   };
 }
@@ -262,4 +263,74 @@ export function roster(members, presence, count) {
   const out = Object.fromEntries(groupIdsFor(count).map((g) => [g, []]));
   for (const p of presence) if (out[members[p.uid]]) out[members[p.uid]].push(p);
   return out;
+}
+
+/* ---------- Minuteur des étapes d'atelier ----------
+   Dans la fiche de séance : { step, endsAt } quand il tourne (heure du serveur, en ms),
+   { step, left } quand il est en pause (ms restantes). over: true une fois la restitution lancée
+   automatiquement (fin du temps, ou tous les groupes ont terminé) : on ne la relance pas. */
+
+export const TIMER_STEPS = ['empathy', 'impact', 'story'];
+const MAX_TIMER = 3 * 3600 * 1000;
+
+/** Durée préconisée d'une étape, en ms (d'après la consigne « À faire »). */
+export function stepDuration(step) {
+  const min = parseInt(BRIEFS[step]?.duration ?? '', 10);
+  return TIMER_STEPS.includes(step) && min > 0 ? min * 60000 : 0;
+}
+
+export function readTimer(raw) {
+  if (!raw || typeof raw !== 'object' || !TIMER_STEPS.includes(raw.step)) return null;
+  const t = { step: raw.step };
+  if (typeof raw.endsAt === 'number' && raw.endsAt > 0) t.endsAt = raw.endsAt;
+  else if (typeof raw.left === 'number' && raw.left >= 0 && raw.left <= MAX_TIMER) t.left = raw.left;
+  else return null;
+  if (raw.over === true) t.over = true;
+  return t;
+}
+
+/** Temps restant (ms) du minuteur de cette étape ; la durée préconisée s'il n'a pas démarré. */
+export function timerLeft(timer, step, now) {
+  if (!timer || timer.step !== step) return stepDuration(step);
+  if (timer.endsAt) return Math.max(0, timer.endsAt - now);
+  return timer.left;
+}
+
+export const timerRunning = (timer, step) => !!timer && timer.step === step && !!timer.endsAt;
+
+export function startTimer(step, now) {
+  return { step, endsAt: now + stepDuration(step) };
+}
+export function pauseTimer(timer, step, now) {
+  return { step, left: timerLeft(timer, step, now), ...(timer?.over ? { over: true } : {}) };
+}
+export function resumeTimer(timer, step, now) {
+  return { step, endsAt: now + timerLeft(timer, step, now), ...(timer?.over ? { over: true } : {}) };
+}
+/** Ajoute (ou retire) du temps, en gardant l'état (en cours ou en pause). */
+export function addTime(timer, step, ms, now) {
+  const left = Math.min(MAX_TIMER, Math.max(0, timerLeft(timer, step, now) + ms));
+  const over = timer?.step === step && timer.over ? { over: true } : {};
+  return timerRunning(timer, step) ? { step, endsAt: now + left, ...over } : { step, left, ...over };
+}
+
+/**
+ * Faut-il lancer la restitution tout seul ? 'time' quand le minuteur arrive à zéro, 'done' quand
+ * tous les groupes ont terminé ; null sinon (déjà lancée, ou déjà déclenchée une fois pour l'étape).
+ */
+export function autoRestitution({ timer, step, now, restitution, done, groups }) {
+  if (restitution || !TIMER_STEPS.includes(step) || (timer?.step === step && timer.over)) return null;
+  if (timerRunning(timer, step) && timerLeft(timer, step, now) === 0) return 'time';
+  const ids = groupIdsFor(groups);
+  if (ids.every((g) => done?.[g] === true)) return 'done';
+  return null;
+}
+
+/** 12:05, ou 1:02:05 au-delà d'une heure. */
+export function formatClock(ms) {
+  const total = Math.ceil(Math.max(0, ms) / 1000);
+  const h = Math.floor(total / 3600);
+  const m = Math.floor((total % 3600) / 60);
+  const sec = String(total % 60).padStart(2, '0');
+  return h ? `${h}:${String(m).padStart(2, '0')}:${sec}` : `${m}:${sec}`;
 }
