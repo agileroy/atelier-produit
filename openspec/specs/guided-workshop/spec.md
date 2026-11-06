@@ -22,6 +22,10 @@ Le double diamant SHALL garder les noms officiels des phases (Découvrir, Défin
 ### Requirement: La théorie avant la pratique
 Chaque étape outil SHALL commencer par la théorie de l'outil (à quoi ça sert, quand l'utiliser, comment faire, pièges, origine), dépliée par défaut, puis afficher la consigne « À faire » avec sa durée. Le bouton « Passer à la pratique » SHALL replier la théorie en une ligne, rouvrable à tout moment, et l'état replié SHALL être mémorisé par étape.
 
+#### Scenario: Page d'accueil dans le même ordre
+- **WHEN** on ouvre l'étape Cadre
+- **THEN** elle montre d'abord la théorie du Design Thinking, dépliée, et le double diamant, puis la partie « Place à la pratique » : la carte pour rejoindre, le cas, les personas et le déroulé
+
 #### Scenario: Exemple complet sur un autre sujet
 - **WHEN** la théorie de l'impact mapping ou du story mapping est dépliée
 - **THEN** elle montre un exemple complet en lecture seule sur un autre sujet que le cas (la cantine anti-gaspi) : objectif → acteurs → impacts → livrables, ou parcours et trois versions

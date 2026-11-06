@@ -472,6 +472,8 @@ button.tchip { cursor: grab; touch-action: manipulation; }
 .persona-card h3 { font-size: 18px; }
 .persona-role { margin: 2px 0 6px; font-size: 14px; color: var(--muted); }
 .persona-card ul { margin: 0; padding-left: 18px; font-size: 14px; display: grid; gap: 2px; }
+.practice-head { display: grid; gap: 4px; margin-top: 12px; padding-top: 28px; border-top: 2px dashed var(--line); }
+.practice-head h2 { margin: 0; }
 .frame-diamond { display: grid; gap: 8px; padding: 22px 24px; background: var(--felt); border: 1px solid var(--line); border-radius: 18px; }
 .plan { list-style: none; margin: 0 0 10px; padding: 0; display: grid; gap: 8px; }
 .plan-item {

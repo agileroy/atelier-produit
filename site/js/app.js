@@ -31,7 +31,7 @@ const CHOICE_LABELS = { empathy: 'Empathy map', impact: 'Impact mapping', story:
 
 const main = $('#main');
 let state = restore();
-const ui = { selectedTool: null, info: null, frameTheory: false, quizEntries: [] };
+const ui = { selectedTool: null, info: null, frameTheory: true, quizEntries: [] };
 let phones = null; // animateur : module Participants
 const hooks = {}; // participant : vues fournies par participant.js (débrief, attente)
 
@@ -491,6 +491,23 @@ function viewFrame() {
     <p class="lede">Le Design Thinking donne la démarche ; l'empathy map, l'impact mapping et le story mapping en sont des outils. Pour voir comment ils s'enchaînent, on les applique l'un après l'autre sur le même cas.</p>
   </header>
 
+  ${theoryBlock('frame')}
+
+  <section class="frame-diamond">
+    <div class="section-head">
+      <h2>Le double diamant</h2>
+    </div>
+    <p class="diamond-message">${esc(DIAMOND_MESSAGE)}</p>
+    <p class="hint">Au fil de l'atelier, chaque outil vient prendre sa place sur le diamant.</p>
+    ${diamondBoard({ chips })}
+  </section>
+
+  <section class="practice-head">
+    <p class="kicker">Place à la pratique</p>
+    <h2>L'exercice : un cas fil rouge</h2>
+    <p class="hint">On applique maintenant chaque outil, l'un après l'autre, au même cas.</p>
+  </section>
+
   ${joinCard()}
 
   <section class="frame-grid">
@@ -509,15 +526,6 @@ function viewFrame() {
     </div>
   </section>
 
-  <section class="frame-diamond">
-    <div class="section-head">
-      <h2>Le double diamant</h2>
-    </div>
-    <p class="diamond-message">${esc(DIAMOND_MESSAGE)}</p>
-    <p class="hint">Au fil de l'atelier, chaque outil vient prendre sa place sur le diamant.</p>
-    ${diamondBoard({ chips })}
-  </section>
-  ${theoryBlock('frame')}
 
   <section>
     <h2 class="section-title">Le déroulé</h2>
@@ -534,6 +542,7 @@ function viewFrame() {
     ${HOST ? '' : '<p class="hint">L\'animateur fait avancer l\'atelier : cette page suit l\'écran commun.</p>'}
     <p class="hint">Environ deux heures. L'écran est projeté ; chacun peut aussi envoyer des post-its depuis son ordinateur ou son téléphone (bouton « Participants » en haut).</p>
   </section>
+
   ${stepNav()}`;
 }
 
