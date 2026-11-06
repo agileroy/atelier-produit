@@ -21,7 +21,7 @@ import {
 import { $, $$, esc, toast, announce, copyText, load, save, setupTheme, downloadJson, today, qrSvg, ICONS } from './shared.js?v=__VERSION__';
 import {
   podium, quizStats, waitingFor, QUIZ_MAX, groupIdsFor, groupName, DEFAULT_PERSONAS,
-  TIMER_STEPS, stepDuration, timerLeft, timerRunning, startTimer, pauseTimer, resumeTimer, addTime, autoRestitution, formatClock,
+  TIMER_STEPS, stepDuration, timerLeft, timerRunning, startTimer, pauseTimer, resumeTimer, addTime, formatClock,
 } from './session-core.js?v=__VERSION__';
 import { setupDnd } from './dnd.js?v=__VERSION__';
 import { createPhones } from './phones.js?v=__VERSION__';
@@ -64,7 +64,12 @@ const shared = {
  * Peut-on modifier le tableau affiché ? L'animateur partout (sauf le groupe simulé) ; un participant
  * dans son groupe seulement, et plus pendant la restitution.
  */
-const canEdit = () => !shared.on || (shared.group !== 'sim' && (HOST || (shared.group === shared.myGroup && !shared.restitution && !myGroupDone())));
+const canEdit = () => !shared.on || (shared.group !== 'sim' && (HOST || (shared.group === shared.myGroup && !shared.restitution && !myGroupDone() && !timeUp())));
+/** Temps écoulé à l'étape : les tableaux des groupes sont verrouillés jusqu'à la restitution. */
+function timeUp() {
+  const t = HOST ? phones?.timer : shared.timer;
+  return !!t && t.step === state.step && TIMER_STEPS.includes(state.step) && timerLeft(t, state.step, HOST ? (phones?.now ?? Date.now()) : Date.now() + (shared.offset ?? 0)) === 0;
+}
 /** Le groupe du participant a dit « Nous avons terminé » pour l'étape : son tableau est verrouillé. */
 const myGroupDone = () => shared.boards[shared.myGroup]?.state?.done?.[state.step] === true;
 const clone = (x) => structuredClone(x);
@@ -253,9 +258,11 @@ function renderDock() {
         ${started ? '<button type="button" class="td-btn td-btn--quiet" data-timer="reset" title="Revenir à la durée préconisée, minuteur arrêté">Remettre à zéro</button>' : ''}
       </div>
       <div class="td-groups">${chips}</div>
-      ${!shared.restitution && groupIdsFor(shared.groups).every((g) => groupDone(g)) ? '<button type="button" class="td-btn td-btn--primary" data-timer="restitution">Tout le monde a terminé : lancer la restitution</button>' : ''}`;
+      ${!shared.restitution && (timeUp() || groupIdsFor(shared.groups).every((g) => groupDone(g))) ? `<button type="button" class="td-btn td-btn--primary" data-timer="restitution">${timeUp() ? 'Temps écoulé' : 'Tout le monde a terminé'} : lancer la restitution</button>` : ''}`;
   } else if (shared.restitution) {
     body = '<p class="td-note">Place à la restitution : suivez l\'animateur.</p>';
+  } else if (timeUp()) {
+    body = '<p class="td-note">Temps écoulé : votre tableau est verrouillé, l\'animateur va lancer la restitution.</p>';
   } else {
     const mine = groupDone(shared.myGroup);
     body = mine
@@ -277,21 +284,13 @@ function renderDock() {
   dock.querySelector('.td-clock').classList.toggle('is-low', running && left > 0 && left <= 60000);
 }
 
-let autoBusy = false;
-/** Animateur : lance la restitution à la fin du temps, ou quand tous les groupes ont terminé. */
-async function checkAuto() {
-  if (!HOST || !phones?.live || !shared.on || autoBusy) return;
-  const step = state.step;
-  const done = Object.fromEntries(groupIdsFor(shared.groups).map((g) => [g, groupDone(g)]));
-  const why = autoRestitution({ timer: currentTimer(), step, now: timerNow(), restitution: shared.restitution, done, groups: shared.groups });
-  if (!why) return;
-  autoBusy = true;
-  try {
-    await phones.setTimer({ ...pauseTimer(currentTimer(), step, timerNow()), over: true });
-    await phones.setRestitution(true);
-    toast('Temps écoulé : place à la restitution.');
-  } catch { /* nouvel essai à la prochaine seconde */ }
-  autoBusy = false;
+let lockedBefore = null;
+/** À zéro, le verrouillage s'applique sans attendre une autre mise à jour. */
+function checkLock() {
+  if (!shared.on) return;
+  const locked = timeUp();
+  if (lockedBefore !== null && locked !== lockedBefore) render();
+  lockedBefore = locked;
 }
 
 dock?.addEventListener('click', async (e) => {
@@ -324,7 +323,7 @@ dock?.addEventListener('click', async (e) => {
   }
 });
 
-setInterval(() => { renderDock(); checkAuto(); }, 1000);
+setInterval(() => { renderDock(); checkLock(); }, 1000);
 
 /** Rafraîchit le QR code en grand (pour les retardataires) s'il est affiché. */
 function refreshJoinDialog() {
@@ -1426,7 +1425,7 @@ main.addEventListener('click', (e) => {
   const groupTab = t.closest('[data-group]');
   if (groupTab) { showGroup(groupTab.dataset.group); render(`group:${groupTab.dataset.group}`); return; }
   if (!canEdit() && t.closest(EDIT_TARGETS)) {
-    toast(shared.group === 'sim' ? 'Groupe simulé : lecture seule.' : !HOST && !shared.restitution && myGroupDone() ? 'Votre groupe a terminé : « Finalement, on continue » pour modifier encore.' : shared.restitution ? 'Restitution : seul l\'animateur déplace les post-its.' : 'Lecture seule : c\'est le tableau de l\'autre groupe.');
+    toast(shared.group === 'sim' ? 'Groupe simulé : lecture seule.' : !HOST && !shared.restitution && timeUp() ? 'Temps écoulé : on attend la restitution.' : !HOST && !shared.restitution && myGroupDone() ? 'Votre groupe a terminé : « Finalement, on continue » pour modifier encore.' : shared.restitution ? 'Restitution : seul l\'animateur déplace les post-its.' : 'Lecture seule : c\'est le tableau de l\'autre groupe.');
     return;
   }
   const info = t.closest('[data-info]');

@@ -267,8 +267,8 @@ export function roster(members, presence, count) {
 
 /* ---------- Minuteur des étapes d'atelier ----------
    Dans la fiche de séance : { step, endsAt } quand il tourne (heure du serveur, en ms),
-   { step, left } quand il est en pause (ms restantes). over: true une fois la restitution lancée
-   automatiquement (fin du temps, ou tous les groupes ont terminé) : on ne la relance pas. */
+   { step, left } quand il est en pause (ms restantes). over: true conservé pour compatibilité.
+   À zéro, les tableaux des groupes se verrouillent ; l'animateur lance lui-même la restitution. */
 
 export const TIMER_STEPS = ['empathy', 'impact', 'story'];
 const MAX_TIMER = 3 * 3600 * 1000;
@@ -312,17 +312,6 @@ export function addTime(timer, step, ms, now) {
   const left = Math.min(MAX_TIMER, Math.max(0, timerLeft(timer, step, now) + ms));
   const over = timer?.step === step && timer.over ? { over: true } : {};
   return timerRunning(timer, step) ? { step, endsAt: now + left, ...over } : { step, left, ...over };
-}
-
-/**
- * Faut-il lancer la restitution tout seul ? 'time' quand le minuteur arrive à zéro ; null sinon
- * (déjà lancée, ou déjà déclenchée une fois pour l'étape). Quand tous les groupes ont terminé,
- * c'est l'animateur qui la lance : les tableaux des groupes restent verrouillés en attendant.
- */
-export function autoRestitution({ timer, step, now, restitution }) {
-  if (restitution || !TIMER_STEPS.includes(step) || (timer?.step === step && timer.over)) return null;
-  if (timerRunning(timer, step) && timerLeft(timer, step, now) === 0) return 'time';
-  return null;
 }
 
 /** 12:05, ou 1:02:05 au-delà d'une heure. */
