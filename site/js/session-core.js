@@ -315,14 +315,13 @@ export function addTime(timer, step, ms, now) {
 }
 
 /**
- * Faut-il lancer la restitution tout seul ? 'time' quand le minuteur arrive à zéro, 'done' quand
- * tous les groupes ont terminé ; null sinon (déjà lancée, ou déjà déclenchée une fois pour l'étape).
+ * Faut-il lancer la restitution tout seul ? 'time' quand le minuteur arrive à zéro ; null sinon
+ * (déjà lancée, ou déjà déclenchée une fois pour l'étape). Quand tous les groupes ont terminé,
+ * c'est l'animateur qui la lance : les tableaux des groupes restent verrouillés en attendant.
  */
-export function autoRestitution({ timer, step, now, restitution, done, groups }) {
+export function autoRestitution({ timer, step, now, restitution }) {
   if (restitution || !TIMER_STEPS.includes(step) || (timer?.step === step && timer.over)) return null;
   if (timerRunning(timer, step) && timerLeft(timer, step, now) === 0) return 'time';
-  const ids = groupIdsFor(groups);
-  if (ids.every((g) => done?.[g] === true)) return 'done';
   return null;
 }
 

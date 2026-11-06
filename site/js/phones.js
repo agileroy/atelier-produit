@@ -192,8 +192,8 @@ export function createPhones({ button, dialog, count, current, onRemote, onChang
     try { await store.setClosed(session.sid, closed); } catch { toast('Action impossible pour le moment.'); }
   }
 
-  async function end() {
-    if (!confirm('Terminer la séance ? Les post-its déjà reçus restent sur le tableau ; ils sont effacés de la base.')) return;
+  async function end({ ask = true } = {}) {
+    if (ask && !confirm('Terminer la séance ? Les post-its déjà reçus restent sur le tableau ; ils sont effacés de la base.')) return;
     try {
       await store.deleteSession(session.sid, meta?.code);
       forget('Séance terminée, base nettoyée.');
@@ -335,7 +335,7 @@ export function createPhones({ button, dialog, count, current, onRemote, onChang
 
   return {
     resume, sync, show, setQuiz, clearQuiz,
-    setGroups, shuffle, moveMember, setRestitution, writeBoard, setBoardState, setKept, setTimer, setDone,
+    end, setGroups, shuffle, moveMember, setRestitution, writeBoard, setBoardState, setKept, setTimer, setDone,
     get timer() { return meta?.timer ?? null; },
     /** Heure du serveur (ms), pour que le minuteur soit le même sur tous les écrans. */
     get now() { return Date.now() + offset; },

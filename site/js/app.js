@@ -64,7 +64,9 @@ const shared = {
  * Peut-on modifier le tableau affiché ? L'animateur partout (sauf le groupe simulé) ; un participant
  * dans son groupe seulement, et plus pendant la restitution.
  */
-const canEdit = () => !shared.on || (shared.group !== 'sim' && (HOST || (shared.group === shared.myGroup && !shared.restitution)));
+const canEdit = () => !shared.on || (shared.group !== 'sim' && (HOST || (shared.group === shared.myGroup && !shared.restitution && !myGroupDone())));
+/** Le groupe du participant a dit « Nous avons terminé » pour l'étape : son tableau est verrouillé. */
+const myGroupDone = () => shared.boards[shared.myGroup]?.state?.done?.[state.step] === true;
 const clone = (x) => structuredClone(x);
 const groupPersona = (g) => shared.boards[g]?.state?.persona ?? DEFAULT_PERSONAS[g] ?? 'karim';
 const otherPersona = (id) => (id === 'sophie' ? 'karim' : 'sophie');
@@ -250,13 +252,14 @@ function renderDock() {
         <button type="button" class="td-btn" data-timer="plus" title="Ajouter 5 minutes">+5 min</button>
         ${started ? '<button type="button" class="td-btn td-btn--quiet" data-timer="reset" title="Revenir à la durée préconisée, minuteur arrêté">Remettre à zéro</button>' : ''}
       </div>
-      <div class="td-groups">${chips}</div>`;
+      <div class="td-groups">${chips}</div>
+      ${!shared.restitution && groupIdsFor(shared.groups).every((g) => groupDone(g)) ? '<button type="button" class="td-btn td-btn--primary" data-timer="restitution">Tout le monde a terminé : lancer la restitution</button>' : ''}`;
   } else if (shared.restitution) {
     body = '<p class="td-note">Place à la restitution : suivez l\'animateur.</p>';
   } else {
     const mine = groupDone(shared.myGroup);
     body = mine
-      ? `<p class="td-note td-note--done">${ICONS.check} Votre groupe a terminé</p><button type="button" class="td-btn td-btn--quiet" data-timer="undone">Finalement, on continue</button>`
+      ? `<p class="td-note td-note--done">${ICONS.check} Votre groupe a terminé · en attente de la restitution</p><button type="button" class="td-btn td-btn--quiet" data-timer="undone">Finalement, on continue</button>`
       : '<button type="button" class="td-btn td-btn--primary" data-timer="done">Nous avons terminé</button>';
   }
   const pct = total ? Math.max(0, Math.min(100, (left / total) * 100)) : 0;
@@ -286,7 +289,7 @@ async function checkAuto() {
   try {
     await phones.setTimer({ ...pauseTimer(currentTimer(), step, timerNow()), over: true });
     await phones.setRestitution(true);
-    toast(why === 'time' ? 'Temps écoulé : place à la restitution.' : 'Tous les groupes ont terminé : place à la restitution.');
+    toast('Temps écoulé : place à la restitution.');
   } catch { /* nouvel essai à la prochaine seconde */ }
   autoBusy = false;
 }
@@ -307,6 +310,7 @@ dock?.addEventListener('click', async (e) => {
       plus: () => addTime(t, step, 5 * 60000, now),
       reset: () => ({ step, left: stepDuration(step), ...over }),
     }[act]?.();
+    if (act === 'restitution') { await phones.setRestitution(true).catch(() => toast('Restitution non lancée : la connexion est peut-être coupée.')); return; }
     if (next) await phones.setTimer(next).catch(() => toast('Minuteur non enregistré : la connexion est peut-être coupée.'));
     return;
   }
@@ -778,7 +782,8 @@ function avatar(p, size = '') {
 
 function viewEmpathy() {
   const persona = personaById(state.persona);
-  const comparing = state.compare[persona.id] === true;
+  // En séance, la proposition ne se dévoile qu'à la restitution : d'abord le choix du groupe, ensuite la discussion.
+  const comparing = state.compare[persona.id] === true && (!shared.on || shared.restitution);
   const cmp = compareEmpathy(state, persona.id);
   const byNote = Object.fromEntries(cmp.items.map((i) => [i.noteId, i]));
   const pool = availableExtracts(state, persona.id);
@@ -839,7 +844,7 @@ function viewEmpathy() {
         : HOST || !shared.on ? '<p>Une fois les extraits rangés, comparez avec une proposition de tri.</p>' : '<p>Rangez les extraits entre vous : l\'animateur dévoilera une proposition de tri au moment de la restitution.</p>'}
       ${empty.length ? `<p>Zones vides : <strong>${esc(empty.join(', '))}</strong>. Ce sont les questions de la prochaine interview.</p>` : '<p>Toutes les zones ont au moins un post-it.</p>'}
     </div>
-    ${!shared.on || (HOST && shared.group !== 'sim') ? `<button type="button" class="btn ${comparing ? 'btn-quiet' : 'btn-primary'}" data-act="compare" data-focus="compare" ${cmp.placed || shared.on ? '' : 'disabled'}>
+    ${!shared.on || (HOST && shared.group !== 'sim' && shared.restitution) ? `<button type="button" class="btn ${comparing ? 'btn-quiet' : 'btn-primary'}" data-act="compare" data-focus="compare" ${cmp.placed || shared.on ? '' : 'disabled'}>
       ${comparing ? 'Masquer la proposition' : 'Comparer avec la proposition'}</button>` : ''}
   </section>
   ${comparing ? proposalHtml(persona) : ''}
@@ -1421,7 +1426,7 @@ main.addEventListener('click', (e) => {
   const groupTab = t.closest('[data-group]');
   if (groupTab) { showGroup(groupTab.dataset.group); render(`group:${groupTab.dataset.group}`); return; }
   if (!canEdit() && t.closest(EDIT_TARGETS)) {
-    toast(shared.group === 'sim' ? 'Groupe simulé : lecture seule.' : shared.restitution ? 'Restitution : seul l\'animateur déplace les post-its.' : 'Lecture seule : c\'est le tableau de l\'autre groupe.');
+    toast(shared.group === 'sim' ? 'Groupe simulé : lecture seule.' : !HOST && !shared.restitution && myGroupDone() ? 'Votre groupe a terminé : « Finalement, on continue » pour modifier encore.' : shared.restitution ? 'Restitution : seul l\'animateur déplace les post-its.' : 'Lecture seule : c\'est le tableau de l\'autre groupe.');
     return;
   }
   const info = t.closest('[data-info]');
@@ -1557,7 +1562,7 @@ const actions = {
     await phones.setQuiz('open');
   },
   compare() {
-    if ((!HOST || shared.group === 'sim') && shared.on) return;
+    if ((!HOST || shared.group === 'sim' || !shared.restitution) && shared.on) return;
     if (shared.on) { shared.setState(shared.group, 'compare', !state.compare[state.persona]); return; }
     state.compare[state.persona] = !state.compare[state.persona]; commit({ focus: 'compare' });
   },
@@ -1568,7 +1573,7 @@ const actions = {
     commit();
     announce('Étapes types posées : modifiez-les librement');
   },
-  'journey-next'() { setJourneyStage('regroup'); window.scrollTo({ top: 0, behavior: 'smooth' }); },
+  'journey-next'() { setJourneyStage('regroup'); },
   'journey-back'() { setJourneyStage('recit'); },
   'journey-validate'() {
     const loose = looseActions(state).length;
@@ -1576,7 +1581,6 @@ const actions = {
     const n = validateJourney(state);
     if (!n) return;
     commit();
-    window.scrollTo({ top: 0, behavior: 'smooth' });
     toast('Parcours validé : il devient la première ligne de votre story map.');
   },
   'journey-reopen'() {
@@ -1595,8 +1599,10 @@ const actions = {
   print() { printReport(); },
   save() { downloadJson(serialize(state), `atelier-produit-${today()}.json`); },
   open() { $('#file-input').click(); },
-  reset() {
-    if (!confirm('Effacer tout l\'atelier en cours et repartir de zéro ? (Pensez à l\'enregistrer avant.)')) return;
+  async reset() {
+    const live = !!phones?.live;
+    if (!confirm(`Effacer tout l'atelier en cours et repartir de zéro ?${live ? ' La séance en ligne est terminée et effacée : un nouveau code sera créé.' : ''} (Pensez à l'enregistrer avant.)`)) return;
+    if (live) await phones.end({ ask: false });
     const seen = state.seen;
     state = newState();
     state.seen = seen; // les post-its déjà reçus des téléphones ne reviennent pas

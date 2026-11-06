@@ -185,16 +185,15 @@ test('minuteur : durée préconisée, pause, reprise, temps ajouté', async () =
   assert.equal(formatClock(3725000), '1:02:05');
 });
 
-test('restitution automatique : fin du temps ou tous les groupes ont terminé, une seule fois', async () => {
+test('restitution automatique : à la fin du temps seulement, une seule fois', async () => {
   const { autoRestitution, startTimer } = await import('../site/js/session-core.js');
   const base = { step: 'impact', now: 0, restitution: false, done: {}, groups: 2 };
   const t = startTimer('impact', 0);
   assert.equal(autoRestitution({ ...base, timer: t }), null);
   assert.equal(autoRestitution({ ...base, timer: t, now: t.endsAt }), 'time');
   assert.equal(autoRestitution({ ...base, timer: t, done: { g1: true } }), null, 'un seul groupe sur deux');
-  assert.equal(autoRestitution({ ...base, timer: t, done: { g1: true, g2: true } }), 'done');
-  assert.equal(autoRestitution({ ...base, timer: null, groups: 1, done: { g1: true } }), 'done');
+  assert.equal(autoRestitution({ ...base, timer: t, done: { g1: true, g2: true } }), null, 'tous terminés : c\'est l\'animateur qui lance');
   assert.equal(autoRestitution({ ...base, timer: { ...t, over: true }, now: t.endsAt }), null, 'déjà déclenchée');
   assert.equal(autoRestitution({ ...base, timer: t, now: t.endsAt, restitution: true }), null);
-  assert.equal(autoRestitution({ ...base, step: 'debrief', timer: null, done: { g1: true, g2: true } }), null);
+
 });
