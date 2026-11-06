@@ -4,13 +4,15 @@
 import {
   STEPS, CASE, PERSONAS, EMPATHY_ZONES, IMPACT_LEVELS, STORY_LANES, TOOLS, PHASES, PLACES, ALL_PLACE, TOOL_PHASES,
   STEP_PHASES, BRIEFS, SITUATIONS, SITUATION_CHOICES, PHONE_STEPS, DIAMOND_MESSAGE, DIAMOND_LOOP,
-  PLACEMENT_FEEDBACK, EXAMPLE_CASE, IMPACT_EXAMPLE, STORY_EXAMPLE,
+  PLACEMENT_FEEDBACK, EXAMPLE_CASE, IMPACT_EXAMPLE, STORY_EXAMPLE, EXAMPLE_JOURNEY,
+  JOURNEY_RULES, JOURNEY_QUESTIONS, JOURNEY_MIN, JOURNEY_MAX,
 } from './content.js?v=__VERSION__';
 import {
   newState, setStep, nextStep, prevStep, stepIndex, addNote, updateNote, moveNote, moveBlocker, removeNote,
   notesIn, getNote, childrenOf, placesFor, encodePlace, decodePlace, samePlace, familyOf, placeLabel,
   availableExtracts, placeExtract, unplaceExtract, extractById, compareEmpathy, emptyZones, personaById,
-  toggleKeep, keptDeliverables, importDeliverable, useBackboneExample, mvpGaps,
+  toggleKeep, keptDeliverables, importDeliverable, mvpGaps,
+  useJourneyExample, validateJourney, reopenJourney, journeyNotes, journeyDone, journeyHints, simulatedNotes,
   setPlacement, checkPlacement, answerSituation, situationScore, situationVerdict, mergeRemote, reportText,
   boardUpdates, recordsToNotes,
   serialize, parseSaved, sanitize, toolName, TOOL_IDS, MAX_TEXT,
@@ -20,7 +22,7 @@ import { podium, quizStats, waitingFor, QUIZ_MAX, groupIdsFor, groupName, DEFAUL
 import { setupDnd } from './dnd.js?v=__VERSION__';
 import { createPhones } from './phones.js?v=__VERSION__';
 
-/** Animateur (index.html) ou participant (postit.html) : même interface, droits différents. */
+/** Animateur (index.html) ou participant (index.html?code=…) : même interface, droits différents. */
 export const HOST = document.body.dataset.mode !== 'participant';
 const STORE_KEY = HOST ? 'atelier-produit.state' : 'atelier-produit.participant';
 const STEP_TOOL = { frame: 'designThinking', empathy: 'empathy', impact: 'impact', story: 'story', debrief: 'designThinking' };
@@ -45,7 +47,7 @@ const shared = {
   myGroup: null, // participant : son groupe
   groups: 2,
   restitution: false,
-  boards: { g1: { notes: [], state: {} }, g2: { notes: [], state: {} } },
+  boards: { g1: { notes: [], state: {} }, g2: { notes: [], state: {} }, sim: { notes: [], state: {} } },
   synced: { g1: [], g2: [] },
   kept: [], // livrables étoilés, communs : [{ id, text, group }]
   write: null, // (groupe, mises à jour) => Promise
@@ -54,10 +56,37 @@ const shared = {
   lastKept: '',
 };
 
-/** Peut-on modifier le tableau affiché ? L'animateur partout ; un participant dans son groupe seulement. */
-const canEdit = () => !shared.on || HOST || (shared.group === shared.myGroup && !shared.restitution);
+/**
+ * Peut-on modifier le tableau affiché ? L'animateur partout (sauf le groupe simulé) ; un participant
+ * dans son groupe seulement, et plus pendant la restitution.
+ */
+const canEdit = () => !shared.on || (shared.group !== 'sim' && (HOST || (shared.group === shared.myGroup && !shared.restitution)));
 const clone = (x) => structuredClone(x);
-const groupPersona = (g) => shared.boards[g]?.state?.persona ?? DEFAULT_PERSONAS[g];
+const groupPersona = (g) => shared.boards[g]?.state?.persona ?? DEFAULT_PERSONAS[g] ?? 'karim';
+const otherPersona = (id) => (id === 'sophie' ? 'karim' : 'sophie');
+
+/**
+ * Séance à un seul groupe : un groupe simulé a travaillé l'autre persona. Son tableau, calculé ici
+ * (jamais écrit dans la base), sert de point de comparaison à la restitution.
+ */
+function refreshSim() {
+  const p = otherPersona(groupPersona('g1'));
+  if (shared.boards.sim.state.persona === p) return;
+  shared.boards.sim = { notes: simulatedNotes(p), state: { persona: p } };
+  if (shared.group === 'sim') showGroup('sim');
+}
+
+/** Les tableaux qu'on peut afficher : les deux groupes, ou le groupe et le groupe simulé. */
+function boardGroups() {
+  if (shared.groups === 2) return ['g1', 'g2'];
+  return HOST || shared.restitution ? ['g1', 'sim'] : ['g1'];
+}
+const boardLabel = (g) => `${g === 'sim' ? 'Groupe simulé' : shared.groups === 1 ? 'Votre groupe' : groupName(g)} · ${personaById(groupPersona(g))?.name ?? ''}`;
+
+function simNotice() {
+  const name = personaById(groupPersona('sim'))?.name ?? '';
+  return `<p class="sim-notice">Groupe simulé : le travail d'un groupe imaginaire sur ${esc(name)}, pour comparer avec le vôtre. Lecture seule.</p>`;
+}
 
 function showGroup(g) {
   shared.group = g;
@@ -72,6 +101,7 @@ export function enterShared({ write, setState, group = 'g1' }) {
   shared.on = true;
   shared.write = write;
   shared.setState = setState;
+  refreshSim();
   showGroup(group);
 }
 
@@ -87,6 +117,7 @@ export function receiveBoard(g, tree) {
   shared.boards[g] = { notes: recordsToNotes(tree?.notes), state: tree?.state ?? {} };
   shared.synced[g] = clone(shared.boards[g].notes);
   if (HOST) publishKept();
+  if (g === 'g1') refreshSim();
   if (shared.on && g === shared.group) {
     showGroup(g);
     render();
@@ -160,16 +191,9 @@ function commit({ focus } = {}) {
   if (HOST) phones?.sync(state.step, state.persona);
 }
 
-/** Bouton « Rejoindre » permanent (sauf sur l'étape Cadre, qui a sa carte) : pour les retardataires. */
-function renderJoinPill() {
-  const pill = $('#join-pill');
-  const show = HOST && phones?.live && state.step !== 'frame';
-  pill.hidden = !show;
-  if (!show) return;
-  const n = phones.presence.length;
-  pill.innerHTML = `${ICONS.users}<span>Rejoindre${phones.code ? ` · <strong>${esc(phones.code)}</strong>` : ''}</span><span class="join-pill-n" title="Connectés">${n}</span>`;
-  pill.setAttribute('aria-label', `Afficher le QR code pour rejoindre l'atelier (${n} connecté${n > 1 ? 's' : ''})`);
-  if ($('#join').open) $('#join').innerHTML = joinDialogBody();
+/** Rafraîchit le QR code en grand (pour les retardataires) s'il est affiché. */
+function refreshJoinDialog() {
+  if (HOST && $('#join').open) $('#join').innerHTML = joinDialogBody();
 }
 
 function joinDialogBody() {
@@ -185,11 +209,17 @@ function joinDialogBody() {
     </div>`;
 }
 
-$('#join-pill').addEventListener('click', () => {
+function showJoinDialog() {
   const d = $('#join');
   d.innerHTML = joinDialogBody();
   d.showModal();
   d.querySelector('[data-close]')?.focus();
+}
+// « Afficher en grand » depuis le panneau Participants.
+$('#phones')?.addEventListener('click', (e) => {
+  if (!e.target.closest('[data-big]')) return;
+  $('#phones').close();
+  showJoinDialog();
 });
 $('#join').addEventListener('click', (e) => {
   if (e.target === e.currentTarget || e.target.closest('[data-close]')) { e.currentTarget.close(); return; }
@@ -206,7 +236,7 @@ function render(focus) {
   main.classList.toggle('is-readonly', !canEdit());
   $$('.canvas-scroll').forEach((s, i) => { if (scroll[i]) s.scrollLeft = scroll[i]; });
   renderStepper();
-  renderJoinPill();
+  refreshJoinDialog();
   if (keep) main.querySelector(`[data-focus="${CSS.escape(keep)}"]`)?.focus({ preventScroll: true });
 }
 
@@ -260,19 +290,25 @@ function stepHeader(step) {
  */
 function boardBar() {
   if (!shared.on || state.step === 'frame') return '';
-  const groups = groupIdsFor(shared.groups);
-  const label = (g) => `${groupName(g)} · ${personaById(groupPersona(g))?.name ?? ''}`;
+  const groups = boardGroups();
+  const solo = shared.groups === 1;
   if (!HOST && !shared.restitution) {
-    return shared.groups === 2 ? `<p class="board-bar board-bar--me">Vous travaillez dans le <strong>${esc(groupName(shared.myGroup))}</strong>. L'autre groupe découvrira votre tableau à la restitution.</p>` : '';
+    return solo ? '' : `<p class="board-bar board-bar--me">Vous travaillez dans le <strong>${esc(groupName(shared.myGroup))}</strong>. L'autre groupe découvrira votre tableau à la restitution.</p>`;
   }
   if (groups.length < 2) return '';
+  const count = (g) => (HOST && g !== 'sim' && !solo ? ` <span class="count">${phones?.roster?.[g]?.length ?? 0}</span>` : '');
   const tabs = groups.map((g) => `<button type="button" role="tab" aria-selected="${g === shared.group}" data-group="${g}" data-focus="group:${g}">
-      ${esc(label(g))}${HOST ? ` <span class="count">${phones?.roster?.[g]?.length ?? 0}</span>` : g === shared.myGroup ? ' <span class="board-you">vous</span>' : ''}</button>`).join('');
+      ${esc(boardLabel(g))}${count(g)}${!HOST && g === shared.myGroup ? ' <span class="board-you">vous</span>' : ''}</button>`).join('');
+  const hostHint = shared.restitution
+    ? `Les participants voient ${solo ? 'leur tableau et celui du groupe simulé' : 'les deux tableaux'}, en lecture seule : vous seul déplacez les post-its.`
+    : solo ? `Un seul groupe : à la restitution, on compare son tableau à celui d'un groupe simulé qui a travaillé sur ${esc(personaById(groupPersona('sim'))?.name ?? '')}.`
+      : 'Chaque groupe ne voit que son tableau. La restitution montre les deux à tous.';
+  const partHint = shared.group === 'sim' ? 'le tableau du groupe simulé' : shared.group === shared.myGroup ? 'votre tableau' : 'le tableau de l\'autre groupe';
   return `<div class="board-bar">
     <div class="group-tabs" role="tablist" aria-label="Tableau affiché">${tabs}</div>
     ${HOST ? `<button type="button" class="btn ${shared.restitution ? 'btn-quiet' : 'btn-primary'} btn-small" data-act="restitution" data-focus="restitution">${shared.restitution ? 'Terminer la restitution' : 'Lancer la restitution'}</button>
-      <p class="hint">${shared.restitution ? 'Les participants voient les deux tableaux, en lecture seule : vous seul déplacez les post-its.' : 'Chaque groupe ne voit que son tableau. La restitution montre les deux à tous.'}</p>`
-      : `<p class="hint">Restitution : ${shared.group === shared.myGroup ? 'votre tableau' : 'le tableau de l\'autre groupe'}, en lecture seule. L'animateur déplace les post-its.</p>`}
+      <p class="hint">${hostHint}</p>`
+      : `<p class="hint">Restitution : ${partHint}, en lecture seule. L'animateur déplace les post-its.</p>`}
   </div>`;
 }
 
@@ -353,8 +389,20 @@ function impactExample() {
 
 function storyExample() {
   const ex = STORY_EXAMPLE;
+  const ej = EXAMPLE_JOURNEY;
+  const told = esc(ej.story).replace(/\[([^\]]+)\]/g, '<mark>$1</mark>');
   return `<div class="example">
-    ${exampleHead('Une story map, du parcours aux versions')}
+    ${exampleHead('D\'abord le parcours : de l\'histoire aux grandes étapes')}
+    <ol class="journey-how">
+      <li><h4>1. On raconte</h4><p class="hint">${esc(ej.persona)}</p><p class="journey-told">${told}</p></li>
+      <li><h4>2. On garde les actions</h4><ul class="journey-actions">${ej.steps.flatMap((x) => x.actions).map((a) => `<li>${esc(a)}</li>`).join('')}</ul></li>
+      <li><h4>3. On regroupe en grandes étapes</h4>
+        <div class="journey-groups">${ej.steps.map((x) => `<div>${staticNote(x.step, 48, 'note--backbone')}<small>${esc(x.actions.join(' · '))}</small></div>`).join('')}</div></li>
+    </ol>
+    <p class="hint">Les grandes étapes forment la colonne vertébrale ; les actions de détail reviennent dessous, en stories (« Choisir sa portion », « Être reconnu à la caisse »).</p>
+  </div>
+  <div class="example">
+    ${exampleHead('Puis la story map, du parcours aux versions')}
     <div class="canvas-scroll canvas-scroll--example">
       <div class="smap smap--example">
         <div class="srow srow--backbone"><div class="slabel"><strong>Le parcours</strong></div>
@@ -481,7 +529,7 @@ function viewFrame() {
   const plan = [
     ['empathy', 'Pour qui ?', 'Comprendre deux futurs utilisateurs à partir d\'extraits d\'interview.'],
     ['impact', 'Pourquoi ?', 'Relier un objectif mesurable aux comportements à changer, puis aux livrables.'],
-    ['story', 'Quoi, dans quel ordre ?', 'Organiser le parcours et tracer une première version utile.'],
+    ['story', 'Quoi, dans quel ordre ?', 'Raconter le parcours de la persona, en tirer la colonne vertébrale, puis tracer une première version utile.'],
     ['debrief', 'Quand utiliser quoi ?', 'Ranger les outils et s\'entraîner sur des situations réelles.'],
   ];
   return `
@@ -540,7 +588,7 @@ function viewFrame() {
       }).join('')}
     </ol>
     ${HOST ? '' : '<p class="hint">L\'animateur fait avancer l\'atelier : cette page suit l\'écran commun.</p>'}
-    <p class="hint">Environ deux heures. L'écran est projeté ; chacun peut aussi envoyer des post-its depuis son ordinateur ou son téléphone (bouton « Participants » en haut).</p>
+    <p class="hint">Environ 2 h 15. L'écran est projeté ; chacun peut aussi envoyer des post-its depuis son ordinateur ou son téléphone (bouton « Participants » en haut).</p>
   </section>
 
   ${stepNav()}`;
@@ -615,7 +663,7 @@ function viewEmpathy() {
   const empty = emptyZones(state, persona.id).map(zoneLabel);
   return `
   ${stepHeader('empathy')}
-  ${shared.on && !(HOST && shared.groups === 1) ? `<p class="persona-fixed">${avatar(persona, 'avatar--sm')} <span>${shared.groups === 2 ? `${esc(groupName(shared.group))} : ` : ''}la carte de <strong>${esc(persona.name)}</strong>, ${esc(persona.profile.toLowerCase())}</span></p>` : `<div class="persona-tabs" role="tablist" aria-label="Persona">
+  ${shared.on ? `<p class="persona-fixed">${avatar(persona, 'avatar--sm')} <span>${shared.group === 'sim' ? 'Groupe simulé : ' : shared.groups === 2 ? `${esc(groupName(shared.group))} : ` : ''}la carte de <strong>${esc(persona.name)}</strong>, ${esc(persona.profile.toLowerCase())}</span>${HOST && shared.groups === 1 && shared.group !== 'sim' ? ' <button type="button" class="link-btn" data-act="phones-show">Changer (Participants)</button>' : ''}</p>` : `<div class="persona-tabs" role="tablist" aria-label="Persona">
     ${PERSONAS.map((p) => {
       const count = state.notes.filter((n) => n.place.b === 'empathy' && n.place.persona === p.id).length;
       return `<button type="button" role="tab" aria-selected="${p.id === persona.id}" data-persona="${p.id}" data-focus="persona:${p.id}" style="--h:${p.hue}">
@@ -653,7 +701,7 @@ function viewEmpathy() {
         : HOST || !shared.on ? '<p>Une fois les extraits rangés, comparez avec une proposition de tri.</p>' : '<p>Rangez les extraits entre vous : l\'animateur dévoilera une proposition de tri au moment de la restitution.</p>'}
       ${empty.length ? `<p>Zones vides : <strong>${esc(empty.join(', '))}</strong>. Ce sont les questions de la prochaine interview.</p>` : '<p>Toutes les zones ont au moins un post-it.</p>'}
     </div>
-    ${!shared.on || HOST ? `<button type="button" class="btn ${comparing ? 'btn-quiet' : 'btn-primary'}" data-act="compare" data-focus="compare" ${cmp.placed || shared.on ? '' : 'disabled'}>
+    ${!shared.on || (HOST && shared.group !== 'sim') ? `<button type="button" class="btn ${comparing ? 'btn-quiet' : 'btn-primary'}" data-act="compare" data-focus="compare" ${cmp.placed || shared.on ? '' : 'disabled'}>
       ${comparing ? 'Masquer la proposition' : 'Comparer avec la proposition'}</button>` : ''}
   </section>
   ${comparing ? proposalHtml(persona) : ''}
@@ -754,7 +802,59 @@ function viewImpact() {
 
 /* ---------- Étape 3 : story mapping ---------- */
 
+/** Premier temps de la story map : raconter le parcours de la persona, avant de le valider. */
+function viewJourney() {
+  const persona = personaById(state.persona) ?? PERSONAS[0];
+  const steps = journeyNotes(state);
+  const h = journeyHints(steps.map((n) => n.text));
+  const tips = [];
+  if (h.tooFew) tips.push(`<li>${steps.length ? `${steps.length} étape${steps.length > 1 ? 's' : ''} pour l'instant` : 'Pas encore d\'étape'} : visez ${JOURNEY_MIN} à ${JOURNEY_MAX} grandes étapes, du déclencheur au résultat.</li>`);
+  if (h.tooMany) tips.push(`<li>${steps.length} étapes, c'est beaucoup : certaines sont peut-être des détails. Regroupez-les, ils reviendront en stories.</li>`);
+  if (h.notVerb.length) tips.push(`<li>Ne commence${h.notVerb.length > 1 ? 'nt' : ''} pas par un verbe : <strong>${esc(h.notVerb.join(' · '))}</strong>. Que fait ${esc(persona.name)}, à ce moment-là ?</li>`);
+  if (h.system.length) tips.push(`<li>Décri${h.system.length > 1 ? 'vent' : 't'} l'appli plutôt que ${esc(persona.name)} : <strong>${esc(h.system.join(' · '))}</strong>.</li>`);
+  const ready = steps.length >= 2;
+  return `
+  ${stepHeader('story')}
+  <section class="journey-intro">
+    <p class="kicker">Temps 1 · Le parcours</p>
+    <h2>Racontez le parcours de ${esc(persona.name)} avec l'appli</h2>
+    <p>Avant de parler de fonctionnalités, on raconte ce que fait ${esc(persona.name)}, ${esc(persona.profile.toLowerCase())}, quand elle utilise le service, du début à la fin. Ces grandes étapes deviendront la première ligne de votre story map : la colonne vertébrale.</p>
+    <div class="journey-guide">
+      <div class="journey-persona" style="--h:${persona.hue}">${avatar(persona)}
+        <div><strong>${esc(persona.name)}, ${persona.age} ans</strong><span>${esc(persona.role)} · ${esc(persona.profile)}</span>
+        <ul>${persona.facts.map((f) => `<li>${esc(f)}</li>`).join('')}</ul></div></div>
+      <div class="journey-questions"><h3>Pour raconter</h3>
+        <ol>${JOURNEY_QUESTIONS.map((q) => `<li>${esc(q.replaceAll('{name}', persona.name))}</li>`).join('')}</ol></div>
+      <div class="journey-rules"><h3>Bien formuler une étape</h3>
+        <ul>${JOURNEY_RULES.map((r) => `<li><strong>${esc(r.title)}</strong>
+          <span class="jr-good">${ICONS.check} ${esc(r.good)}</span>${r.bad ? `<span class="jr-bad">✕ ${esc(r.bad)}</span>` : ''}${r.note ? `<small>${esc(r.note)}</small>` : ''}</li>`).join('')}</ul></div>
+    </div>
+  </section>
+
+  <div class="canvas">
+    <div class="canvas-scroll">
+      <div class="journey" data-drop="journey" data-axis="x">
+        ${steps.map((n, i) => `<div class="jcell"><span class="jn">${i + 1}</span>${noteHtml(n)}</div>`).join('')}
+        <div class="jcell jcell--add">${addButton({ b: 'journey' }, 'Étape')}</div>
+      </div>
+    </div>
+    <p class="hint">De gauche à droite, dans l'ordre où ${esc(persona.name)} les vit. Glissez une étape pour la déplacer.</p>
+  </div>
+
+  <section class="checkpoint">
+    <div>
+      <h2>Prêts à valider ?</h2>
+      ${tips.length ? `<ul class="journey-tips">${tips.join('')}</ul>` : steps.length ? '<p>Le parcours se lit bien : des verbes, du point de vue de la persona, dans l\'ordre. Relisez-le à voix haute : raconte-t-il toute l\'histoire ?</p>' : ''}
+      <p class="hint">Une fois validé, le parcours devient la première ligne de votre story map. Vous pourrez encore l'ajuster.</p>
+      ${HOST && !steps.length ? `<p class="hint">Animateur : un groupe bloqué ? <button type="button" class="link-btn" data-act="journey-example" data-focus="journey-example">Proposer le parcours type de ${esc(persona.name)}</button></p>` : ''}
+    </div>
+    <button type="button" class="btn btn-primary" data-act="journey-validate" data-focus="journey-validate" ${ready ? '' : 'disabled'}>Valider le parcours ›</button>
+  </section>
+  ${stepNav()}`;
+}
+
 function viewStory() {
+  if (!journeyDone(state) && shared.group !== 'sim') return viewJourney();
   const cols = notesIn(state, { b: 'backbone' });
   const kept = keptForStory();
   const gaps = mvpGaps(state);
@@ -764,7 +864,7 @@ function viewStory() {
   };
   return `
   ${stepHeader('story')}
-  <div class="story-sources">
+  ${shared.group === 'sim' ? simNotice() : `<div class="story-sources">
     <section class="kept">
       <h2>Livrables retenus <span class="count">${kept.length}</span></h2>
       ${kept.length
@@ -775,17 +875,18 @@ function viewStory() {
           : '<p class="hint">Aucun livrable retenu pour l\'instant : ils sont choisis tous ensemble, à la fin de l\'impact mapping.</p>'}
     </section>
     ${trayHtml('story', 'À placer', 'Glissez ces post-its sous une étape du parcours.')}
-  </div>
+  </div>`}
 
   <div class="canvas">
     <div class="canvas-scroll">
       <div class="smap" style="--cols:${cols.length}">
         <div class="srow srow--backbone">
-          <div class="slabel"><strong>Le parcours</strong><span>De gauche à droite, les grandes étapes de l'utilisateur.</span></div>
+          <div class="slabel"><strong>Le parcours</strong><span>De gauche à droite, les grandes étapes de ${esc(personaById(state.persona)?.name ?? 'l\'utilisateur')}.</span>
+            ${canEdit() && shared.group !== 'sim' ? '<button type="button" class="link-btn" data-act="journey-reopen" data-focus="journey-reopen">Revenir au récit</button>' : ''}</div>
           <div class="backbone" data-drop="backbone" data-axis="x">
             ${cols.map((c) => `<div class="bcell">${noteHtml(c)}</div>`).join('')}
             <div class="bcell bcell--add">${addButton({ b: 'backbone' }, 'Étape')}
-              ${cols.length ? '' : '<button type="button" class="link-btn" data-act="backbone-example" data-focus="backbone-example">Partir du parcours type</button>'}</div>
+</div>
           </div>
         </div>
         ${cols.length ? STORY_LANES.map((lane, i) => `<div class="srow srow--lane srow--${lane.id}">
@@ -796,7 +897,7 @@ function viewStory() {
     </div>
   </div>
   ${cols.length ? `<section class="checkpoint">
-    <div><h2>Peut-on covoiturer avec la première version ?</h2>
+    <div><h2>${esc(personaById(state.persona)?.name ?? '')} peut-${state.persona === 'karim' ? 'il' : 'elle'} covoiturer avec la première version ?</h2>
     ${gaps.length
       ? `<p>Étapes sans rien en première version : <strong>${esc(gaps.map((g) => g.text).join(', '))}</strong>. Une première version doit traverser tout le parcours, même de façon rudimentaire.</p>`
       : '<p>La première version traverse tout le parcours. Relisez-la : est-ce vraiment le minimum ? Que pourrait-on encore retirer ?</p>'}
@@ -1105,13 +1206,16 @@ function blockMessage(reason) {
 
 /* ---------- Clics dans la page ---------- */
 
-const EDIT_TARGETS = '[data-add], [data-note], [data-extract], [data-keep], [data-deliv], [data-persona], [data-act="compare"], [data-act="backbone-example"]';
+const EDIT_TARGETS = '[data-add], [data-note], [data-extract], [data-keep], [data-deliv], [data-persona], [data-act="compare"], [data-act="journey-example"], [data-act="journey-validate"], [data-act="journey-reopen"]';
 
 main.addEventListener('click', (e) => {
   const t = e.target;
   const groupTab = t.closest('[data-group]');
   if (groupTab) { showGroup(groupTab.dataset.group); render(`group:${groupTab.dataset.group}`); return; }
-  if (!canEdit() && t.closest(EDIT_TARGETS)) { toast(shared.restitution ? 'Restitution : seul l\'animateur déplace les post-its.' : 'Lecture seule : c\'est le tableau de l\'autre groupe.'); return; }
+  if (!canEdit() && t.closest(EDIT_TARGETS)) {
+    toast(shared.group === 'sim' ? 'Groupe simulé : lecture seule.' : shared.restitution ? 'Restitution : seul l\'animateur déplace les post-its.' : 'Lecture seule : c\'est le tableau de l\'autre groupe.');
+    return;
+  }
   const info = t.closest('[data-info]');
   if (info) {
     ui.info = ui.info === info.dataset.info ? null : info.dataset.info;
@@ -1230,12 +1334,29 @@ const actions = {
     await phones.setQuiz('open');
   },
   compare() {
-    if (!HOST && shared.on) return;
+    if ((!HOST || shared.group === 'sim') && shared.on) return;
     if (shared.on) { shared.setState(shared.group, 'compare', !state.compare[state.persona]); return; }
     state.compare[state.persona] = !state.compare[state.persona]; commit({ focus: 'compare' });
   },
   restitution() { phones?.setRestitution(!shared.restitution); },
-  'backbone-example'() { useBackboneExample(state); commit(); announce('Parcours type posé : modifiez-le librement'); },
+  'journey-example'() {
+    if (!HOST) return;
+    useJourneyExample(state, state.persona);
+    commit();
+    announce('Parcours type posé : modifiez-le librement');
+  },
+  'journey-validate'() {
+    const n = validateJourney(state);
+    if (!n) return;
+    commit();
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+    toast('Parcours validé : il devient la première ligne de votre story map.');
+  },
+  'journey-reopen'() {
+    if (!confirm('Revenir au récit du parcours ? Les stories déjà posées restent attachées à leur étape.')) return;
+    reopenJourney(state);
+    commit();
+  },
   check() { state.debrief.checked = true; commit({ focus: 'check' }); },
   async copy() {
     const text = reportBoards().map(({ title, notes }) => `${title ? `===== ${title.toUpperCase()} =====\n` : ''}${reportText({ ...state, notes }, today())}`).join('\n\n');
@@ -1387,12 +1508,12 @@ function startHost() {
   phones = createPhones({
     onChange() {
       const sig = `${phones.live}|${phones.quiz}|${phones.url}|${phones.code}|${phones.groups}|${phones.restitution}|${phones.presence.map((p) => p.uid + p.author).join(',')}|${JSON.stringify(phones.members)}`;
-      renderJoinPill();
+      refreshJoinDialog();
       if (sig === phonesSig) return;
       phonesSig = sig;
       shared.groups = phones.groups;
       shared.restitution = phones.restitution;
-      if (shared.on && !groupIdsFor(shared.groups).includes(shared.group)) showGroup('g1');
+      if (shared.on && !boardGroups().includes(shared.group)) showGroup('g1');
       render();
     },
     onLive(live) {

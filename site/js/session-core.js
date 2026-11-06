@@ -85,19 +85,18 @@ export function flattenNotes(tree) {
 }
 
 /**
- * Lien court à partager : la page participant avec le code de la salle.
- * En ligne, GitHub Pages sert « postit » sans extension ; en local, on garde « postit.html ».
+ * Lien court à partager : l'adresse de l'atelier avec le code de la salle.
+ * La page voit le code et s'ouvre en mode participant.
  */
 export function shareLink(base, code) {
-  const url = new URL('postit', base);
-  if (url.hostname === 'localhost' || url.hostname === '127.0.0.1') url.pathname += '.html';
+  const url = new URL('./', base);
   url.search = `?code=${code}`;
   return url.href;
 }
 
-/** Adresse de la page participant pour une séance. */
+/** Adresse participant pour une séance. */
 export function participantUrl(base, sid) {
-  const url = new URL('postit.html', base);
+  const url = new URL('./', base);
   url.search = `?atelier=${sid}`;
   return url.href;
 }

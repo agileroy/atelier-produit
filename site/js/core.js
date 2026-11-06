@@ -3,7 +3,7 @@
 // Logique pure (ni DOM ni Firebase), testée avec Node.js.
 
 import {
-  STEPS, PERSONAS, EMPATHY_ZONES, STORY_LANES, BACKBONE_EXAMPLE, TOOL_PHASES, PHASES, PLACES,
+  STEPS, PERSONAS, EMPATHY_ZONES, STORY_LANES, JOURNEY_EXAMPLES, JOURNEY_MIN, JOURNEY_MAX, SYSTEM_WORDS, SIMULATED, GOAL_EXAMPLE, TOOL_PHASES, PHASES, PLACES,
   SITUATIONS, SITUATION_CHOICES, TOOLS, CASE, IMPACT_LEVELS,
 } from './content.js?v=__VERSION__';
 
@@ -69,6 +69,7 @@ export const prevStep = (step) => STEP_IDS[stepIndex(step) - 1] ?? null;
    { b: 'actor', parent: goalId }       acteur sous un objectif
    { b: 'impact', parent: actorId }     impact sous un acteur
    { b: 'deliverable', parent: impactId } livrable sous un impact
+   { b: 'journey' }                     étape du parcours, en cours de récit (avant validation)
    { b: 'backbone' }                    étape de la colonne vertébrale de la story map
    { b: 'story', col: backboneId, lane } story sous une étape, dans une version */
 
@@ -80,6 +81,7 @@ export function encodePlace(p) {
     case 'actor': return `actor|${p.parent}`;
     case 'impact': return `impact|${p.parent}`;
     case 'deliverable': return `deliverable|${p.parent}`;
+    case 'journey': return 'journey';
     case 'backbone': return 'backbone';
     case 'story': return `story|${p.col}|${p.lane}`;
     default: return '';
@@ -95,6 +97,7 @@ export function decodePlace(key) {
     case 'actor': return { b, parent: a };
     case 'impact': return { b, parent: a };
     case 'deliverable': return { b, parent: a };
+    case 'journey':
     case 'backbone': return { b };
     case 'story': return { b, col: a, lane: c };
     default: return null;
@@ -109,7 +112,7 @@ export function familyOf(p) {
   if (p.b === 'empathy') return 'empathy';
   if (p.b === 'tray') return p.step;
   if (['goal', 'actor', 'impact', 'deliverable'].includes(p.b)) return 'impact';
-  if (['backbone', 'story'].includes(p.b)) return 'story';
+  if (['journey', 'backbone', 'story'].includes(p.b)) return 'story';
   return null;
 }
 
@@ -121,11 +124,12 @@ export function placeExists(state, p) {
     case 'empathy': return PERSONA_IDS.includes(p.persona) && ZONE_IDS.includes(p.zone);
     case 'tray': return p.step === 'impact' || p.step === 'story';
     case 'goal':
+    case 'journey':
     case 'backbone': return true;
     case 'actor': return parentIs(p.parent, 'goal');
     case 'impact': return parentIs(p.parent, 'actor');
     case 'deliverable': return parentIs(p.parent, 'impact');
-    case 'story': return LANE_IDS.includes(p.lane) && parentIs(p.col, 'backbone');
+    case 'story': return LANE_IDS.includes(p.lane) && (parentIs(p.col, 'backbone') || parentIs(p.col, 'journey'));
     default: return false;
   }
 }
@@ -196,7 +200,7 @@ export function removeNote(state, id) {
   const note = getNote(state, id);
   if (!note) return 0;
   const doomed = new Set([id]);
-  if (note.place.b === 'backbone') {
+  if (note.place.b === 'backbone' || note.place.b === 'journey') {
     for (const child of childrenOf(state, id)) child.place = { b: 'tray', step: 'story' };
   } else {
     const stack = [id];
@@ -226,6 +230,8 @@ export function placesFor(state, id) {
     for (const g of notesIn(state, { b: 'goal' })) out.push({ place: { b: 'actor', parent: g.id }, label: `Acteur de « ${label(g)} »` });
     for (const a of state.notes.filter((n) => n.place.b === 'actor')) out.push({ place: { b: 'impact', parent: a.id }, label: `Impact de « ${label(a)} »` });
     for (const i of state.notes.filter((n) => n.place.b === 'impact')) out.push({ place: { b: 'deliverable', parent: i.id }, label: `Livrable de « ${label(i)} »` });
+  } else if (family === 'story' && note.place.b === 'journey') {
+    out.push({ place: { b: 'journey' }, label: 'Étape du parcours' });
   } else if (family === 'story') {
     out.push({ place: { b: 'tray', step: 'story' }, label: 'Bac « à placer »' });
     out.push({ place: { b: 'backbone' }, label: 'Étape du parcours' });
@@ -337,11 +343,85 @@ export function deliverablePath(state, id) {
 
 /* ---------- Story mapping ---------- */
 
-/** Pose la colonne vertébrale d'exemple (seulement si elle est vide). */
-export function useBackboneExample(state) {
-  if (notesIn(state, { b: 'backbone' }).length) return 0;
-  for (const text of BACKBONE_EXAMPLE) addNote(state, { b: 'backbone' }, text, { from: 'example' });
-  return BACKBONE_EXAMPLE.length;
+/** Les étapes du parcours en cours de récit. */
+export const journeyNotes = (state) => notesIn(state, { b: 'journey' });
+
+/** Le parcours est-il validé ? (Il est alors la colonne vertébrale de la story map.) */
+export const journeyDone = (state) => notesIn(state, { b: 'backbone' }).length > 0;
+
+/** Pose le parcours type de la persona (seulement si le parcours est vide). */
+export function useJourneyExample(state, personaId) {
+  const list = JOURNEY_EXAMPLES[personaId] ?? [];
+  if (journeyNotes(state).length || journeyDone(state)) return 0;
+  for (const text of list) addNote(state, { b: 'journey' }, text, { from: 'example' });
+  return list.length;
+}
+
+/** Valide le parcours : ses étapes deviennent, dans l'ordre, la colonne vertébrale. */
+export function validateJourney(state) {
+  const steps = journeyNotes(state);
+  if (!steps.length) return 0;
+  for (const n of steps) n.place = { b: 'backbone' };
+  return steps.length;
+}
+
+/** Revient au récit : la colonne vertébrale redevient le parcours (les stories restent attachées). */
+export function reopenJourney(state) {
+  const cols = notesIn(state, { b: 'backbone' });
+  for (const n of cols) n.place = { b: 'journey' };
+  return cols.length;
+}
+
+/**
+ * Conseils de formulation sur un parcours : trop court, trop long, étapes qui ne commencent pas
+ * par un verbe à l'infinitif, ou qui décrivent le système. Ce sont des indices, pas des erreurs.
+ */
+export function journeyHints(texts) {
+  const words = (t) => t.toLowerCase().replace(/[«»"'’.,;:!?()]/g, ' ').split(/\s+/).filter(Boolean);
+  // Infinitif : terminaison -er, -ir, -re, -oir (éventuellement précédé de « se », « s' »).
+  const isVerb = (t) => {
+    const w = words(t);
+    const first = ['se', 's', 'ne'].includes(w[0]) ? w[1] : w[0];
+    return /^[a-zàâçéèêëîïôûùüÿœ-]+(er|ir|re|oir)$/.test(first ?? '');
+  };
+  const systemy = (t) => {
+    const low = ` ${words(t).join(' ')} `;
+    return SYSTEM_WORDS.some((w) => low.includes(` ${w} `));
+  };
+  return {
+    count: texts.length,
+    tooFew: texts.length < JOURNEY_MIN,
+    tooMany: texts.length > JOURNEY_MAX,
+    notVerb: texts.filter((t) => !isVerb(t)),
+    system: texts.filter(systemy),
+  };
+}
+
+/** Tableau d'un groupe simulé sur une persona : empathy map, impact map, parcours et story map. */
+export function simulatedNotes(personaId) {
+  const sim = SIMULATED[personaId];
+  const persona = PERSONAS.find((p) => p.id === personaId);
+  if (!sim || !persona) return [];
+  let k = 0;
+  const id = () => `sim${personaId.slice(0, 1)}${String(++k).padStart(3, '0')}`;
+  const notes = [];
+  const push = (text, place, extra = {}) => { const n = { id: id(), text, place, ...extra }; notes.push(n); return n; };
+  for (const e of persona.extracts) push(e.text, { b: 'empathy', persona: personaId, zone: e.zone }, { from: `extract:${e.id}` });
+  const goal = push(GOAL_EXAMPLE, { b: 'goal' });
+  for (const a of sim.impact) {
+    const actor = push(a.actor, { b: 'actor', parent: goal.id });
+    for (const i of a.impacts) {
+      const impact = push(i.text, { b: 'impact', parent: actor.id });
+      for (const [text, keep] of i.deliverables) push(text, { b: 'deliverable', parent: impact.id }, keep ? { keep: true } : {});
+    }
+  }
+  const cols = JOURNEY_EXAMPLES[personaId].map((text) => push(text, { b: 'backbone' }));
+  sim.story.forEach((lanes, c) => {
+    lanes.forEach((texts, l) => {
+      for (const text of texts) push(text, { b: 'story', col: cols[c].id, lane: LANE_IDS[l] });
+    });
+  });
+  return notes;
 }
 
 /** La première version traverse-t-elle tout le parcours ? Étapes sans story en première version. */
@@ -513,7 +593,7 @@ export function sanitize(raw) {
   const pending = rawNotes.filter((n) => ID_RE.test(n.id) && cleanText(n.text) && decodePlace(encodePlace(n.place ?? {})));
   const ids = new Set();
   const order = new Map(pending.map((n, i) => [n, i]));
-  for (const pass of [['empathy', 'tray', 'goal', 'backbone'], ['actor'], ['impact'], ['deliverable', 'story']]) {
+  for (const pass of [['empathy', 'tray', 'goal', 'journey', 'backbone'], ['actor'], ['impact'], ['deliverable', 'story']]) {
     for (const n of pending) {
       if (!pass.includes(n.place.b) || ids.has(n.id)) continue;
       let place = decodePlace(encodePlace(n.place));
@@ -569,6 +649,7 @@ export function placeLabel(state, place) {
     case 'actor': return `acteurs de « ${getNote(state, place.parent)?.text ?? ''} »`;
     case 'impact': return `impacts de « ${getNote(state, place.parent)?.text ?? ''} »`;
     case 'deliverable': return `livrables de « ${getNote(state, place.parent)?.text ?? ''} »`;
+    case 'journey': return 'parcours';
     case 'backbone': return 'colonne vertébrale';
     case 'story': return `${getNote(state, place.col)?.text ?? ''}, ${STORY_LANES.find((l) => l.id === place.lane)?.label ?? ''}`;
     default: return '';

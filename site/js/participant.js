@@ -1,4 +1,4 @@
-// Page participant (postit.html) : l'atelier complet, sur le tableau de son groupe.
+// Page participant (index.html?code=… ou ?atelier=…) : l'atelier complet, sur le tableau de son groupe.
 // Ce module gère l'arrivée (code, prénom unique, présence), suit l'étape choisie par l'animateur,
 // branche le tableau du groupe (et celui de l'autre groupe pendant la restitution) et le quiz du débrief.
 // L'interface des étapes est celle de app.js, en mode participant.
@@ -186,7 +186,7 @@ export async function startParticipant(api) {
       const fail = (text) => { const p = $('#code-error'); p.textContent = text; p.hidden = false; };
       if (!isCode(code)) { fail(`Le code fait ${CODE_LENGTH} caractères, lettres et chiffres.`); return; }
       const found = await store.resolveCode(code);
-      if (found) location.replace(`postit.html?atelier=${found}`);
+      if (found) location.replace(`./?atelier=${found}`);
       else fail('Aucun atelier avec ce code. Vérifiez-le sur l\'écran.');
       return;
     }
@@ -253,6 +253,7 @@ export async function startParticipant(api) {
   }
   /** Pendant la restitution, on peut aussi regarder le tableau de l'autre groupe. */
   function syncBoards() {
+    if (shared.group === 'sim' && !shared.restitution && shared.myGroup) api.showGroup(shared.myGroup);
     for (const g of ['g1', 'g2']) {
       const needed = g === shared.myGroup || (shared.restitution && shared.groups === 2);
       if (needed) watchBoard(g);
@@ -302,7 +303,7 @@ export async function startParticipant(api) {
       // Pas de lien direct : on rejoint par le code court (?code=QVZS, ou saisi).
       const code = normalizeCode(new URLSearchParams(location.search).get('code'));
       const found = isCode(code) ? await store.resolveCode(code) : null;
-      if (found) { location.replace(`postit.html?atelier=${found}`); return; }
+      if (found) { location.replace(`./?atelier=${found}`); return; }
       show('join');
       if (code) { const p = $('#code-error'); p.textContent = 'Aucun atelier avec ce code. Vérifiez-le sur l\'écran.'; p.hidden = false; }
       return;

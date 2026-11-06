@@ -6,7 +6,7 @@ import {
   readMeta, flattenNotes, participantUrl, shareLink, isSessionId, isKey, readQuizEntries, readPresence,
   readMembers, assignNewcomers, shuffleGroups, roster, groupIdsFor, groupName, GROUP_IDS, DEFAULT_PERSONAS,
 } from './session-core.js?v=__VERSION__';
-import { STEPS, PHONE_STEPS } from './content.js?v=__VERSION__';
+import { STEPS, PHONE_STEPS, PERSONAS } from './content.js?v=__VERSION__';
 import { personaById } from './core.js?v=__VERSION__';
 import { esc, load, save, qrSvg, copyText, toast, ICONS } from './shared.js?v=__VERSION__';
 
@@ -16,6 +16,7 @@ export function createPhones({ button, dialog, count, current, onRemote, onChang
   let store = null;
   let status = firebaseConfig ? 'idle' : 'off'; // off | idle | connecting | live | error
   let session = null; // { sid, key }
+  const personas = { ...DEFAULT_PERSONAS }; // persona de chaque groupe
   let meta = null;
   let notes = [];
   let quizEntries = [];
@@ -58,7 +59,12 @@ export function createPhones({ button, dialog, count, current, onRemote, onChang
       paint(true);
     }, () => {}));
     for (const g of GROUP_IDS) {
-      unsubs.push(store.onBoard(session.sid, g, (tree) => onBoard(g, tree), () => {}));
+      unsubs.push(store.onBoard(session.sid, g, (tree) => {
+        const before = personas[g];
+        personas[g] = tree?.state?.persona ?? DEFAULT_PERSONAS[g];
+        onBoard(g, tree);
+        if (before !== personas[g] && dialog.open) dialog.innerHTML = body();
+      }, () => {}));
     }
     unsubs.push(store.onQuiz(session.sid, (tree) => {
       quizEntries = readQuizEntries(tree);
@@ -148,6 +154,10 @@ export function createPhones({ button, dialog, count, current, onRemote, onChang
   async function setGroups(n) {
     if (status !== 'live') return;
     await store.setMeta(session.sid, { groups: n });
+    if (n === 2) {
+      // Deux groupes : Sophie d'un côté, Karim de l'autre.
+      for (const g of GROUP_IDS) if (personas[g] !== DEFAULT_PERSONAS[g]) await store.setBoardState(session.sid, g, 'persona', DEFAULT_PERSONAS[g]);
+    }
     if (n === 1) {
       const moves = Object.fromEntries(Object.entries(members).filter(([, g]) => g !== 'g1').map(([u]) => [u, 'g1']));
       if (Object.keys(moves).length) await store.setMembers(session.sid, moves);
@@ -194,6 +204,8 @@ export function createPhones({ button, dialog, count, current, onRemote, onChang
     const live = status === 'live';
     onLive(live);
     button.classList.toggle('is-live', live);
+    const label = button.querySelector('.phones-label');
+    if (label) label.innerHTML = live && meta?.code ? `Participants · <strong>${esc(meta.code)}</strong>` : 'Participants';
     count.hidden = !live || !presence.length;
     count.textContent = presence.length;
     button.title = live
@@ -247,7 +259,9 @@ export function createPhones({ button, dialog, count, current, onRemote, onChang
         ${meta?.code ? `<p class="room-code">Code <strong>${esc(meta.code)}</strong></p>` : ''}
         <p class="phones-stat"><strong>${presence.length}</strong> connecté${presence.length > 1 ? 's' : ''}</p>
         <p class="hint">Les participants suivent l'étape affichée : <strong>${esc(stepLabel)}</strong>.</p>
-        <div class="dialog-actions"><button type="button" class="btn btn-danger" data-end>Terminer la séance</button></div>
+        <div class="dialog-actions">
+          <button type="button" class="btn btn-quiet" data-big>${ICONS.users} Afficher en grand</button>
+          <button type="button" class="btn btn-danger" data-end>Terminer la séance</button></div>
       </div>
       ${groupsPanel()}
     </div>`;
@@ -273,6 +287,10 @@ export function createPhones({ button, dialog, count, current, onRemote, onChang
           <ul>${r[g].map((p) => `<li>${esc(p.author)}${n === 2 ? `<button type="button" class="link-btn" data-move="${esc(p.uid)}" data-to="${g === 'g1' ? 'g2' : 'g1'}" title="Passer dans l'autre groupe">→ ${esc(groupName(g === 'g1' ? 'g2' : 'g1'))}</button>` : ''}</li>`).join('') || '<li class="hint">Personne pour l\'instant</li>'}</ul>
         </div>`).join('')}
       </div>
+      ${n === 1 ? `<div class="persona-pick">
+        <p><strong>Persona de l'équipe</strong> : à choisir avant de commencer, on la garde tout l'atelier. À la restitution, un groupe simulé présente l'autre.</p>
+        <div class="seg" role="radiogroup" aria-label="Persona de l'équipe">${PERSONAS.map((p) => `<button type="button" role="radio" aria-checked="${personas.g1 === p.id}" data-pick-persona="${p.id}">${esc(p.name)} <small>${esc(p.profile)}</small></button>`).join('')}</div>
+      </div>` : '<p class="hint">Deux groupes : Sophie pour le groupe 1, Karim pour le groupe 2.</p>'}
       ${waiting.length ? `<p class="hint">En cours d'affectation : ${esc(waiting.map((p) => p.author).join(', '))}</p>` : ''}
       <p class="hint">Les nouveaux arrivants rejoignent le groupe le moins rempli. Chaque groupe ne voit que son tableau, jusqu'à la restitution.</p>
     </section>`;
@@ -294,6 +312,9 @@ export function createPhones({ button, dialog, count, current, onRemote, onChang
     else if (e.target.closest('[data-groups]')) {
       const n = Number(e.target.closest('[data-groups]').dataset.groups);
       if (n !== (meta?.groups ?? 2)) await setGroups(n);
+    } else if (e.target.closest('[data-pick-persona]')) {
+      const id = e.target.closest('[data-pick-persona]').dataset.pickPersona;
+      if (id !== personas.g1) await store.setBoardState(session.sid, 'g1', 'persona', id);
     } else if (e.target.closest('[data-shuffle]')) {
       if (confirm('Répartir à nouveau tout le monde au hasard ? Chacun changera peut-être de groupe.')) await shuffle();
     } else if (e.target.closest('[data-move]')) {
@@ -323,7 +344,7 @@ export function createPhones({ button, dialog, count, current, onRemote, onChang
     get people() { return new Set(notes.map((n) => n.uid)).size; },
     get presence() { return presence; },
     get code() { return meta?.code ?? ''; },
-    get joinUrl() { return new URL('postit.html', location.href).href; },
+    get joinUrl() { return new URL('./?code=', location.href).href; },
     /** Lien à coller dans le chat de la réunion : la page participant avec le code de la salle. */
     get shareUrl() { return session ? this_share() : ''; },
     get hasCode() { return !!meta?.code; },

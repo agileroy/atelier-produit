@@ -4,10 +4,15 @@ import {
   newState, setStep, addNote, moveNote, moveBlocker, removeNote, notesIn, childrenOf, placesFor,
   availableExtracts, placeExtract, unplaceExtract, compareEmpathy, emptyZones,
   toggleKeep, keptDeliverables, importDeliverable, deliverablePath,
-  useBackboneExample, mvpGaps, setPlacement, checkPlacement, answerSituation, situationScore, situationVerdict,
+  useJourneyExample, validateJourney, reopenJourney, journeyNotes, journeyDone, journeyHints, simulatedNotes,
+  mvpGaps, setPlacement, checkPlacement, answerSituation, situationScore, situationVerdict,
   mergeRemote, reportText, serialize, parseSaved, encodePlace, decodePlace, nextStep, prevStep,
 } from '../site/js/core.js';
-import { PERSONAS, BACKBONE_EXAMPLE, SITUATIONS } from '../site/js/content.js';
+import { PERSONAS, JOURNEY_EXAMPLES, SIMULATED, SITUATIONS } from '../site/js/content.js';
+
+const BACKBONE_EXAMPLE = JOURNEY_EXAMPLES.sophie;
+/** Pose le parcours type de Sophie et le valide : il devient la colonne vertébrale. */
+const useBackboneExample = (s) => { const n = useJourneyExample(s, 'sophie'); validateJourney(s); return n; };
 
 /** Petit arbre d'impact : un objectif, un acteur, un impact, un livrable. */
 function impactTree(goalText = '-20 % d\'autosolistes') {
@@ -165,6 +170,56 @@ test('story map : colonne vertébrale d\'exemple, première version trouée', ()
   const col = notesIn(s, { b: 'backbone' })[0];
   addNote(s, { b: 'story', col: col.id, lane: 'mvp' }, 'x');
   assert.equal(mvpGaps(s).length, BACKBONE_EXAMPLE.length - 1);
+});
+
+test('parcours : récit, validation en colonne vertébrale, retour au récit sans perdre les stories', () => {
+  const s = newState();
+  assert.equal(journeyDone(s), false);
+  assert.ok(addNote(s, { b: 'journey' }, 'Chercher un trajet'));
+  addNote(s, { b: 'journey' }, 'Réserver sa place');
+  assert.equal(useJourneyExample(s, 'karim'), 0, 'pas de parcours type par-dessus un récit commencé');
+  assert.equal(validateJourney(s), 2);
+  assert.equal(journeyDone(s), true);
+  assert.deepEqual(notesIn(s, { b: 'backbone' }).map((n) => n.text), ['Chercher un trajet', 'Réserver sa place']);
+  const col = notesIn(s, { b: 'backbone' })[1];
+  addNote(s, { b: 'story', col: col.id, lane: 'mvp' }, 'Demander une place');
+  assert.equal(reopenJourney(s), 2);
+  assert.equal(journeyNotes(s).length, 2);
+  // Relu depuis la base pendant le récit : la story reste attachée à son étape.
+  const tree = Object.fromEntries(s.notes.map((n, i) => [n.id, noteRecord(n, i)]));
+  const back = recordsToNotes(tree);
+  assert.equal(back.find((n) => n.text === 'Demander une place').place.col, col.id);
+  validateJourney(s);
+  assert.equal(notesIn(s, { b: 'story', col: col.id, lane: 'mvp' }).length, 1);
+  assert.deepEqual(placesFor(s, journeyNotes(s)[0]?.id ?? 'none'), []);
+});
+
+test('parcours : conseils de formulation', () => {
+  const h = journeyHints(['Proposer son trajet', 'Écran de recherche', 'Se mettre d\'accord', 'Cliquer sur valider le bouton', 'Faire le trajet']);
+  assert.equal(h.tooFew, false);
+  assert.equal(h.tooMany, false);
+  assert.deepEqual(h.notVerb, ['Écran de recherche']);
+  assert.deepEqual(h.system, ['Écran de recherche', 'Cliquer sur valider le bouton']);
+  assert.equal(journeyHints(['Réserver']).tooFew, true);
+  assert.equal(journeyHints(Array(8).fill('Partir')).tooMany, true);
+  for (const p of Object.keys(JOURNEY_EXAMPLES)) {
+    const ex = journeyHints(JOURNEY_EXAMPLES[p]);
+    assert.deepEqual([ex.tooFew, ex.tooMany, ex.notVerb.length, ex.system.length], [false, false, 0, 0], `parcours type ${p} exemplaire`);
+  }
+});
+
+test('groupe simulé : un tableau complet et valide pour chaque persona', () => {
+  for (const p of PERSONAS) {
+    const notes = simulatedNotes(p.id);
+    const tree = Object.fromEntries(notes.map((n, i) => [n.id, noteRecord(n, i)]));
+    const back = recordsToNotes(tree);
+    assert.equal(back.length, notes.length, `${p.id} : tout passe la validation`);
+    assert.equal(back.filter((n) => n.place.b === 'empathy').length, p.extracts.length);
+    assert.ok(back.filter((n) => n.place.b === 'deliverable' && n.keep).length >= 2);
+    const s = { ...newState(), notes: back };
+    assert.equal(notesIn(s, { b: 'backbone' }).length, SIMULATED[p.id].story.length);
+    assert.equal(mvpGaps(s).length, 0, `${p.id} : première version de bout en bout`);
+  }
 });
 
 test('débrief : rangement sur le double diamant', () => {

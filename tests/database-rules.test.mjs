@@ -131,7 +131,7 @@ test('groupes : la base accepte exactement les emplacements de l\'outil', async 
   const { encodePlace } = await import('../site/js/core.js');
   const re = new RegExp(session.boards.$g.notes.$nid.place['.validate'].match(/matches\(\/(.*)\/\)/)[1]);
   const ok = [
-    { b: 'empathy', persona: 'karim', zone: 'gains' }, { b: 'tray', step: 'story' }, { b: 'goal' }, { b: 'backbone' },
+    { b: 'empathy', persona: 'karim', zone: 'gains' }, { b: 'tray', step: 'story' }, { b: 'goal' }, { b: 'journey' }, { b: 'backbone' },
     { b: 'actor', parent: 'abcd1234' }, { b: 'impact', parent: 'abcd1234' }, { b: 'deliverable', parent: 'abcd1234' },
     { b: 'story', col: 'abcd1234', lane: 'later' },
   ];

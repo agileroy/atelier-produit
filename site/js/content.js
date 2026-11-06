@@ -177,13 +177,87 @@ export const STORY_LANES = [
   { id: 'later', label: 'Plus tard', hint: 'Les bonnes idées qui peuvent attendre.' },
 ];
 
-export const BACKBONE_EXAMPLE = [
-  'Rejoindre le service',
-  'Proposer ou chercher un trajet',
-  'Se mettre d\'accord',
-  'Faire le trajet',
-  'Après le trajet',
+/* ---------- Le parcours (première ligne de la story map) ---------- */
+
+/** Bien formuler une étape du parcours : la règle, un bon et un mauvais exemple. */
+export const JOURNEY_RULES = [
+  { title: 'Un verbe d\'action, du point de vue de la persona', good: 'Proposer son trajet', bad: 'Module de publication' },
+  { title: 'Ce que fait la personne, pas l\'écran ni la fonction', good: 'Trouver un passager', bad: 'Écran de recherche' },
+  { title: 'Une grande étape, pas un clic', good: 'Se mettre d\'accord', bad: 'Cliquer sur « Valider »', note: 'Les détails viendront dessous, en stories.' },
+  { title: 'Dans l\'ordre, du déclencheur au résultat', good: 'De « pourquoi y pense-t-on ? » à « et après le trajet ? »' },
 ];
+
+/** Questions pour raconter le parcours ({name} : la persona du groupe). */
+export const JOURNEY_QUESTIONS = [
+  'Qu\'est-ce qui donne à {name} l\'envie d\'essayer ? À quel moment y pense-t-on ?',
+  'Que fait {name} en premier ? Et ensuite ?',
+  'Que se passe-t-il le jour du trajet ? Et si quelque chose change ?',
+  'Et après le trajet ?',
+];
+
+/** Nombre d'étapes conseillé pour une colonne vertébrale lisible. */
+export const JOURNEY_MIN = 4;
+export const JOURNEY_MAX = 7;
+
+/** Mots qui trahissent une étape vue du système plutôt que de la personne. */
+export const SYSTEM_WORDS = ['écran', 'page', 'bouton', 'module', 'fonctionnalité', 'menu déroulant', 'formulaire', 'base de données', 'onglet', 'cliquer', 'clic', 'api'];
+
+/** Parcours type par persona : réservé à l'animateur, pour dépanner un groupe bloqué. */
+export const JOURNEY_EXAMPLES = {
+  sophie: ['Proposer son trajet', 'Choisir ses passagers', 'Se mettre d\'accord sur le rendez-vous', 'Faire le trajet', 'Gérer un imprévu', 'Partager les frais'],
+  karim: ['Connaître son planning', 'Trouver un conducteur', 'Réserver sa place', 'Retrouver le conducteur', 'Faire le trajet', 'Participer aux frais'],
+};
+
+/* ---------- Groupe simulé (séance à un seul groupe) ----------
+   Quand l'équipe ne travaille qu'une persona, la restitution la compare au travail d'un groupe
+   simulé sur l'autre persona : empathy map, impact map, parcours et story map. */
+
+export const SIMULATED = {
+  sophie: {
+    impact: [
+      { actor: 'Les salariés qui viennent seuls en voiture', impacts: [
+        { text: 'Proposent leurs places libres sur leur trajet habituel', deliverables: [['Publier son trajet récurrent en une minute', true], ['Voir combien on économise par mois', false]] },
+        { text: 'Acceptent un passager sans craindre le détour', deliverables: [['Fixer soi-même le point de rendez-vous', true], ['Pouvoir refuser une demande sans se justifier', false]] },
+      ] },
+      { actor: 'Le service RH', impacts: [
+        { text: 'Fait connaître le covoiturage aux nouveaux arrivants', deliverables: [['Une présentation à l\'accueil des nouveaux', false]] },
+      ] },
+      { actor: 'La direction du site', impacts: [
+        { text: 'Réserve les meilleures places aux voitures pleines', deliverables: [['Des places covoiturage près de l\'entrée', true]] },
+      ] },
+    ],
+    story: [
+      [['Publier son trajet du matin et du soir'], ['Répéter son trajet chaque semaine'], ['Indiquer ses horaires de clôture de paie']],
+      [['Accepter ou refuser une demande'], ['Voir le service du passager'], []],
+      [['Fixer le point de rendez-vous'], ['Discuter dans l\'appli'], ['Proposer un point sans détour']],
+      [['Voir qui monte ce jour-là'], ['Prévenir d\'un retard en un clic'], ['Se garer sur les places covoiturage']],
+      [['Annuler et prévenir ses passagers'], ['Proposer une solution de repli'], []],
+      [['Voir le montant suggéré'], ['Suivre ses économies du mois'], ['Payer dans l\'appli']],
+    ],
+  },
+  karim: {
+    impact: [
+      { actor: 'Les salariés en 2×8 sans voiture', impacts: [
+        { text: 'Trouvent un trajet avant leur changement d\'équipe', deliverables: [['Chercher un trajet par équipe (matin ou après-midi)', true], ['Être prévenu quand un trajet correspond', false]] },
+        { text: 'Osent demander une place plusieurs fois', deliverables: [['Réserver sans avoir à demander en direct', true]] },
+      ] },
+      { actor: 'Les chefs d\'équipe', impacts: [
+        { text: 'Publient les plannings plus tôt', deliverables: [['Des plannings publiés deux semaines à l\'avance', false]] },
+      ] },
+      { actor: 'Les conducteurs du matin', impacts: [
+        { text: 'Proposent leur trajet aux collègues de leur équipe', deliverables: [['Voir les collègues de son équipe qui habitent sur son trajet', true]] },
+      ] },
+    ],
+    story: [
+      [['Indiquer son équipe de la semaine'], ['Récupérer son planning automatiquement'], []],
+      [['Voir les trajets de son équipe'], ['Être prévenu quand un trajet correspond'], ['Trouver ses trajets de la semaine d\'un coup']],
+      [['Demander une place en un clic'], ['Réserver plusieurs jours d\'affilée'], []],
+      [['Voir le point et l\'heure de rendez-vous'], ['Suivre l\'arrivée du conducteur'], []],
+      [['Prévenir s\'il ne vient pas'], ['Noter le trajet'], []],
+      [['Voir combien donner'], ['Payer sa part sans espèces'], []],
+    ],
+  },
+};
 
 /* ---------- Exemples (autre sujet, pour ne pas souffler la réponse du cas) ---------- */
 
@@ -219,6 +293,18 @@ export const IMPACT_EXAMPLE = {
 };
 
 /** Une story map complète pour la même cantine : parcours et trois versions. */
+/** De l'histoire au parcours : comment on obtient la colonne vertébrale de l'exemple. */
+export const EXAMPLE_JOURNEY = {
+  persona: 'Lucie, 34 ans, technicienne, déjeune à la cantine trois fois par semaine.',
+  story: 'Mardi, en fin de matinée, Lucie [regarde le menu de demain] sur l\'intranet et [en parle avec ses collègues]. Le plat lui plaît : elle [réserve son repas] et [choisit une petite portion]. Le lendemain midi, elle [arrive à la cantine], [récupère son plateau] et [passe en caisse]. En sortant, elle [dit ce qu\'elle a pensé du plat].',
+  steps: [
+    { step: 'Découvrir le menu', actions: ['regarde le menu de demain', 'en parle avec ses collègues'] },
+    { step: 'Réserver', actions: ['réserve son repas', 'choisit une petite portion'] },
+    { step: 'Venir déjeuner', actions: ['arrive à la cantine', 'récupère son plateau', 'passe en caisse'] },
+    { step: 'Donner son avis', actions: ['dit ce qu\'elle a pensé du plat'] },
+  ],
+};
+
 export const STORY_EXAMPLE = {
   backbone: ['Découvrir le menu', 'Réserver', 'Venir déjeuner', 'Donner son avis'],
   lanes: {
@@ -308,7 +394,7 @@ export const TOOLS = {
       'Pour découper un gros sujet en incréments livrables',
     ],
     how: [
-      'Poser la colonne vertébrale : les grandes étapes du parcours, de gauche à droite.',
+      'Raconter le parcours de l\'utilisateur avec le produit, puis en garder les grandes étapes : c\'est la colonne vertébrale, de gauche à droite.',
       'Sous chaque étape, les stories : ce que l\'utilisateur peut faire.',
       'Trier verticalement : le plus important en haut.',
       'Tracer les lignes de version : la première doit traverser tout le parcours.',
@@ -342,9 +428,9 @@ export const BRIEFS = {
     ],
   },
   story: {
-    duration: '40 min',
+    duration: '50 min',
     steps: [
-      'Posez la colonne vertébrale : les grandes étapes du parcours d\'un covoitureur.',
+      'Racontez le parcours de votre persona avec l\'appli, du déclencheur au résultat, et gardez-en 4 à 7 grandes étapes. Validez-le : il devient la première ligne de votre story map.',
       'Glissez les livrables retenus (les mêmes pour tous les groupes) sous les étapes, ajoutez les stories qui manquent.',
       'Rangez-les dans les versions : la première version doit traverser tout le parcours.',
       'Relisez la première version : peut-on vraiment covoiturer avec ? C\'est elle qu\'on fera tester aux utilisateurs pour apprendre.',

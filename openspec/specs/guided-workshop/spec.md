@@ -24,7 +24,7 @@ Chaque étape outil SHALL commencer par la théorie de l'outil (à quoi ça sert
 
 #### Scenario: Page d'accueil dans le même ordre
 - **WHEN** on ouvre l'étape Cadre
-- **THEN** elle montre d'abord la théorie du Design Thinking, dépliée, et le double diamant, puis la partie « Place à la pratique » : la carte pour rejoindre, le cas, les personas et le déroulé
+- **THEN** elle montre la carte pour rejoindre, puis la théorie du Design Thinking, dépliée, et le double diamant, puis la partie « Place à la pratique » : le cas, les personas et le déroulé
 
 #### Scenario: Exemple complet sur un autre sujet
 - **WHEN** la théorie de l'impact mapping ou du story mapping est dépliée
@@ -34,4 +34,4 @@ Chaque étape outil SHALL commencer par la théorie de l'outil (à quoi ça sert
 Le débrief SHALL se faire uniquement en quiz individuel sur téléphone (voir phone-postits). Il porte sur le rangement de quatre notions sur le double diamant (le Design Thinking, qui couvre tout le double diamant, et les trois outils) et sur huit situations ; chaque choix reçoit une explication propre. L'équipe SHALL pouvoir noter ce qu'elle retient, et le compte rendu SHALL inclure les résultats du quiz.
 
 ### Requirement: Rejoindre à toute étape
-Tant que la séance téléphones est ouverte, un bouton « Rejoindre » SHALL rester visible à chaque étape et afficher en grand le QR code, l'adresse courte et le code, sans les commandes d'administration de la séance.
+Tant que la séance est ouverte, le bouton « Participants » de l'en-tête SHALL afficher le code de la salle à chaque étape ; son panneau SHALL proposer « Afficher en grand » : le QR code, l'adresse courte et le code, sans les commandes d'administration de la séance.

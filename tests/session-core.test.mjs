@@ -47,8 +47,8 @@ test('lecture de la base : post-its valides, triés par date', () => {
 });
 
 test('adresse participant', () => {
-  assert.equal(participantUrl('https://agileroy.github.io/atelier-produit/', 'abcabcabcabc'), 'https://agileroy.github.io/atelier-produit/postit.html?atelier=abcabcabcabc');
-  assert.equal(participantUrl('https://agileroy.github.io/atelier-produit/index.html?x=1', 'abcabcabcabc'), 'https://agileroy.github.io/atelier-produit/postit.html?atelier=abcabcabcabc');
+  assert.equal(participantUrl('https://agileroy.github.io/atelier-produit/', 'abcabcabcabc'), 'https://agileroy.github.io/atelier-produit/?atelier=abcabcabcabc');
+  assert.equal(participantUrl('https://agileroy.github.io/atelier-produit/index.html?x=1', 'abcabcabcabc'), 'https://agileroy.github.io/atelier-produit/?atelier=abcabcabcabc');
 });
 
 import { quizPayload, quizProgress, quizScore, readQuizEntries, podium, quizStats, QUIZ_MAX } from '../site/js/session-core.js';
@@ -124,9 +124,9 @@ test('salle : présents et copies en attente', () => {
 import { shareLink } from '../site/js/session-core.js';
 
 test('lien court à partager : la page participant avec le code', () => {
-  assert.equal(shareLink('https://agileroy.github.io/atelier-produit/', 'QVZS'), 'https://agileroy.github.io/atelier-produit/postit?code=QVZS');
-  assert.equal(shareLink('https://agileroy.github.io/atelier-produit/index.html', 'QVZS'), 'https://agileroy.github.io/atelier-produit/postit?code=QVZS');
-  assert.equal(shareLink('http://localhost:8765/index.html', 'K7PM'), 'http://localhost:8765/postit.html?code=K7PM');
+  assert.equal(shareLink('https://agileroy.github.io/atelier-produit/', 'QVZS'), 'https://agileroy.github.io/atelier-produit/?code=QVZS');
+  assert.equal(shareLink('https://agileroy.github.io/atelier-produit/index.html', 'QVZS'), 'https://agileroy.github.io/atelier-produit/?code=QVZS');
+  assert.equal(shareLink('http://localhost:8765/index.html', 'K7PM'), 'http://localhost:8765/?code=K7PM');
 });
 
 import { assignNewcomers, shuffleGroups, roster, readMembers, groupIdsFor, DEFAULT_PERSONAS } from '../site/js/session-core.js';

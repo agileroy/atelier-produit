@@ -50,7 +50,7 @@ Site statique (HTML/CSS/JavaScript, sans build) publié sur GitHub Pages.
 - `site/js/core.js` : logique métier pure (post-its et emplacements, règles de déplacement, débrief, fusion des post-its reçus, compte rendu, fichiers enregistrés), testée avec Node.js ;
 - `site/js/session-core.js` : logique pure de la séance téléphones (données échangées avec Firebase) ;
 - `site/js/store.js` : seul module qui parle à Firebase, chargé à la demande ;
-- `site/js/app.js` : écran animateur ; `site/js/dnd.js` : glisser-déposer ; `site/js/phones.js` : panneau Téléphones ; `site/js/postit.js` : page participant (`postit.html`) ;
+- `site/js/app.js` : écran animateur ; `site/js/dnd.js` : glisser-déposer ; `site/js/phones.js` : panneau Téléphones ; `site/js/participant.js` : mode participant (même page, ouverte avec `?code=`) ;
 - `site/vendor/` : générateur de QR code `qrcode-generator` 1.4.4 (licence MIT) ;
 - `database.rules.json` : règles de sécurité du projet Firebase `atelier-produit-vleroy`, limitées à la branche `atelierProduit`.
 

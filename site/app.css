@@ -1041,3 +1041,52 @@ main.is-readonly .empathy-layout { grid-template-columns: minmax(0, 1fr); }
 .cmp--todo { background: var(--bg); color: var(--muted); border: 1px dashed var(--line); }
 .extract-quote--plain { font-family: var(--body); font-size: 16px; }
 @media (max-width: 860px) { .proposal-grid { grid-template-columns: minmax(0, 1fr); } }
+
+/* Mode participant (même page, ouverte avec ?code=) */
+body[data-mode="participant"] #phones-btn { display: none; }
+body[data-mode="participant"] .brand { pointer-events: none; }
+
+/* Story map, temps 1 : raconter le parcours */
+.journey-intro { display: grid; gap: 10px; padding: 20px 22px; background: var(--surface); border: 1px solid var(--line); border-radius: 16px; }
+.journey-intro h2 { margin: 0; font-size: 22px; }
+.journey-intro > p { margin: 0; max-width: 80ch; }
+.journey-guide { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) minmax(0, 1.3fr); gap: 14px; margin-top: 4px; }
+.journey-guide h3 { font-size: 15px; margin: 0 0 6px; }
+.journey-guide ol, .journey-guide ul { margin: 0; padding-left: 18px; display: grid; gap: 6px; font-size: 14px; }
+.journey-persona { display: flex; gap: 12px; padding: 12px 14px; border-radius: 12px; background: var(--bg); border-top: 4px solid hsl(var(--h) 60% 55%); }
+.journey-persona > div { display: grid; gap: 4px; font-size: 14px; align-content: start; }
+.journey-persona span { color: var(--muted); }
+.journey-questions, .journey-rules { padding: 12px 14px; border-radius: 12px; background: var(--bg); }
+.journey-rules ul { list-style: none; padding: 0; gap: 8px; }
+.journey-rules li { display: grid; gap: 2px; }
+.jr-good, .jr-bad { display: inline-flex; gap: 6px; align-items: center; font-size: 13px; }
+.jr-good { color: var(--ok); }
+.jr-good svg { width: 14px; height: 14px; }
+.jr-bad { color: var(--danger); text-decoration: line-through; text-decoration-thickness: 1px; }
+.journey-rules small { color: var(--muted); }
+.journey { display: flex; gap: 14px; align-items: stretch; min-height: 96px; padding: 14px; border-radius: 14px; background: var(--felt); }
+.jcell { position: relative; width: var(--col-w, 180px); flex: none; display: grid; align-content: start; }
+.jcell:not(.jcell--add)::after { content: "→"; position: absolute; right: -13px; top: 50%; transform: translateY(-50%); color: var(--muted); font-weight: 700; }
+.jcell--add { align-content: center; }
+.jn { font-size: 12px; font-weight: 700; color: var(--muted); margin-bottom: 4px; }
+.journey-tips { margin: 0; padding-left: 18px; display: grid; gap: 4px; }
+.slabel .link-btn { font-size: 13px; justify-self: start; margin-top: 4px; }
+.sim-notice { margin: 0; padding: 10px 14px; border-radius: 12px; background: var(--accent-soft); font-size: 14px; }
+
+/* Exemple : de l'histoire aux grandes étapes */
+.journey-how { list-style: none; margin: 0; padding: 0; display: grid; grid-template-columns: minmax(0, 1.4fr) minmax(0, 1fr) minmax(0, 1.6fr); gap: 14px; }
+.journey-how > li { display: grid; gap: 6px; align-content: start; padding: 12px 14px; background: var(--surface); border: 1px solid var(--line); border-radius: 12px; }
+.journey-how h4 { margin: 0; font-size: 15px; }
+.journey-how p { margin: 0; }
+.journey-told { line-height: 1.7; }
+.journey-told mark { background: var(--warn-soft, #FDF0D5); color: inherit; padding: 1px 3px; border-radius: 4px; }
+.journey-actions { margin: 0; padding-left: 18px; font-size: 14px; display: grid; gap: 2px; }
+.journey-groups { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }
+.journey-groups > div { display: grid; gap: 4px; }
+.journey-groups small { color: var(--muted); font-size: 12px; }
+@media (max-width: 900px) { .journey-guide, .journey-how { grid-template-columns: minmax(0, 1fr); } }
+
+/* Participants : persona d'un groupe unique */
+.persona-pick { display: grid; gap: 8px; padding: 12px 14px; border-radius: 12px; background: var(--bg); }
+.persona-pick p { margin: 0; font-size: 14px; }
+.persona-pick .seg button small { font-weight: 400; margin-left: 4px; }
