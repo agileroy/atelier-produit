@@ -42,12 +42,15 @@ export function setupDnd(root, { accepts, onDrop }) {
     if (!zone || !root.contains(zone) || !accepts(drag.key, zone.dataset.drop)) return { zone: null, before: null };
     // Insertion : premier élément de la zone dont le milieu est après le pointeur.
     const horizontal = zone.dataset.axis === 'x';
+    const wrap = zone.dataset.axis === 'wrap'; // lignes qui passent à la ligne : on lit comme un texte
     // Les éléments de cette zone (pas ceux d'une zone imbriquée), dans l'ordre d'affichage.
     const items = [...zone.querySelectorAll('[data-drag]')].filter((i) => i !== drag.el && i.parentElement.closest('[data-drop]') === zone);
     let before = null;
     for (const item of items) {
       const r = item.getBoundingClientRect();
-      if (horizontal ? x < r.left + r.width / 2 : y < r.top + r.height / 2) { before = item; break; }
+      const ahead = wrap ? y < r.top || (y <= r.bottom && x < r.left + r.width / 2)
+        : horizontal ? x < r.left + r.width / 2 : y < r.top + r.height / 2;
+      if (ahead) { before = item; break; }
     }
     return { zone, before };
   }

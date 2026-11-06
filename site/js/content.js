@@ -187,6 +187,12 @@ export const JOURNEY_RULES = [
   { title: 'Dans l\'ordre, du déclencheur au résultat', good: 'De « pourquoi y pense-t-on ? » à « et après le trajet ? »' },
 ];
 
+/** Une action du récit : courte, ce que fait la persona (bons et mauvais exemples). */
+export const ACTION_EXAMPLES = {
+  good: ['propose 2 places pour lundi', 'prévient qu\'elle a du retard'],
+  bad: ['bouton « publier »', 'notifications push'],
+};
+
 /** Questions pour raconter le parcours ({name} : la persona du groupe). */
 export const JOURNEY_QUESTIONS = [
   'Qu\'est-ce qui donne à {name} l\'envie d\'essayer ? À quel moment y pense-t-on ?',
@@ -394,7 +400,7 @@ export const TOOLS = {
       'Pour découper un gros sujet en incréments livrables',
     ],
     how: [
-      'Raconter le parcours de l\'utilisateur avec le produit, puis en garder les grandes étapes : c\'est la colonne vertébrale, de gauche à droite.',
+      'Raconter ce que vit l\'utilisateur avec le produit, action par action, puis regrouper ces actions en grandes étapes : c\'est la colonne vertébrale, de gauche à droite.',
       'Sous chaque étape, les stories : ce que l\'utilisateur peut faire.',
       'Trier verticalement : le plus important en haut.',
       'Tracer les lignes de version : la première doit traverser tout le parcours.',
@@ -430,7 +436,7 @@ export const BRIEFS = {
   story: {
     duration: '50 min',
     steps: [
-      'Racontez le parcours de votre persona avec l\'appli, du déclencheur au résultat, et gardez-en 4 à 7 grandes étapes. Validez-le : il devient la première ligne de votre story map.',
+      'Racontez la semaine de votre persona avec l\'appli : chacun ajoute des actions courtes. Regroupez-les en 4 à 7 grandes étapes et validez : c\'est la première ligne de votre story map.',
       'Glissez les livrables retenus (les mêmes pour tous les groupes) sous les étapes, ajoutez les stories qui manquent.',
       'Rangez-les dans les versions : la première version doit traverser tout le parcours.',
       'Relisez la première version : peut-on vraiment covoiturer avec ? C\'est elle qu\'on fera tester aux utilisateurs pour apprendre.',

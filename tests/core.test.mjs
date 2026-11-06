@@ -4,9 +4,10 @@ import {
   newState, setStep, addNote, moveNote, moveBlocker, removeNote, notesIn, childrenOf, placesFor,
   availableExtracts, placeExtract, unplaceExtract, compareEmpathy, emptyZones,
   toggleKeep, keptDeliverables, importDeliverable, deliverablePath,
+  allActions, looseActions, actionsOf, stepsWithoutDeliverable,
   useJourneyExample, validateJourney, reopenJourney, journeyNotes, journeyDone, journeyHints, simulatedNotes,
   mvpGaps, setPlacement, checkPlacement, answerSituation, situationScore, situationVerdict,
-  mergeRemote, reportText, serialize, parseSaved, encodePlace, decodePlace, nextStep, prevStep,
+  mergeRemote, reportText, serialize, parseSaved, sanitize, encodePlace, decodePlace, nextStep, prevStep,
 } from '../site/js/core.js';
 import { PERSONAS, JOURNEY_EXAMPLES, SIMULATED, SITUATIONS } from '../site/js/content.js';
 
@@ -192,6 +193,44 @@ test('parcours : récit, validation en colonne vertébrale, retour au récit san
   validateJourney(s);
   assert.equal(notesIn(s, { b: 'story', col: col.id, lane: 'mvp' }).length, 1);
   assert.deepEqual(placesFor(s, journeyNotes(s)[0]?.id ?? 'none'), []);
+});
+
+test('récit : actions en vrac, regroupées sous des étapes, qui suivent le parcours validé', () => {
+  const s = newState();
+  assert.equal(s.journey, 'recit');
+  const a1 = addNote(s, { b: 'action' }, 'entend parler de l\'appli', { author: 'Léa' });
+  const a2 = addNote(s, { b: 'action' }, 'installe l\'appli');
+  const a3 = addNote(s, { b: 'action' }, 'voit ses économies');
+  const step = addNote(s, { b: 'journey' }, 'Rejoindre le service');
+  assert.equal(moveNote(s, a1.id, { b: 'action', parent: step.id }).ok, true);
+  assert.equal(moveNote(s, a2.id, { b: 'action', parent: step.id }).ok, true);
+  assert.equal(moveNote(s, a1.id, { b: 'journey' }).ok, false, 'une action ne devient pas une étape');
+  assert.equal(moveNote(s, step.id, { b: 'action' }).ok, false, 'une étape ne devient pas une action');
+  assert.deepEqual(actionsOf(s, step.id).map((n) => n.text), ['entend parler de l\'appli', 'installe l\'appli']);
+  assert.deepEqual(looseActions(s).map((n) => n.id), [a3.id]);
+  assert.deepEqual(placesFor(s, a3.id).map((p) => p.label), ['Pas encore regroupée', 'Sous « Rejoindre le service »']);
+  validateJourney(s);
+  assert.equal(actionsOf(s, step.id).length, 2, 'les actions restent attachées à l\'étape validée');
+  // Relu depuis la base : toujours attachées ; étape supprimée : elles retournent dans le récit.
+  const back = recordsToNotes(Object.fromEntries(s.notes.map((n, i) => [n.id, noteRecord(n, i)])));
+  assert.equal(back.filter((n) => n.place.b === 'action' && n.place.parent === step.id).length, 2);
+  removeNote(s, step.id);
+  assert.equal(looseActions(s).length, 3);
+  assert.equal(allActions(s).length, 3);
+  assert.equal(sanitize({ journey: 'regroup' }).journey, 'regroup');
+  assert.equal(sanitize({ journey: 'x' }).journey, 'recit');
+});
+
+test('story map : étapes sans livrable de l\'impact map', () => {
+  const { s, deliv } = impactTree();
+  addNote(s, { b: 'journey' }, 'Chercher un trajet');
+  addNote(s, { b: 'journey' }, 'Faire le trajet');
+  validateJourney(s);
+  const [c1, c2] = notesIn(s, { b: 'backbone' });
+  addNote(s, { b: 'story', col: c2.id, lane: 'mvp' }, 'Une story maison');
+  assert.deepEqual(stepsWithoutDeliverable(s).map((c) => c.id), [c1.id, c2.id]);
+  importDeliverable(s, deliv.id, { b: 'story', col: c1.id, lane: 'mvp' });
+  assert.deepEqual(stepsWithoutDeliverable(s).map((c) => c.id), [c2.id]);
 });
 
 test('parcours : conseils de formulation', () => {

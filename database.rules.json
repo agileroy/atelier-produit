@@ -219,7 +219,7 @@
                     ".validate": "newData.isString() && newData.val().length >= 1 && newData.val().length <= 200"
                   },
                   "place": {
-                    ".validate": "newData.isString() && newData.val().matches(/^(empathy\\|(sophie|karim)\\|(says|thinks|does|feels|pains|gains)|tray\\|(impact|story)|goal|journey|backbone|(actor|impact|deliverable)\\|[a-z0-9]{4,24}|story\\|[a-z0-9]{4,24}\\|(mvp|r2|later))$/)"
+                    ".validate": "newData.isString() && newData.val().matches(/^(empathy\\|(sophie|karim)\\|(says|thinks|does|feels|pains|gains)|tray\\|(impact|story)|goal|journey|backbone|action|action\\|[a-z0-9]{4,24}|(actor|impact|deliverable)\\|[a-z0-9]{4,24}|story\\|[a-z0-9]{4,24}\\|(mvp|r2|later))$/)"
                   },
                   "order": {
                     ".validate": "newData.isNumber()"
@@ -249,6 +249,10 @@
                 "compare": {
                   ".write": "auth != null && root.child('atelierProduit/sessions/' + $sid + '/owners/' + auth.uid).exists()",
                   ".validate": "newData.isBoolean()"
+                },
+                "journey": {
+                  ".write": "auth != null && (root.child('atelierProduit/sessions/' + $sid + '/owners/' + auth.uid).exists() || root.child('atelierProduit/sessions/' + $sid + '/members/' + auth.uid + '/group').val() === $g)",
+                  ".validate": "newData.isString() && newData.val().matches(/^(recit|regroup)$/)"
                 },
                 "done": {
                   "$step": {

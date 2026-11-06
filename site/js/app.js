@@ -5,7 +5,7 @@ import {
   STEPS, CASE, PERSONAS, EMPATHY_ZONES, IMPACT_LEVELS, STORY_LANES, TOOLS, PHASES, PLACES, ALL_PLACE, TOOL_PHASES,
   STEP_PHASES, BRIEFS, SITUATIONS, SITUATION_CHOICES, PHONE_STEPS, DIAMOND_MESSAGE, DIAMOND_LOOP,
   PLACEMENT_FEEDBACK, EXAMPLE_CASE, IMPACT_EXAMPLE, STORY_EXAMPLE, EXAMPLE_JOURNEY,
-  JOURNEY_RULES, JOURNEY_QUESTIONS, JOURNEY_MIN, JOURNEY_MAX,
+  JOURNEY_RULES, JOURNEY_QUESTIONS, JOURNEY_MIN, JOURNEY_MAX, ACTION_EXAMPLES,
 } from './content.js?v=__VERSION__';
 import {
   newState, setStep, nextStep, prevStep, stepIndex, addNote, updateNote, moveNote, moveBlocker, removeNote,
@@ -13,6 +13,7 @@ import {
   availableExtracts, placeExtract, unplaceExtract, extractById, compareEmpathy, emptyZones, personaById,
   toggleKeep, keptDeliverables, importDeliverable, mvpGaps,
   useJourneyExample, validateJourney, reopenJourney, journeyNotes, journeyDone, journeyHints, simulatedNotes,
+  allActions, looseActions, actionsOf, stepsWithoutDeliverable,
   setPlacement, checkPlacement, answerSituation, situationScore, situationVerdict, mergeRemote, reportText,
   boardUpdates, recordsToNotes,
   serialize, parseSaved, sanitize, toolName, TOOL_IDS, MAX_TEXT,
@@ -36,7 +37,7 @@ const CHOICE_LABELS = { empathy: 'Empathy map', impact: 'Impact mapping', story:
 
 const main = $('#main');
 let state = restore();
-const ui = { selectedTool: null, info: null, frameTheory: true, quizEntries: [] };
+const ui = { selectedTool: null, info: null, frameTheory: true, quizEntries: [], actionDraft: '' };
 let phones = null; // animateur : module Participants
 const hooks = {}; // participant : vues fournies par participant.js (débrief, attente)
 
@@ -96,6 +97,20 @@ function showGroup(g) {
   state.notes = clone(shared.boards[g].notes);
   state.persona = groupPersona(g);
   state.compare = { [state.persona]: shared.boards[g].state?.compare === true };
+  state.journey = shared.boards[g].state?.journey === 'regroup' ? 'regroup' : 'recit';
+}
+
+/** Story map : passer du récit au regroupement (et retour), pour le tableau affiché. */
+function setJourneyStage(stage) {
+  state.journey = stage;
+  if (shared.on) {
+    const b = shared.boards[shared.group];
+    b.state = { ...b.state, journey: stage };
+    shared.setState(shared.group, 'journey', stage).catch(() => toast('Changement non enregistré : la connexion est peut-être coupée.'));
+    render();
+    return;
+  }
+  commit();
 }
 
 /** Passe en tableaux partagés (l'animateur garde son tableau local de côté). */
@@ -347,6 +362,9 @@ function render(focus) {
   const keep = focus ?? (active && main.contains(active) ? focusKey(active) : null);
   const scroll = $$('.canvas-scroll').map((s) => s.scrollLeft);
   main.dataset.step = state.step;
+  const draft = main.querySelector('#action-input');
+  const caret = draft && draft === active ? draft.selectionStart : null;
+  if (draft) ui.actionDraft = draft.value;
   const screen = hooks.screen?.(); // participant : accueil, prénom, attente d'un groupe
   main.innerHTML = screen ?? views[state.step]();
   main.classList.toggle('is-readonly', !canEdit());
@@ -355,6 +373,8 @@ function render(focus) {
   refreshJoinDialog();
   renderDock();
   if (keep) main.querySelector(`[data-focus="${CSS.escape(keep)}"]`)?.focus({ preventScroll: true });
+  const input = main.querySelector('#action-input');
+  if (input && caret !== null && document.activeElement === input) input.setSelectionRange(caret, caret);
 }
 
 const focusKey = (el) => el.closest('[data-focus]')?.dataset.focus ?? null;
@@ -516,7 +536,7 @@ function storyExample() {
       <li><h4>3. On regroupe en grandes étapes</h4>
         <div class="journey-groups">${ej.steps.map((x) => `<div>${staticNote(x.step, 48, 'note--backbone')}<small>${esc(x.actions.join(' · '))}</small></div>`).join('')}</div></li>
     </ol>
-    <p class="hint">Les grandes étapes forment la colonne vertébrale ; les actions de détail reviennent dessous, en stories (« Choisir sa portion », « Être reconnu à la caisse »).</p>
+    <p class="hint">Les grandes étapes forment la colonne vertébrale. Les stories, elles, viennent de ce qu'on a décidé de livrer (les livrables de l'impact map), rangées sous ces étapes ; les actions du récit servent à vérifier qu'aucune étape n'est oubliée.</p>
   </div>
   <div class="example">
     ${exampleHead('Puis la story map, du parcours aux versions')}
@@ -604,8 +624,9 @@ function noteHtml(n, opts = {}) {
   let hue = 48;
   if (n.place.b === 'empathy') hue = ZONE_HUES[n.place.zone];
   else if (KIND_HUES[n.place.b]) hue = KIND_HUES[n.place.b];
+  else if (n.place.b === 'action') hue = 205;
   else if (n.place.b === 'tray' && n.kind) hue = KIND_HUES[n.kind];
-  const kind = extract ? 'note--extract' : n.place.b === 'backbone' ? 'note--backbone' : '';
+  const kind = extract ? 'note--extract' : ['backbone', 'journey'].includes(n.place.b) ? 'note--backbone' : '';
   const meta = [];
   if (n.author) meta.push(`<span class="note-author">${ICONS.phone}${esc(n.author)}</span>`);
   if (fromDeliv) meta.push('<span class="note-from" title="Venu de l\'impact map">↳ impact map</span>');
@@ -919,55 +940,119 @@ function viewImpact() {
 
 /* ---------- Étape 3 : story mapping ---------- */
 
-/** Premier temps de la story map : raconter le parcours de la persona, avant de le valider. */
-function viewJourney() {
+/* ---------- Story map, avant le parcours validé : raconter, puis regrouper ---------- */
+
+const pronoun = (p) => (p.id === 'karim' ? 'il' : 'elle');
+
+function journeyStages(active) {
+  const items = [['recit', '1. On raconte'], ['regroup', '2. On regroupe en étapes'], ['map', '3. La story map']];
+  return `<ol class="jstages" aria-label="Les trois temps de la story map">${items.map(([id, label]) => `<li class="${id === active ? 'is-on' : ''}" ${id === active ? 'aria-current="step"' : ''}>${esc(label)}</li>`).join('')}</ol>`;
+}
+
+function personaTip(persona) {
+  return `<div class="jtip"><strong>${esc(persona.name)}, ${persona.age} ans · ${esc(persona.profile.toLowerCase())}</strong>
+    <ul>${persona.facts.map((f) => `<li>${esc(f)}</li>`).join('')}</ul></div>`;
+}
+
+/** Temps 1 : chacun ajoute des actions courtes, comme elles viennent. */
+function viewRecit() {
   const persona = personaById(state.persona) ?? PERSONAS[0];
-  const steps = journeyNotes(state);
-  const h = journeyHints(steps.map((n) => n.text));
-  const tips = [];
-  if (h.tooFew) tips.push(`<li>${steps.length ? `${steps.length} étape${steps.length > 1 ? 's' : ''} pour l'instant` : 'Pas encore d\'étape'} : visez ${JOURNEY_MIN} à ${JOURNEY_MAX} grandes étapes, du déclencheur au résultat.</li>`);
-  if (h.tooMany) tips.push(`<li>${steps.length} étapes, c'est beaucoup : certaines sont peut-être des détails. Regroupez-les, ils reviendront en stories.</li>`);
-  if (h.notVerb.length) tips.push(`<li>Ne commence${h.notVerb.length > 1 ? 'nt' : ''} pas par un verbe : <strong>${esc(h.notVerb.join(' · '))}</strong>. Que fait ${esc(persona.name)}, à ce moment-là ?</li>`);
-  if (h.system.length) tips.push(`<li>Décri${h.system.length > 1 ? 'vent' : 't'} l'appli plutôt que ${esc(persona.name)} : <strong>${esc(h.system.join(' · '))}</strong>.</li>`);
-  const ready = steps.length >= 2;
+  const acts = allActions(state).filter((n) => !n.place.parent);
+  const grouped = allActions(state).length - acts.length;
+  const authors = [...new Set(allActions(state).map((n) => n.author).filter(Boolean))];
   return `
   ${stepHeader('story')}
-  <section class="journey-intro">
-    <p class="kicker">Temps 1 · Le parcours</p>
-    <h2>Racontez le parcours de ${esc(persona.name)} avec l'appli</h2>
-    <p>Avant de parler de fonctionnalités, on raconte ce que fait ${esc(persona.name)}, ${esc(persona.profile.toLowerCase())}, quand elle utilise le service, du début à la fin. Ces grandes étapes deviendront la première ligne de votre story map : la colonne vertébrale.</p>
-    <div class="journey-guide">
-      <div class="journey-persona" style="--h:${persona.hue}">${avatar(persona)}
-        <div><strong>${esc(persona.name)}, ${persona.age} ans</strong><span>${esc(persona.role)} · ${esc(persona.profile)}</span>
-        <ul>${persona.facts.map((f) => `<li>${esc(f)}</li>`).join('')}</ul></div></div>
-      <div class="journey-questions"><h3>Pour raconter</h3>
-        <ol>${JOURNEY_QUESTIONS.map((q) => `<li>${esc(q.replaceAll('{name}', persona.name))}</li>`).join('')}</ol></div>
-      <div class="journey-rules"><h3>Bien formuler une étape</h3>
-        <ul>${JOURNEY_RULES.map((r) => `<li><strong>${esc(r.title)}</strong>
-          <span class="jr-good">${ICONS.check} ${esc(r.good)}</span>${r.bad ? `<span class="jr-bad">✕ ${esc(r.bad)}</span>` : ''}${r.note ? `<small>${esc(r.note)}</small>` : ''}</li>`).join('')}</ul></div>
-    </div>
+  ${journeyStages('recit')}
+  <section class="jhead">
+    <p class="kicker">Temps 1 · On raconte</p>
+    <h2>Racontez la semaine de ${esc(persona.name)} avec l'appli</h2>
+    <p>Chacun ajoute des actions, en même temps, comme elles viennent : <strong>${esc(persona.name)} + un verbe</strong>, ce qu'${pronoun(persona)} fait, du moment où ${pronoun(persona)} découvre l'appli jusqu'après le trajet. On ne cherche pas encore les grandes étapes.</p>
   </section>
+  <div class="jtips">
+    <div class="jtip"><strong>Pour raconter</strong><ul>${JOURNEY_QUESTIONS.map((q) => `<li>${esc(q.replaceAll('{name}', persona.name))}</li>`).join('')}</ul></div>
+    <div class="jtip"><strong>Une action</strong><ul class="jexamples">
+      ${ACTION_EXAMPLES.good.map((x) => `<li class="jr-good">${ICONS.check} ${esc(persona.name)} ${esc(x)}</li>`).join('')}
+      ${ACTION_EXAMPLES.bad.map((x) => `<li class="jr-bad">✕ ${esc(x)}</li>`).join('')}</ul></div>
+    ${personaTip(persona)}
+  </div>
+  <section class="recit" aria-labelledby="recit-title">
+    <div class="recit-head"><h3 id="recit-title">Le récit de ${esc(persona.name)}</h3>
+      <span>${acts.length} action${acts.length > 1 ? 's' : ''}${authors.length ? ` · ${esc(authors.join(', '))}` : ''}${grouped ? ` · ${grouped} déjà regroupée${grouped > 1 ? 's' : ''}` : ''}</span></div>
+    <div class="recit-flow" data-drop="action" data-axis="wrap">
+      ${acts.map((n) => noteHtml(n, { cls: 'note--action' })).join('<span class="recit-arrow" aria-hidden="true">→</span>')}
+      ${acts.length ? '' : '<p class="hint">Les actions s\'afficheront ici, dans l\'ordre du récit.</p>'}
+    </div>
+    ${canEdit() ? `<form class="composer" id="action-form" autocomplete="off">
+      <label class="composer-who" for="action-input">${esc(persona.name)}…</label>
+      <input class="composer-input" id="action-input" name="action" maxlength="${MAX_TEXT}" data-focus="action-input" placeholder="propose 2 places pour lundi" value="${esc(ui.actionDraft ?? '')}">
+      <button type="submit" class="btn btn-primary btn-small">Ajouter ↵</button>
+    </form>
+    <p class="hint">Entrée pour ajouter, dans l'ordre du récit. Glissez une action pour la remettre au bon endroit, cliquez dessus pour la corriger.</p>` : ''}
+  </section>
+  <section class="checkpoint">
+    <div><h2>On a fait le tour ?</h2>
+      <p>Relisez le récit à voix haute, du début à la fin : manque-t-il un moment ? Un imprévu ? Et après le trajet ?</p></div>
+    <button type="button" class="btn btn-primary" data-act="journey-next" data-focus="journey-next" ${acts.length + grouped >= 2 ? '' : 'disabled'}>Passer au regroupement ›</button>
+  </section>
+  ${stepNav()}`;
+}
 
-  <div class="canvas">
+/** Temps 2 : regrouper les actions sous des grandes étapes, puis valider le parcours. */
+function viewRegroup() {
+  const persona = personaById(state.persona) ?? PERSONAS[0];
+  const steps = journeyNotes(state);
+  const loose = looseActions(state);
+  const h = journeyHints(steps.map((n) => n.text));
+  const tips = [];
+  if (h.tooFew) tips.push(`${steps.length ? `${steps.length} étape${steps.length > 1 ? 's' : ''} pour l'instant` : 'Pas encore d\'étape'} : visez ${JOURNEY_MIN} à ${JOURNEY_MAX} grandes étapes.`);
+  else if (h.tooMany) tips.push(`${steps.length} étapes, c'est beaucoup : certaines sont peut-être des détails à regrouper.`);
+  else tips.push(`${steps.length} étapes : dans la cible (${JOURNEY_MIN} à ${JOURNEY_MAX}).`);
+  if (loose.length) tips.push(`${loose.length} action${loose.length > 1 ? 's ne sont' : ' n\'est'} sous aucune étape : il manque peut-être une étape ?`);
+  if (h.notVerb.length) tips.push(`Ne commence${h.notVerb.length > 1 ? 'nt' : ''} pas par un verbe : <strong>${esc(h.notVerb.join(' · '))}</strong>.`);
+  if (h.system.length) tips.push(`Décri${h.system.length > 1 ? 'vent' : 't'} l'appli plutôt que ${esc(persona.name)} : <strong>${esc(h.system.join(' · '))}</strong>.`);
+  if (steps.length && !h.notVerb.length && !h.system.length) tips.push('Les étapes commencent toutes par un verbe, du point de vue de la persona.');
+  return `
+  ${stepHeader('story')}
+  ${journeyStages('regroup')}
+  <section class="jhead">
+    <p class="kicker">Temps 2 · On regroupe</p>
+    <h2>Regroupez les actions en grandes étapes</h2>
+    <p>Créez une étape, puis glissez dessous les actions qui vont ensemble. Visez ${JOURNEY_MIN} à ${JOURNEY_MAX} étapes, dans l'ordre où ${esc(persona.name)} les vit.</p>
+  </section>
+  <div class="jtips">
+    <div class="jtip jtip--wide"><strong>Bien formuler une étape</strong><ul>${JOURNEY_RULES.map((r) => `<li><span>${esc(r.title)}</span>
+      <span class="jr-good">${ICONS.check} ${esc(r.good)}</span>${r.bad ? `<span class="jr-bad">✕ ${esc(r.bad)}</span>` : ''}</li>`).join('')}</ul></div>
+    ${personaTip(persona)}
+  </div>
+  <section class="groupage" aria-label="Regroupement">
     <div class="canvas-scroll">
-      <div class="journey" data-drop="journey" data-axis="x">
-        ${steps.map((n, i) => `<div class="jcell"><span class="jn">${i + 1}</span>${noteHtml(n)}</div>`).join('')}
-        <div class="jcell jcell--add">${addButton({ b: 'journey' }, 'Étape')}</div>
+      <div class="jcols" data-drop="journey" data-axis="x">
+        ${steps.map((st) => `<div class="jcol">${noteHtml(st)}
+          <div class="jcol-acts" data-drop="${encodePlace({ b: 'action', parent: st.id })}">${actionsOf(state, st.id).map((n) => noteHtml(n, { cls: 'note--action' })).join('')}</div>
+        </div>`).join('')}
+        <div class="jcol jcol--add">${addButton({ b: 'journey' }, 'Étape')}</div>
       </div>
     </div>
-    <p class="hint">De gauche à droite, dans l'ordre où ${esc(persona.name)} les vit. Glissez une étape pour la déplacer.</p>
-  </div>
-
+    <div class="loose">
+      <p><strong>Pas encore regroupées (${loose.length})</strong>${loose.length ? ' · glissez-les sous une étape, ou créez l\'étape qui manque' : ' · tout est rangé'}</p>
+      <div class="recit-flow" data-drop="action" data-axis="wrap">${loose.map((n) => noteHtml(n, { cls: 'note--action' })).join('')}</div>
+    </div>
+  </section>
   <section class="checkpoint">
     <div>
       <h2>Prêts à valider ?</h2>
-      ${tips.length ? `<ul class="journey-tips">${tips.join('')}</ul>` : steps.length ? '<p>Le parcours se lit bien : des verbes, du point de vue de la persona, dans l\'ordre. Relisez-le à voix haute : raconte-t-il toute l\'histoire ?</p>' : ''}
-      <p class="hint">Une fois validé, le parcours devient la première ligne de votre story map. Vous pourrez encore l'ajuster.</p>
-      ${HOST && !steps.length ? `<p class="hint">Animateur : un groupe bloqué ? <button type="button" class="link-btn" data-act="journey-example" data-focus="journey-example">Proposer le parcours type de ${esc(persona.name)}</button></p>` : ''}
+      <ul class="journey-tips">${tips.map((t) => `<li>${t}</li>`).join('')}</ul>
+      <p class="hint">Une fois validé, le parcours devient la première ligne de votre story map. Les actions restent dessous, pour mémoire.
+        <button type="button" class="link-btn" data-act="journey-back" data-focus="journey-back">‹ Revenir au récit</button></p>
+      ${HOST && !steps.length ? `<p class="hint">Animateur : un groupe bloqué ? <button type="button" class="link-btn" data-act="journey-example" data-focus="journey-example">Proposer les étapes types de ${esc(persona.name)}</button></p>` : ''}
     </div>
-    <button type="button" class="btn btn-primary" data-act="journey-validate" data-focus="journey-validate" ${ready ? '' : 'disabled'}>Valider le parcours ›</button>
+    <button type="button" class="btn btn-primary" data-act="journey-validate" data-focus="journey-validate" ${steps.length >= 2 ? '' : 'disabled'}>Valider le parcours ›</button>
   </section>
   ${stepNav()}`;
+}
+
+function viewJourney() {
+  return state.journey === 'regroup' ? viewRegroup() : viewRecit();
 }
 
 function viewStory() {
@@ -975,13 +1060,14 @@ function viewStory() {
   const cols = notesIn(state, { b: 'backbone' });
   const kept = keptForStory();
   const gaps = mvpGaps(state);
+  const noDeliv = stepsWithoutDeliverable(state);
   const cell = (c, lane) => {
     const place = { b: 'story', col: c.id, lane: lane.id };
     return `<div class="scell" data-drop="${encodePlace(place)}">${notesIn(state, place).map((n) => noteHtml(n)).join('')}${addButton(place, 'Story')}</div>`;
   };
   return `
   ${stepHeader('story')}
-  ${shared.group === 'sim' ? simNotice() : `<div class="story-sources">
+  ${shared.group === 'sim' ? simNotice() : `${journeyStages('map')}<div class="story-sources">
     <section class="kept">
       <h2>Livrables retenus <span class="count">${kept.length}</span></h2>
       ${kept.length
@@ -1006,6 +1092,10 @@ function viewStory() {
 </div>
           </div>
         </div>
+        ${cols.some((c) => actionsOf(state, c.id).length) ? `<div class="srow srow--recall">
+          <div class="slabel"><strong>Ce que vit ${esc(personaById(state.persona)?.name ?? '')}</strong><span>Les actions du récit, pour mémoire</span></div>
+          <div class="lane">${cols.map((c) => `<div class="rcell">${actionsOf(state, c.id).map((a) => `<span>${esc(a.text)}</span>`).join('')}</div>`).join('')}</div>
+        </div>` : ''}
         ${cols.length ? STORY_LANES.map((lane, i) => `<div class="srow srow--lane srow--${lane.id}">
           <div class="slabel"><strong>${esc(lane.label)}</strong><span>${esc(lane.hint)}</span></div>
           <div class="lane">${cols.map((c) => cell(c, lane)).join('')}</div>
@@ -1018,6 +1108,7 @@ function viewStory() {
     ${gaps.length
       ? `<p>Étapes sans rien en première version : <strong>${esc(gaps.map((g) => g.text).join(', '))}</strong>. Une première version doit traverser tout le parcours, même de façon rudimentaire.</p>`
       : '<p>La première version traverse tout le parcours. Relisez-la : est-ce vraiment le minimum ? Que pourrait-on encore retirer ?</p>'}
+      ${noDeliv.length && shared.group !== 'sim' ? `<p>Aucun livrable de l'impact map sous <strong>${esc(noDeliv.map((c) => c.text).join(', '))}</strong> : faut-il y ajouter une story ? Ou est-ce un oubli de l'impact map ? C'est l'aller-retour du double diamant.</p>` : ''}
       <p>Cette première version, c'est aussi un test : on la met entre les mains des utilisateurs pour apprendre, et ce qu'on apprend peut renvoyer au premier diamant.</p></div>
   </section>` : ''}
   ${stepNav()}`;
@@ -1323,7 +1414,7 @@ function blockMessage(reason) {
 
 /* ---------- Clics dans la page ---------- */
 
-const EDIT_TARGETS = '[data-add], [data-note], [data-extract], [data-keep], [data-deliv], [data-persona], [data-act="compare"], [data-act="journey-example"], [data-act="journey-validate"], [data-act="journey-reopen"]';
+const EDIT_TARGETS = '[data-add], [data-note], [data-extract], [data-keep], [data-deliv], [data-persona], [data-act="compare"], [data-act="journey-example"], [data-act="journey-validate"], [data-act="journey-reopen"], [data-act="journey-next"], [data-act="journey-back"]';
 
 main.addEventListener('click', (e) => {
   const t = e.target;
@@ -1394,6 +1485,21 @@ main.addEventListener('click', (e) => {
   if (act) actions[act]?.();
 });
 
+// Récit : ajouter une action (le champ reste ouvert pour enchaîner).
+main.addEventListener('submit', (e) => {
+  if (e.target.id !== 'action-form') return;
+  e.preventDefault();
+  const input = e.target.elements.action;
+  const text = input.value;
+  if (!canEdit() || !text.trim()) return;
+  const note = addNote(state, { b: 'action' }, text, hooks.author ? { author: hooks.author() } : {});
+  if (!note) return;
+  input.value = '';
+  ui.actionDraft = '';
+  commit({ focus: 'action-input' });
+  announce('Action ajoutée au récit');
+});
+
 main.addEventListener('keydown', (e) => {
   if ((e.key === 'Enter' || e.key === ' ') && e.target.matches('[role="button"][tabindex]')) {
     e.preventDefault();
@@ -1460,9 +1566,13 @@ const actions = {
     if (!HOST) return;
     useJourneyExample(state, state.persona);
     commit();
-    announce('Parcours type posé : modifiez-le librement');
+    announce('Étapes types posées : modifiez-les librement');
   },
+  'journey-next'() { setJourneyStage('regroup'); window.scrollTo({ top: 0, behavior: 'smooth' }); },
+  'journey-back'() { setJourneyStage('recit'); },
   'journey-validate'() {
+    const loose = looseActions(state).length;
+    if (loose && !confirm(`${loose} action${loose > 1 ? 's ne sont' : ' n\'est'} sous aucune étape. Valider le parcours quand même ?`)) return;
     const n = validateJourney(state);
     if (!n) return;
     commit();
@@ -1472,6 +1582,8 @@ const actions = {
   'journey-reopen'() {
     if (!confirm('Revenir au récit du parcours ? Les stories déjà posées restent attachées à leur étape.')) return;
     reopenJourney(state);
+    state.journey = 'regroup';
+    if (shared.on) shared.setState(shared.group, 'journey', 'regroup').catch(() => {});
     commit();
   },
   check() { state.debrief.checked = true; commit({ focus: 'check' }); },
@@ -1521,7 +1633,7 @@ function accepts(dragKey, dropKey) {
     const place = decodePlace(dropKey);
     return place?.b === 'empathy' && place.persona === extractById(id)?.persona;
   }
-  if (type === 'deliv') return familyOf(decodePlace(dropKey)) === 'story' && decodePlace(dropKey).b !== 'backbone';
+  if (type === 'deliv') return ['story', 'tray'].includes(decodePlace(dropKey)?.b);
   if (type === 'note') {
     const n = getNote(state, id);
     if (!n) return false;

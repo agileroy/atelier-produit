@@ -21,6 +21,7 @@ export const TOOL_IDS = Object.keys(TOOL_PHASES);
 export const PHASE_IDS = PHASES.map((p) => p.id);
 /** Où ranger une notion au débrief : une des quatre phases, ou tout le double diamant. */
 export const PLACE_IDS = PLACES.map((p) => p.id);
+export const JOURNEY_STAGES = ['recit', 'regroup'];
 
 const ID_RE = /^[a-z0-9]{4,24}$/;
 
@@ -42,6 +43,7 @@ export function newState() {
     persona: PERSONA_IDS[0],
     notes: [],
     compare: {},
+    journey: 'recit', // story map, avant le parcours validé : 'recit' (on raconte) ou 'regroup' (on regroupe)
     theoryClosed: [],
     debrief: { mode: 'team', placement: {}, checked: false, answers: {}, takeaways: '' },
     seen: [],
@@ -69,7 +71,9 @@ export const prevStep = (step) => STEP_IDS[stepIndex(step) - 1] ?? null;
    { b: 'actor', parent: goalId }       acteur sous un objectif
    { b: 'impact', parent: actorId }     impact sous un acteur
    { b: 'deliverable', parent: impactId } livrable sous un impact
-   { b: 'journey' }                     étape du parcours, en cours de récit (avant validation)
+   { b: 'action' }                      action du récit, pas encore regroupée
+   { b: 'action', parent: stepId }      action regroupée sous une étape du parcours
+   { b: 'journey' }                     étape du parcours, en cours de regroupement (avant validation)
    { b: 'backbone' }                    étape de la colonne vertébrale de la story map
    { b: 'story', col: backboneId, lane } story sous une étape, dans une version */
 
@@ -81,6 +85,7 @@ export function encodePlace(p) {
     case 'actor': return `actor|${p.parent}`;
     case 'impact': return `impact|${p.parent}`;
     case 'deliverable': return `deliverable|${p.parent}`;
+    case 'action': return p.parent ? `action|${p.parent}` : 'action';
     case 'journey': return 'journey';
     case 'backbone': return 'backbone';
     case 'story': return `story|${p.col}|${p.lane}`;
@@ -97,6 +102,7 @@ export function decodePlace(key) {
     case 'actor': return { b, parent: a };
     case 'impact': return { b, parent: a };
     case 'deliverable': return { b, parent: a };
+    case 'action': return a ? { b, parent: a } : { b };
     case 'journey':
     case 'backbone': return { b };
     case 'story': return { b, col: a, lane: c };
@@ -112,7 +118,9 @@ export function familyOf(p) {
   if (p.b === 'empathy') return 'empathy';
   if (p.b === 'tray') return p.step;
   if (['goal', 'actor', 'impact', 'deliverable'].includes(p.b)) return 'impact';
-  if (['journey', 'backbone', 'story'].includes(p.b)) return 'story';
+  if (p.b === 'action') return 'recit';
+  if (p.b === 'journey') return 'journey';
+  if (['backbone', 'story'].includes(p.b)) return 'story';
   return null;
 }
 
@@ -126,6 +134,7 @@ export function placeExists(state, p) {
     case 'goal':
     case 'journey':
     case 'backbone': return true;
+    case 'action': return !p.parent || parentIs(p.parent, 'journey') || parentIs(p.parent, 'backbone');
     case 'actor': return parentIs(p.parent, 'goal');
     case 'impact': return parentIs(p.parent, 'actor');
     case 'deliverable': return parentIs(p.parent, 'impact');
@@ -141,7 +150,7 @@ export const notesIn = (state, place) => state.notes.filter((n) => samePlace(n.p
 
 /** Enfants directs d'un post-it (impacts d'un acteur, livrables d'un impact, stories d'une étape). */
 export function childrenOf(state, id) {
-  return state.notes.filter((n) => (n.place.parent === id && ['actor', 'impact', 'deliverable'].includes(n.place.b)) || (n.place.b === 'story' && n.place.col === id));
+  return state.notes.filter((n) => (n.place.parent === id && ['actor', 'impact', 'deliverable', 'action'].includes(n.place.b)) || (n.place.b === 'story' && n.place.col === id));
 }
 
 export function addNote(state, place, text, extra = {}) {
@@ -201,7 +210,8 @@ export function removeNote(state, id) {
   if (!note) return 0;
   const doomed = new Set([id]);
   if (note.place.b === 'backbone' || note.place.b === 'journey') {
-    for (const child of childrenOf(state, id)) child.place = { b: 'tray', step: 'story' };
+    // Les actions regroupées retournent dans le récit, les stories dans le bac.
+    for (const child of childrenOf(state, id)) child.place = child.place.b === 'action' ? { b: 'action' } : { b: 'tray', step: 'story' };
   } else {
     const stack = [id];
     while (stack.length) {
@@ -230,8 +240,11 @@ export function placesFor(state, id) {
     for (const g of notesIn(state, { b: 'goal' })) out.push({ place: { b: 'actor', parent: g.id }, label: `Acteur de « ${label(g)} »` });
     for (const a of state.notes.filter((n) => n.place.b === 'actor')) out.push({ place: { b: 'impact', parent: a.id }, label: `Impact de « ${label(a)} »` });
     for (const i of state.notes.filter((n) => n.place.b === 'impact')) out.push({ place: { b: 'deliverable', parent: i.id }, label: `Livrable de « ${label(i)} »` });
-  } else if (family === 'story' && note.place.b === 'journey') {
+  } else if (family === 'journey') {
     out.push({ place: { b: 'journey' }, label: 'Étape du parcours' });
+  } else if (family === 'recit') {
+    out.push({ place: { b: 'action' }, label: 'Pas encore regroupée' });
+    for (const st of notesIn(state, { b: 'journey' })) out.push({ place: { b: 'action', parent: st.id }, label: `Sous « ${label(st)} »` });
   } else if (family === 'story') {
     out.push({ place: { b: 'tray', step: 'story' }, label: 'Bac « à placer »' });
     out.push({ place: { b: 'backbone' }, label: 'Étape du parcours' });
@@ -343,8 +356,18 @@ export function deliverablePath(state, id) {
 
 /* ---------- Story mapping ---------- */
 
-/** Les étapes du parcours en cours de récit. */
+/** Les étapes du parcours en cours de regroupement. */
 export const journeyNotes = (state) => notesIn(state, { b: 'journey' });
+/** Les actions du récit : toutes, pas encore regroupées, ou regroupées sous une étape. */
+export const allActions = (state) => state.notes.filter((n) => n.place.b === 'action');
+export const looseActions = (state) => notesIn(state, { b: 'action' });
+export const actionsOf = (state, stepId) => notesIn(state, { b: 'action', parent: stepId });
+
+/** Étapes du parcours sous lesquelles aucun livrable de l'impact map n'a été rangé. */
+export function stepsWithoutDeliverable(state) {
+  const cols = notesIn(state, { b: 'backbone' });
+  return cols.filter((c) => !state.notes.some((n) => n.place.b === 'story' && n.place.col === c.id && n.from?.startsWith('deliverable:')));
+}
 
 /** Le parcours est-il validé ? (Il est alors la colonne vertébrale de la story map.) */
 export const journeyDone = (state) => notesIn(state, { b: 'backbone' }).length > 0;
@@ -593,13 +616,14 @@ export function sanitize(raw) {
   const pending = rawNotes.filter((n) => ID_RE.test(n.id) && cleanText(n.text) && decodePlace(encodePlace(n.place ?? {})));
   const ids = new Set();
   const order = new Map(pending.map((n, i) => [n, i]));
-  for (const pass of [['empathy', 'tray', 'goal', 'journey', 'backbone'], ['actor'], ['impact'], ['deliverable', 'story']]) {
+  for (const pass of [['empathy', 'tray', 'goal', 'journey', 'backbone'], ['actor', 'action'], ['impact'], ['deliverable', 'story']]) {
     for (const n of pending) {
       if (!pass.includes(n.place.b) || ids.has(n.id)) continue;
       let place = decodePlace(encodePlace(n.place));
       if (!placeExists(state, place)) {
         const family = familyOf(place);
         if (family === 'impact' || family === 'story') place = { b: 'tray', step: family };
+        else if (family === 'recit') place = { b: 'action' };
         else continue;
       }
       const note = { id: n.id, text: cleanText(n.text), place };
@@ -626,6 +650,7 @@ export function sanitize(raw) {
     return true;
   });
 
+  if (JOURNEY_STAGES.includes(raw.journey)) state.journey = raw.journey;
   if (Array.isArray(raw.theoryClosed)) state.theoryClosed = STEP_IDS.filter((st) => raw.theoryClosed.includes(st));
   if (raw.compare && typeof raw.compare === 'object') {
     for (const p of PERSONA_IDS) if (raw.compare[p] === true) state.compare[p] = true;
@@ -650,6 +675,7 @@ export function placeLabel(state, place) {
     case 'impact': return `impacts de « ${getNote(state, place.parent)?.text ?? ''} »`;
     case 'deliverable': return `livrables de « ${getNote(state, place.parent)?.text ?? ''} »`;
     case 'journey': return 'parcours';
+    case 'action': return place.parent ? `actions de « ${getNote(state, place.parent)?.text ?? ''} »` : 'récit';
     case 'backbone': return 'colonne vertébrale';
     case 'story': return `${getNote(state, place.col)?.text ?? ''}, ${STORY_LANES.find((l) => l.id === place.lane)?.label ?? ''}`;
     default: return '';
