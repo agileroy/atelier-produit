@@ -44,6 +44,14 @@
             "restitution": {
               ".validate": "newData.isBoolean()"
             },
+            "practice": {
+              "$step": {
+                ".validate": "$step.matches(/^(frame|empathy|impact|story)$/) && newData.isBoolean()"
+              }
+            },
+            "roti": {
+              ".validate": "newData.isString() && newData.val().matches(/^[A-HJKMNP-Z]{4}$/)"
+            },
             "timer": {
               ".validate": "newData.hasChildren(['step']) && (newData.hasChildren(['endsAt']) || newData.hasChildren(['left']))",
               "step": {

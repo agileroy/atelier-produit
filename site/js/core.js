@@ -45,6 +45,7 @@ export function newState() {
     compare: {},
     journey: 'recit', // story map, avant le parcours validé : 'recit' (on raconte) ou 'regroup' (on regroupe)
     theoryClosed: [],
+    practice: [], // étapes dont l'animateur a lancé la pratique (avant : la théorie seule)
     debrief: { mode: 'team', placement: {}, checked: false, answers: {}, takeaways: '' },
     seen: [],
   };
@@ -372,10 +373,14 @@ export function stepsWithoutDeliverable(state) {
 /** Le parcours est-il validé ? (Il est alors la colonne vertébrale de la story map.) */
 export const journeyDone = (state) => notesIn(state, { b: 'backbone' }).length > 0;
 
-/** Pose le parcours type de la persona (seulement si le parcours est vide). */
+/**
+ * Bouton de secours de l'animateur : remplace les étapes du groupe par les étapes types de la
+ * persona. Les actions déjà regroupées retournent dans « Pas encore regroupées ».
+ */
 export function useJourneyExample(state, personaId) {
   const list = JOURNEY_EXAMPLES[personaId] ?? [];
-  if (journeyNotes(state).length || journeyDone(state)) return 0;
+  if (journeyDone(state)) return 0;
+  for (const st of journeyNotes(state)) removeNote(state, st.id);
   for (const text of list) addNote(state, { b: 'journey' }, text, { from: 'example' });
   return list.length;
 }
@@ -651,6 +656,7 @@ export function sanitize(raw) {
   });
 
   if (JOURNEY_STAGES.includes(raw.journey)) state.journey = raw.journey;
+  if (Array.isArray(raw.practice)) state.practice = STEP_IDS.filter((st) => raw.practice.includes(st));
   if (Array.isArray(raw.theoryClosed)) state.theoryClosed = STEP_IDS.filter((st) => raw.theoryClosed.includes(st));
   if (raw.compare && typeof raw.compare === 'object') {
     for (const p of PERSONA_IDS) if (raw.compare[p] === true) state.compare[p] = true;

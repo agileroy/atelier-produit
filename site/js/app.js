@@ -18,6 +18,7 @@ import {
   boardUpdates, recordsToNotes,
   serialize, parseSaved, sanitize, toolName, TOOL_IDS, MAX_TEXT,
 } from './core.js?v=__VERSION__';
+import { createRoti, rotiJoinUrl, rotiHostUrl } from './roti.js?v=__VERSION__';
 import { $, $$, esc, toast, announce, copyText, load, save, setupTheme, downloadJson, today, qrSvg, ICONS } from './shared.js?v=__VERSION__';
 import {
   podium, quizStats, waitingFor, QUIZ_MAX, groupIdsFor, groupName, DEFAULT_PERSONAS,
@@ -37,7 +38,7 @@ const CHOICE_LABELS = { empathy: 'Empathy map', impact: 'Impact mapping', story:
 
 const main = $('#main');
 let state = restore();
-const ui = { selectedTool: null, info: null, frameTheory: true, quizEntries: [], actionDraft: '' };
+const ui = { selectedTool: null, info: null, theoryOpen: new Set(), quizEntries: [], actionDraft: '' };
 let phones = null; // animateur : module Participants
 const hooks = {}; // participant : vues fournies par participant.js (débrief, attente)
 
@@ -182,13 +183,25 @@ export function receiveKept(tree) {
   if (shared.on && state.step === 'story') render();
 }
 
-/** Livrables étoilés à importer dans la story map, avec leur état d'import sur le tableau affiché. */
+/**
+ * Livrables étoilés à importer dans la story map : ceux de la persona du tableau affiché
+ * (chaque groupe garde sa persona), avec leur état d'import sur ce tableau.
+ */
 function keptForStory() {
   if (!shared.on) return keptDeliverables(state);
+  const g = shared.group;
   const list = HOST
-    ? groupIdsFor(shared.groups).flatMap((g) => shared.boards[g].notes.filter((n) => n.place.b === 'deliverable' && n.keep).map((n) => ({ id: n.id, text: n.text, group: g })))
-    : shared.kept;
+    ? (shared.boards[g]?.notes ?? []).filter((n) => n.place.b === 'deliverable' && n.keep).map((n) => ({ id: n.id, text: n.text, group: g }))
+    : shared.kept.filter((k) => k.group === g);
   return list.map((k) => ({ ...k, imported: state.notes.some((m) => m.from === `deliverable:${k.id}`) }));
+}
+
+/** Livrables étoilés par groupe (ou sur le tableau local) : il en faut au moins 2 par persona. */
+const KEPT_MIN = 2;
+function keptCounts() {
+  const count = (notes) => notes.filter((n) => n.place.b === 'deliverable' && n.keep).length;
+  if (!shared.on) return [{ g: null, name: personaById(state.persona)?.name ?? '', n: count(state.notes) }];
+  return groupIdsFor(shared.groups).map((g) => ({ g, name: personaById(groupPersona(g))?.name ?? '', n: count(shared.boards[g]?.notes ?? []) }));
 }
 
 function importKept(id, place, beforeId = null) {
@@ -230,7 +243,7 @@ const groupDone = (g, step = state.step) => shared.boards[g]?.state?.done?.[step
 
 function dockVisible() {
   if (!shared.on || !TIMER_STEPS.includes(state.step)) return false;
-  return HOST ? !!phones?.live : !!shared.myGroup && !hooks.screen?.();
+  return HOST ? !!phones?.live : !!shared.myGroup && !hooks.screen?.() && practiceOn();
 }
 
 function renderDock() {
@@ -383,7 +396,15 @@ function render(focus) {
 const focusKey = (el) => el.closest('[data-focus]')?.dataset.focus ?? null;
 
 function go(step) {
-  if (!HOST || !setStep(state, step)) return;
+  if (!HOST) return;
+  if (step === 'story' && state.step !== 'story') {
+    const missing = keptCounts().filter((k) => k.n < KEPT_MIN);
+    if (missing.length) {
+      toast(`Avant le story mapping, étoilez au moins ${KEPT_MIN} livrables par persona : ${missing.map((k) => `${k.name} ${k.n}/${KEPT_MIN}`).join(', ')}.`);
+      return;
+    }
+  }
+  if (!setStep(state, step)) return;
   ui.selectedTool = null;
   commit();
   window.scrollTo({ top: 0 });
@@ -393,9 +414,15 @@ function go(step) {
 
 /* ---------- En-tête : étapes ---------- */
 
+/** Étape déjà atteinte (ou en cours) : son nom se révèle ; les suivantes restent anonymes. */
+function stepRevealed(id) {
+  const idx = (x) => STEPS.findIndex((s) => s.id === x);
+  return idx(id) <= idx(state.step) || state.visited.includes(id);
+}
+
 function renderStepper() {
   $('#stepper').innerHTML = STEPS.map((s, i) => `<li><button type="button" data-go="${s.id}" ${s.id === state.step ? 'aria-current="step"' : ''} ${HOST ? '' : 'disabled'}>
-      <span class="step-n">${state.visited.includes(s.id) && s.id !== state.step ? ICONS.check : i + 1}</span><span class="step-label">${esc(s.label)}</span>
+      <span class="step-n">${state.visited.includes(s.id) && s.id !== state.step ? ICONS.check : i + 1}</span><span class="step-label">${esc(stepRevealed(s.id) ? s.label : `Étape ${i + 1}`)}</span>
     </button></li>`).join('');
 }
 
@@ -405,6 +432,27 @@ $('#stepper').addEventListener('click', (e) => {
 });
 
 /* ---------- Éléments communs ---------- */
+
+/**
+ * La pratique est-elle lancée pour cette étape ? En arrivant, seule la théorie s'affiche ;
+ * l'animateur lance la pratique pour tous (« Passer à la pratique »). Le débrief n'a pas de théorie.
+ */
+function practiceOn(step = state.step) {
+  if (step === 'debrief') return true;
+  if (shared.on && !HOST) return shared.practice?.[step] === true;
+  return state.practice.includes(step) || phones?.practice?.[step] === true;
+}
+
+/** Tant que la pratique n'est pas lancée : ce que voient l'animateur et les participants sous la théorie. */
+function practiceGate(step) {
+  return `<section class="practice-gate">
+    ${HOST || !shared.on
+      ? `<p>Présentez la théorie, puis lancez la pratique pour tout le monde${TIMER_STEPS.includes(step) && phones?.live ? ' : le minuteur démarre en même temps' : ''}.</p>
+        <button type="button" class="btn btn-primary" data-act="practice-start" data-focus="practice-start">Passer à la pratique ↓</button>`
+      : '<p>Place à la théorie : l\'animateur lancera la pratique juste après.</p>'}
+  </section>
+  ${HOST ? stepNav() : ''}`;
+}
 
 function stepHeader(step) {
   const tool = TOOLS[STEP_TOOL[step]];
@@ -420,7 +468,7 @@ function stepHeader(step) {
     ${diamondMini(STEP_PHASES[step])}
   </header>
   ${debrief ? '' : theoryBlock(step)}
-  ${briefBlock(step)}
+  ${practiceOn(step) ? briefBlock(step) : ''}
   ${debrief ? '' : boardBar()}`;
 }
 
@@ -455,7 +503,8 @@ function boardBar() {
 /** La théorie de l'outil : dépliée au départ, repliée une fois qu'on passe à la pratique. */
 function theoryBlock(step, { closable = true } = {}) {
   const t = TOOLS[STEP_TOOL[step]];
-  const closed = step === 'frame' ? !ui.frameTheory : state.theoryClosed.includes(step);
+  // Pratique lancée : la théorie se replie, chacun peut la rouvrir (chez soi).
+  const closed = practiceOn(step) && !ui.theoryOpen.has(step);
   if (closed) {
     return `<section class="theory is-closed">
       <button type="button" class="theory-toggle" data-act="theory-open" data-focus="theory" aria-expanded="false">
@@ -483,7 +532,7 @@ function theoryBlock(step, { closable = true } = {}) {
     ${step === 'impact' ? impactExample() : step === 'story' ? storyExample() : ''}
     <div class="theory-foot">
       <p class="theory-origin">${esc(t.origin)}</p>
-      ${closable ? `<button type="button" class="btn btn-primary" data-act="theory-close" data-focus="theory">${step === 'frame' ? 'Replier la fiche' : 'Passer à la pratique'} ↓</button>` : ''}
+      ${closable && practiceOn(step) ? '<button type="button" class="btn btn-quiet" data-act="theory-close" data-focus="theory">Replier la théorie ↑</button>' : ''}
     </div>
   </section>`;
 }
@@ -561,7 +610,7 @@ function stepNav() {
   if (!HOST) return '';
   const prev = prevStep(state.step);
   const next = nextStep(state.step);
-  const label = (id) => STEPS.find((s) => s.id === id).label;
+  const label = (id) => (stepRevealed(id) ? STEPS.find((s) => s.id === id).label : 'Étape suivante');
   return `<nav class="stepnav" aria-label="Étapes">
     ${prev ? `<button type="button" class="btn btn-quiet" data-go="${prev}">‹ ${esc(label(prev))}</button>` : '<span></span>'}
     ${next ? `<button type="button" class="btn btn-primary" data-go="${next}" data-focus="next">${state.step === 'frame' ? 'Commencer' : esc(label(next))} ›</button>` : ''}
@@ -693,7 +742,7 @@ function viewFrame() {
     ${diamondBoard({ chips })}
   </section>
 
-  <section class="practice-head">
+  ${practiceOn('frame') ? `<section class="practice-head">
     <p class="kicker">Place à la pratique</p>
     <h2>L'exercice : un cas fil rouge</h2>
     <p class="hint">On applique maintenant chaque outil, l'un après l'autre, au même cas.</p>
@@ -721,18 +770,17 @@ function viewFrame() {
     <ol class="plan">
       ${plan.map(([id, q, text], i) => {
         const step = STEPS.find((s) => s.id === id);
-        return `<li><button type="button" class="plan-item" data-go="${id}" ${HOST ? '' : 'disabled'}>
+        return `<li><div class="plan-item">
           <span class="plan-n">${i + 1}</span>
-          <span class="plan-body"><strong>${esc(step.label)}</strong> <em>${esc(q)}</em><span>${esc(text)}</span></span>
+          <span class="plan-body">${stepRevealed(id) ? `<strong>${esc(step.label)}</strong> <em>${esc(q)}</em><span>${esc(text)}</span>` : `<strong>Étape ${i + 1}</strong><span>À découvrir le moment venu.</span>`}</span>
           <span class="plan-time">${esc(BRIEFS[id].duration)}</span>
-        </button></li>`;
+        </div></li>`;
       }).join('')}
     </ol>
     ${HOST ? '' : '<p class="hint">L\'animateur fait avancer l\'atelier : cette page suit l\'écran commun.</p>'}
-    <p class="hint">Environ 2 h 15. L'écran est projeté ; chacun peut aussi envoyer des post-its depuis son ordinateur ou son téléphone (bouton « Participants » en haut).</p>
+    <p class="hint">Environ 2 h 15. L'écran est projeté, et chacun manipule les tableaux de son groupe depuis son ordinateur ou son téléphone.</p>
   </section>
-
-  ${stepNav()}`;
+  ${stepNav()}` : practiceGate('frame')}`;
 }
 
 /**
@@ -780,6 +828,7 @@ function avatar(p, size = '') {
 /* ---------- Étape 1 : empathy map ---------- */
 
 function viewEmpathy() {
+  if (!practiceOn('empathy')) return stepHeader('empathy') + practiceGate('empathy');
   const persona = personaById(state.persona);
   // En séance, la proposition ne se dévoile qu'à la restitution : d'abord le choix du groupe, ensuite la discussion.
   const comparing = state.compare[persona.id] === true && (!shared.on || shared.restitution);
@@ -876,6 +925,7 @@ function proposalHtml(persona) {
 /* ---------- Étape 2 : impact mapping ---------- */
 
 function viewImpact() {
+  if (!practiceOn('impact')) return stepHeader('impact') + practiceGate('impact');
   const goals = notesIn(state, { b: 'goal' });
   const inspiration = PERSONAS.map((p) => ({
     p,
@@ -948,6 +998,13 @@ function viewImpact() {
 
 const pronoun = (p) => (p.id === 'karim' ? 'il' : 'elle');
 
+/** Animateur : débloquer un groupe avec les étapes types de sa persona, à tout moment du parcours. */
+function journeyRescue() {
+  if (!HOST || shared.group === 'sim') return '';
+  const name = personaById(state.persona)?.name ?? '';
+  return `<p class="jrescue">Animateur : groupe bloqué ? <button type="button" class="link-btn" data-act="journey-example" data-focus="journey-example">Proposer les étapes types de ${esc(name)}</button></p>`;
+}
+
 function journeyStages(active) {
   const items = [['recit', '1. On raconte'], ['regroup', '2. On regroupe en étapes'], ['map', '3. La story map']];
   return `<ol class="jstages" aria-label="Les trois temps de la story map">${items.map(([id, label]) => `<li class="${id === active ? 'is-on' : ''}" ${id === active ? 'aria-current="step"' : ''}>${esc(label)}</li>`).join('')}</ol>`;
@@ -961,12 +1018,19 @@ function personaTip(persona) {
 /** Temps 1 : chacun ajoute des actions courtes, comme elles viennent. */
 function viewRecit() {
   const persona = personaById(state.persona) ?? PERSONAS[0];
-  const acts = allActions(state).filter((n) => !n.place.parent);
-  const grouped = allActions(state).length - acts.length;
+  const all = allActions(state);
+  const acts = all.filter((n) => !n.place.parent);
+  const grouped = all.length - acts.length;
+  const stepName = (n) => getNote(state, n.place.parent)?.text ?? '';
+  // Les actions déjà regroupées restent visibles dans le récit (elles se déplacent au regroupement).
+  const shown = all.map((n) => (n.place.parent
+    ? `<div class="note note--action is-grouped" style="--h:205" title="Regroupée sous « ${esc(stepName(n))} » : elle se déplace au regroupement"><span class="note-text">${esc(n.text)}</span><span class="note-meta">→ ${esc(stepName(n))}</span></div>`
+    : noteHtml(n, { cls: 'note--action' })));
   const authors = [...new Set(allActions(state).map((n) => n.author).filter(Boolean))];
   return `
   ${stepHeader('story')}
   ${journeyStages('recit')}
+  ${journeyRescue()}
   <section class="jhead">
     <p class="kicker">Temps 1 · On raconte</p>
     <h2>Racontez la semaine de ${esc(persona.name)} avec l'appli</h2>
@@ -975,20 +1039,20 @@ function viewRecit() {
   <div class="jtips">
     <div class="jtip"><strong>Pour raconter</strong><ul>${JOURNEY_QUESTIONS.map((q) => `<li>${esc(q.replaceAll('{name}', persona.name))}</li>`).join('')}</ul></div>
     <div class="jtip"><strong>Une action</strong><ul class="jexamples">
-      ${ACTION_EXAMPLES.good.map((x) => `<li class="jr-good">${ICONS.check} ${esc(persona.name)} ${esc(x)}</li>`).join('')}
+      ${(ACTION_EXAMPLES.good[persona.id] ?? []).map((x) => `<li class="jr-good">${ICONS.check} ${esc(persona.name)} ${esc(x)}</li>`).join('')}
       ${ACTION_EXAMPLES.bad.map((x) => `<li class="jr-bad">✕ ${esc(x)}</li>`).join('')}</ul></div>
     ${personaTip(persona)}
   </div>
   <section class="recit" aria-labelledby="recit-title">
     <div class="recit-head"><h3 id="recit-title">Le récit de ${esc(persona.name)}</h3>
-      <span>${acts.length} action${acts.length > 1 ? 's' : ''}${authors.length ? ` · ${esc(authors.join(', '))}` : ''}${grouped ? ` · ${grouped} déjà regroupée${grouped > 1 ? 's' : ''}` : ''}</span></div>
+      <span>${all.length} action${all.length > 1 ? 's' : ''}${authors.length ? ` · ${esc(authors.join(', '))}` : ''}${grouped ? ` · ${grouped} déjà regroupée${grouped > 1 ? 's' : ''}` : ''}</span></div>
     <div class="recit-flow" data-drop="action" data-axis="wrap">
-      ${acts.map((n) => noteHtml(n, { cls: 'note--action' })).join('<span class="recit-arrow" aria-hidden="true">→</span>')}
-      ${acts.length ? '' : '<p class="hint">Les actions s\'afficheront ici, dans l\'ordre du récit.</p>'}
+      ${shown.join('<span class="recit-arrow" aria-hidden="true">→</span>')}
+      ${all.length ? '' : '<p class="hint">Les actions s\'afficheront ici, dans l\'ordre du récit.</p>'}
     </div>
     ${canEdit() ? `<form class="composer" id="action-form" autocomplete="off">
       <label class="composer-who" for="action-input">${esc(persona.name)}…</label>
-      <input class="composer-input" id="action-input" name="action" maxlength="${MAX_TEXT}" data-focus="action-input" placeholder="propose 2 places pour lundi" value="${esc(ui.actionDraft ?? '')}">
+      <input class="composer-input" id="action-input" name="action" maxlength="${MAX_TEXT}" data-focus="action-input" placeholder="${esc(ACTION_EXAMPLES.good[persona.id]?.[0] ?? '')}" value="${esc(ui.actionDraft ?? '')}">
       <button type="submit" class="btn btn-primary btn-small">Ajouter ↵</button>
     </form>
     <p class="hint">Entrée pour ajouter, dans l'ordre du récit. Glissez une action pour la remettre au bon endroit, cliquez dessus pour la corriger.</p>` : ''}
@@ -1018,6 +1082,7 @@ function viewRegroup() {
   return `
   ${stepHeader('story')}
   ${journeyStages('regroup')}
+  ${journeyRescue()}
   <section class="jhead">
     <p class="kicker">Temps 2 · On regroupe</p>
     <h2>Regroupez les actions en grandes étapes</h2>
@@ -1048,7 +1113,6 @@ function viewRegroup() {
       <ul class="journey-tips">${tips.map((t) => `<li>${t}</li>`).join('')}</ul>
       <p class="hint">Une fois validé, le parcours devient la première ligne de votre story map. Les actions restent dessous, pour mémoire.
         <button type="button" class="link-btn" data-act="journey-back" data-focus="journey-back">‹ Revenir au récit</button></p>
-      ${HOST && !steps.length ? `<p class="hint">Animateur : un groupe bloqué ? <button type="button" class="link-btn" data-act="journey-example" data-focus="journey-example">Proposer les étapes types de ${esc(persona.name)}</button></p>` : ''}
     </div>
     <button type="button" class="btn btn-primary" data-act="journey-validate" data-focus="journey-validate" ${steps.length >= 2 ? '' : 'disabled'}>Valider le parcours ›</button>
   </section>
@@ -1060,11 +1124,13 @@ function viewJourney() {
 }
 
 function viewStory() {
+  if (!practiceOn('story')) return stepHeader('story') + practiceGate('story');
   if (!journeyDone(state) && shared.group !== 'sim') return viewJourney();
   const cols = notesIn(state, { b: 'backbone' });
   const kept = keptForStory();
   const gaps = mvpGaps(state);
   const noDeliv = stepsWithoutDeliverable(state);
+  const toPlace = kept.filter((d) => !d.imported);
   const cell = (c, lane) => {
     const place = { b: 'story', col: c.id, lane: lane.id };
     return `<div class="scell" data-drop="${encodePlace(place)}">${notesIn(state, place).map((n) => noteHtml(n)).join('')}${addButton(place, 'Story')}</div>`;
@@ -1072,12 +1138,13 @@ function viewStory() {
   return `
   ${stepHeader('story')}
   ${shared.group === 'sim' ? simNotice() : `${journeyStages('map')}<div class="story-sources">
-    <section class="kept">
-      <h2>Livrables retenus <span class="count">${kept.length}</span></h2>
-      ${kept.length
-        ? `<p class="hint">Glissez-les sous une étape du parcours, ou cliquez sur l'un d'eux pour choisir où le placer.</p>
-           <div class="kept-list">${kept.map((d) => `<button type="button" class="kchip ${d.imported ? 'is-imported' : ''}" data-drag="deliv:${d.id}" data-deliv="${d.id}" data-focus="deliv:${d.id}">
-             ${d.imported ? ICONS.check : ''}${esc(d.text)}${shared.on && shared.groups === 2 && d.group ? ` <small>${esc(groupName(d.group))}</small>` : ''}</button>`).join('')}</div>`
+    <section class="kept" data-drop="kept">
+      <h2>Livrables retenus <span class="count">${toPlace.length}</span></h2>
+      ${toPlace.length
+        ? `<p class="hint">Glissez-les sous une étape du parcours, ou cliquez sur l'un d'eux pour choisir où le placer. Un livrable placé quitte cette liste ; glissez-le ici pour l'y remettre.</p>
+           <div class="kept-list">${toPlace.map((d) => `<button type="button" class="kchip ${d.imported ? 'is-imported' : ''}" data-drag="deliv:${d.id}" data-deliv="${d.id}" data-focus="deliv:${d.id}">
+             ${d.imported ? ICONS.check : ''}${esc(d.text)}</button>`).join('')}</div>`
+        : kept.length ? '<p class="hint">Tous les livrables retenus sont placés. Glissez-en un ici pour le retirer de la story map.</p>'
         : HOST ? `<p class="hint">Aucun livrable retenu : cochez l'étoile des livrables dans <button type="button" class="link-btn" data-go="impact">l'impact map</button>.</p>`
           : '<p class="hint">Aucun livrable retenu pour l\'instant : ils sont choisis tous ensemble, à la fin de l\'impact mapping.</p>'}
     </section>
@@ -1158,6 +1225,37 @@ function quizProgressHtml(entries) {
       : entries.length ? '<p class="qall">Tout le monde a répondu : vous pouvez révéler.</p>' : '<p class="hint">Les prénoms s\'afficheront ici au fil des validations.</p>'}`;
 }
 
+/** ROTI de fin d'atelier : lien à copier et QR code (participants et animateur). */
+function rotiBlock(code) {
+  const link = rotiJoinUrl(code);
+  return `<div class="roti-share">
+    <div class="join-qr">${qrSvg(link, 'QR code pour donner son avis (ROTI)')}</div>
+    <div class="roti-text">
+      <p class="share-link"><button type="button" class="share-url" data-copy-roti="${esc(code)}" title="Copier le lien">${esc(link.replace(/^https?:\/\//, ''))}</button>
+        <button type="button" class="btn btn-primary btn-small" data-copy-roti="${esc(code)}">${ICONS.link} Copier le lien</button></p>
+      <p class="share-code">Code du ROTI : <span class="room-code"><strong>${esc(code)}</strong></span></p>
+    </div>
+  </div>`;
+}
+
+document.addEventListener('click', (e) => {
+  const roti = e.target.closest('[data-copy-roti]');
+  if (roti) copyText(rotiJoinUrl(roti.dataset.copyRoti)).then((ok) => toast(ok ? 'Lien du ROTI copié.' : 'Copie impossible : sélectionnez le lien à la main.'));
+});
+
+function rotiPanel() {
+  const code = phones?.roti;
+  return `<section class="dsection roti-panel">
+    <div class="dsection-head"><span class="dsection-n">★</span><div><h2>Le ROTI de l'atelier</h2>
+      <p class="hint">Le temps passé valait-il le coup ? Chacun note l'atelier de 1 à 5, sans prénom.</p></div></div>
+    ${code ? `${rotiBlock(code)}
+      <p class="hint">Les participants voient ce lien et ce QR code sur leur écran.
+        <a class="link-btn" href="${esc(rotiHostUrl(code))}" target="_blank" rel="noopener">Ouvrir la vue animateur du ROTI ↗</a> (votes en direct, puis « Révéler »).</p>`
+      : `<button type="button" class="btn btn-primary" data-act="roti-create" data-focus="roti-create">Créer le ROTI et l'envoyer aux participants</button>
+      <p class="hint">Une salle est créée dans l'outil ROTI ; ce navigateur en devient l'animateur et la retrouve dans « Mes ROTI ».</p>`}
+  </section>`;
+}
+
 function quizPanel() {
   const entries = ui.quizEntries;
   const fmt = (n) => String(Math.round(n * 10) / 10).replace('.', ',');
@@ -1219,12 +1317,14 @@ function quizPanel() {
     </div>
     <p class="qsummary">${stats.count} participant${stats.count > 1 ? 's' : ''} · moyenne du groupe : <strong>${fmt(stats.average)} / ${QUIZ_MAX}</strong>.
       Chacun a reçu sa correction détaillée sur son écran.</p>
-    ${hardest >= 0 && stats.hardest.rate < 1 ? `<p class="qhardest"><strong>À discuter :</strong> la situation ${hardest + 1} n'a eu que ${pct(stats.hardest.rate * stats.count)} % de réponses les plus adaptées.</p>` : ''}
+    ${stats.hardest && hardest >= 0 && stats.hardest.rate < 1 ? `<p class="qhardest"><strong>À discuter :</strong> la situation ${hardest + 1} n'a eu que ${pct(stats.hardest.rate * stats.count)} % de réponses les plus adaptées.</p>` : ''}
     <div class="qactions">
       <button type="button" class="btn btn-quiet" data-act="quiz-replay" data-focus="quiz-replay">Rejouer (effacer les copies)</button>
       <button type="button" class="btn btn-quiet" data-act="quiz-stop" data-focus="quiz-stop">Fermer le quiz</button>
     </div>
   </section>
+
+  ${rotiPanel()}
 
   <section class="dsection">
     <div class="dsection-head"><span class="dsection-n">1</span><div><h2>Les notions sur le double diamant</h2>
@@ -1375,6 +1475,7 @@ editor.addEventListener('click', (e) => {
 editor.addEventListener('submit', (e) => {
   e.preventDefault();
   const form = e.target;
+  if (!editing) { editor.close(); return; }
   const text = form.elements.text?.value ?? '';
   if (editing.mode === 'place-kept') {
     const place = { b: 'story', col: form.elements.col.value, lane: form.elements.lane.value };
@@ -1405,6 +1506,8 @@ editor.addEventListener('submit', (e) => {
 });
 
 editor.addEventListener('close', () => {
+  // L'évènement « close » arrive après coup : si une nouvelle fenêtre s'est déjà ouverte, on la laisse.
+  if (editor.open) return;
   const ctx = editing;
   editing = null;
   if (ctx?.mode === 'new') $(`[data-focus="add:${CSS.escape(encodePlace(ctx.place))}"]`, main)?.focus();
@@ -1526,19 +1629,38 @@ function placeTool(tool, phase) {
 }
 
 const actions = {
-  'theory-open'() {
-    if (state.step === 'frame') ui.frameTheory = true;
-    else state.theoryClosed = state.theoryClosed.filter((st) => st !== state.step);
-    commit({ focus: 'theory' });
-  },
-  'theory-close'() {
-    if (state.step === 'frame') { ui.frameTheory = false; render('theory'); return; }
-    if (!state.theoryClosed.includes(state.step)) state.theoryClosed.push(state.step);
+  'theory-open'() { ui.theoryOpen.add(state.step); render('theory'); },
+  'theory-close'() { ui.theoryOpen.delete(state.step); render('theory'); },
+  /** Animateur : lance la pratique pour tous ; la première fois, le minuteur de l'étape démarre. */
+  'practice-start'() {
+    if (!HOST) return;
+    const step = state.step;
+    const first = !practiceOn(step);
+    if (!state.practice.includes(step)) state.practice.push(step);
+    ui.theoryOpen.delete(step);
+    if (phones?.live) {
+      phones.setPractice(step).catch(() => toast('Pratique non lancée chez les participants : la connexion est peut-être coupée.'));
+      const t = phones.timer;
+      if (first && TIMER_STEPS.includes(step) && !(t && t.step === step)) phones.setTimer(startTimer(step, phones.now)).catch(() => {});
+    }
     commit();
     $('.brief', main)?.scrollIntoView({ behavior: 'smooth', block: 'start' });
   },
   'reset-answers'() { state.debrief.answers = {}; commit(); },
   'phones-show'() { phones.show(); },
+  async 'roti-create'() {
+    if (!HOST || !phones?.live || phones.roti) return;
+    const btn = main.querySelector('[data-act="roti-create"]');
+    if (btn) { btn.disabled = true; btn.textContent = 'Création du ROTI…'; }
+    try {
+      const code = await createRoti(`Atelier Produit · ${new Intl.DateTimeFormat('fr-FR', { dateStyle: 'medium' }).format(new Date())}`);
+      await phones.setRoti(code);
+      toast('ROTI créé : le lien est sur l\'écran des participants.');
+    } catch {
+      toast('ROTI injoignable : vérifiez le réseau (le VPN de l\'entreprise peut le bloquer), puis réessayez.');
+      render();
+    }
+  },
   async 'copy-link'() {
     const ok = await copyText(phones.shareUrl);
     toast(ok ? 'Lien copié : collez-le dans le chat de la réunion.' : 'Copie impossible : sélectionnez le lien à la main.');
@@ -1568,9 +1690,13 @@ const actions = {
   restitution() { phones?.setRestitution(!shared.restitution); },
   'journey-example'() {
     if (!HOST) return;
+    const name = personaById(state.persona)?.name ?? '';
+    const n = journeyNotes(state).length;
+    if (n && !confirm(`Remplacer les ${n} étape${n > 1 ? 's' : ''} du groupe par les étapes types de ${name} ? Leurs actions retournent dans « Pas encore regroupées ».`)) return;
     useJourneyExample(state, state.persona);
     commit();
-    announce('Étapes types posées : modifiez-les librement');
+    setJourneyStage('regroup');
+    announce('Étapes types posées : le groupe y range ses actions');
   },
   'journey-next'() { setJourneyStage('regroup'); },
   'journey-back'() { setJourneyStage('recit'); },
@@ -1642,6 +1768,7 @@ function accepts(dragKey, dropKey) {
   if (type === 'note') {
     const n = getNote(state, id);
     if (!n) return false;
+    if (dropKey === 'kept') return !!n.from?.startsWith('deliverable:');
     if (dropKey.startsWith('pool:')) return !!n.from?.startsWith('extract:');
     const place = decodePlace(dropKey);
     return !!place && (samePlace(place, n.place) || !moveBlocker(state, id, place));
@@ -1671,6 +1798,7 @@ function onDrop(dragKey, dropKey, beforeKey) {
   }
   if (type === 'note') {
     if (dropKey.startsWith('pool:')) { unplaceExtract(state, id); commit(); announce('Extrait remis dans la pioche'); return; }
+    if (dropKey === 'kept') { removeNote(state, id); commit(); announce('Livrable remis dans la liste des livrables retenus'); return; }
     const place = decodePlace(dropKey);
     const r = moveNote(state, id, place, beforeId);
     if (!r.ok) { toast(blockMessage(r.reason)); return; }
@@ -1741,7 +1869,7 @@ let phonesSig = '';
 function startHost() {
   phones = createPhones({
     onChange() {
-      const sig = `${phones.live}|${phones.quiz}|${phones.url}|${phones.code}|${phones.groups}|${phones.restitution}|${phones.presence.map((p) => p.uid + p.author).join(',')}|${JSON.stringify(phones.members)}`;
+      const sig = `${phones.live}|${phones.quiz}|${phones.url}|${phones.code}|${phones.groups}|${phones.restitution}|${phones.roti}|${JSON.stringify(phones.practice)}|${phones.presence.map((p) => p.uid + p.author).join(',')}|${JSON.stringify(phones.members)}`;
       refreshJoinDialog();
       renderDock();
       if (sig === phonesSig) return;
@@ -1777,6 +1905,7 @@ function startHost() {
 
 /** Ce que participant.js pilote : étape, tableaux, vues propres au participant. */
 export const api = {
+  rotiBlock,
   get state() { return state; },
   shared,
   hooks,

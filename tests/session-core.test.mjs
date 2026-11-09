@@ -185,3 +185,10 @@ test('minuteur : durée préconisée, pause, reprise, temps ajouté', async () =
   assert.equal(formatClock(3725000), '1:02:05');
 });
 
+
+test('ROTI : code lu dans la fiche de séance seulement s\'il est valide', async () => {
+  const { readMeta } = await import('../site/js/session-core.js');
+  assert.equal(readMeta({ title: 'A', step: 'debrief', roti: 'QVZS' }).roti, 'QVZS');
+  assert.equal(readMeta({ title: 'A', step: 'debrief', roti: 'QVZI' }).roti, null, 'pas de I, L ni O');
+  assert.equal(readMeta({ title: 'A', step: 'debrief' }).roti, null);
+});

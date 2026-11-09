@@ -178,7 +178,6 @@ test('parcours : récit, validation en colonne vertébrale, retour au récit san
   assert.equal(journeyDone(s), false);
   assert.ok(addNote(s, { b: 'journey' }, 'Chercher un trajet'));
   addNote(s, { b: 'journey' }, 'Réserver sa place');
-  assert.equal(useJourneyExample(s, 'karim'), 0, 'pas de parcours type par-dessus un récit commencé');
   assert.equal(validateJourney(s), 2);
   assert.equal(journeyDone(s), true);
   assert.deepEqual(notesIn(s, { b: 'backbone' }).map((n) => n.text), ['Chercher un trajet', 'Réserver sa place']);
@@ -214,7 +213,14 @@ test('récit : actions en vrac, regroupées sous des étapes, qui suivent le par
   // Relu depuis la base : toujours attachées ; étape supprimée : elles retournent dans le récit.
   const back = recordsToNotes(Object.fromEntries(s.notes.map((n, i) => [n.id, noteRecord(n, i)])));
   assert.equal(back.filter((n) => n.place.b === 'action' && n.place.parent === step.id).length, 2);
-  removeNote(s, step.id);
+  reopenJourney(s);
+  // Secours de l'animateur : les étapes du groupe sont remplacées, les actions reviennent en vrac.
+  assert.equal(useJourneyExample(s, 'karim'), JOURNEY_EXAMPLES.karim.length);
+  assert.deepEqual(journeyNotes(s).map((n) => n.text), JOURNEY_EXAMPLES.karim);
+  assert.equal(looseActions(s).length, 3);
+  validateJourney(s);
+  const first = notesIn(s, { b: 'backbone' })[0];
+  removeNote(s, first.id);
   assert.equal(looseActions(s).length, 3);
   assert.equal(allActions(s).length, 3);
   assert.equal(sanitize({ journey: 'regroup' }).journey, 'regroup');

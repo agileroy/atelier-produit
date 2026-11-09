@@ -1134,3 +1134,20 @@ body[data-mode="participant"] .brand { pointer-events: none; }
 .td-note--done { color: var(--ok); font-weight: 600; display: inline-flex; gap: 4px; align-items: center; }
 body:has(.timer-dock:not([hidden])) .footer { padding-bottom: 96px; }
 @media print { .timer-dock { display: none !important; } }
+
+/* ROTI de fin d'atelier */
+.roti-share { display: flex; gap: 18px; align-items: center; flex-wrap: wrap; }
+.roti-share .join-qr { width: 150px; flex: none; }
+.roti-share .join-qr svg { width: 100%; height: auto; display: block; }
+.roti-text { display: grid; gap: 8px; min-width: 0; flex: 1; }
+.roti-text p { margin: 0; }
+.roti-card { border-top: 4px solid var(--accent); }
+
+/* Théorie d'abord : la pratique attend l'animateur */
+.practice-gate { display: flex; gap: 16px; align-items: center; justify-content: space-between; flex-wrap: wrap; padding: 18px 22px; border-radius: 14px; background: var(--accent-soft); }
+.practice-gate p { margin: 0; font-size: 15px; }
+div.plan-item { cursor: default; }
+div.plan-item:hover { border-color: var(--line); }
+.note--action.is-grouped { opacity: .72; cursor: default; }
+.note--action.is-grouped .note-meta { font-size: 12px; }
+.jrescue { margin: 0; font-size: 14px; color: var(--muted); }

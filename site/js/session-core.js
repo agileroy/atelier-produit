@@ -47,6 +47,8 @@ export function readMeta(raw) {
     groups: raw.groups === 1 ? 1 : 2,
     restitution: raw.restitution === true,
     timer: readTimer(raw.timer),
+    practice: Object.fromEntries(['frame', 'empathy', 'impact', 'story'].filter((st) => raw.practice?.[st] === true).map((st) => [st, true])),
+    roti: typeof raw.roti === 'string' && /^[A-HJKMNP-Z]{4}$/.test(raw.roti) ? raw.roti : null,
     createdAt: typeof raw.createdAt === 'number' ? raw.createdAt : null,
   };
 }

@@ -175,6 +175,10 @@ export function createPhones({ button, dialog, count, current, onRemote, onChang
   const setKept = (map) => store.setKept(session.sid, map);
   const setTimer = (timer) => (status === 'live' ? store.setTimer(session.sid, timer) : Promise.resolve());
   const setDone = (g, step, done) => store.setDone(session.sid, g, step, done);
+  /** Code de la salle ROTI de fin d'atelier, affiché aux participants. */
+  const setRoti = (code) => store.setMeta(session.sid, { roti: code });
+  /** L'animateur lance la pratique d'une étape pour tous les participants. */
+  const setPractice = (step) => store.setMeta(session.sid, { [`practice/${step}`]: true });
 
   /** Quiz du débrief : 'open' (les téléphones répondent), 'revealed' (correction pour tous), 'off'. */
   async function setQuiz(mode) {
@@ -335,7 +339,9 @@ export function createPhones({ button, dialog, count, current, onRemote, onChang
 
   return {
     resume, sync, show, setQuiz, clearQuiz,
-    end, setGroups, shuffle, moveMember, setRestitution, writeBoard, setBoardState, setKept, setTimer, setDone,
+    end, setRoti, get roti() { return meta?.roti ?? null; },
+    setPractice, get practice() { return meta?.practice ?? {}; },
+    setGroups, shuffle, moveMember, setRestitution, writeBoard, setBoardState, setKept, setTimer, setDone,
     get timer() { return meta?.timer ?? null; },
     /** Heure du serveur (ms), pour que le minuteur soit le même sur tous les écrans. */
     get now() { return Date.now() + offset; },

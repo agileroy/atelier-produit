@@ -20,11 +20,14 @@ Le double diamant SHALL garder les noms officiels des phases (Découvrir, Défin
 - **THEN** l'outil rappelle qu'elle sert aussi à tester auprès des utilisateurs et peut renvoyer au premier diamant
 
 ### Requirement: La théorie avant la pratique
-Chaque étape outil SHALL commencer par la théorie de l'outil (à quoi ça sert, quand l'utiliser, comment faire, pièges, origine), dépliée par défaut, puis afficher la consigne « À faire » avec sa durée. Le bouton « Passer à la pratique » SHALL replier la théorie en une ligne, rouvrable à tout moment, et l'état replié SHALL être mémorisé par étape.
+Chaque étape (Cadre compris, débrief excepté) SHALL d'abord n'afficher que la théorie de l'outil (à quoi ça sert, quand l'utiliser, comment faire, pièges, origine). Seul l'animateur SHALL pouvoir cliquer sur « Passer à la pratique » : la pratique (consigne « À faire » et tableaux) s'ouvre alors pour tous, et la théorie se replie en une ligne que chacun peut rouvrir puis replier. Le premier clic SHALL démarrer le minuteur de l'étape (empathy, impact, story) ; rouvrir et replier la théorie ensuite n'y touche pas.
+
+### Requirement: Ne pas dévoiler la suite
+La barre d'étapes et la navigation SHALL ne nommer que les étapes déjà atteintes ; les suivantes s'affichent « Étape N » (« Étape suivante »). « Le déroulé » de l'étape Cadre SHALL être purement informatif (pas de liens) et suivre la même règle, en gardant les durées.
 
 #### Scenario: Page d'accueil dans le même ordre
 - **WHEN** on ouvre l'étape Cadre
-- **THEN** elle montre la carte pour rejoindre, puis la théorie du Design Thinking, dépliée, et le double diamant, puis la partie « Place à la pratique » : le cas, les personas et le déroulé
+- **THEN** elle montre la carte pour rejoindre, la théorie du Design Thinking et le double diamant ; une fois la pratique lancée par l'animateur, la partie « Place à la pratique » : le cas, les personas et le déroulé
 
 #### Scenario: Exemple complet sur un autre sujet
 - **WHEN** la théorie de l'impact mapping ou du story mapping est dépliée

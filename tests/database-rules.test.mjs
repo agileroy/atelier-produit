@@ -148,3 +148,7 @@ test('minuteur : écrit par l\'animateur (fiche de séance) ; « terminé » : p
   assert.match(done['.write'], /members\/' \+ auth\.uid \+ '\/group'\)\.val\(\) === \$g/);
   assert.match(done['.validate'], /isBoolean/);
 });
+
+test('ROTI : code de 4 lettres écrit dans la fiche de séance (animateur)', () => {
+  assert.match(session.meta.roti['.validate'], /\[A-HJKMNP-Z\]\{4\}/);
+});

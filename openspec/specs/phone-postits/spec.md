@@ -40,3 +40,6 @@ Chaque séance SHALL avoir un code court de quatre caractères sans ambiguïté 
 
 ### Requirement: Participer depuis un ordinateur
 Les participants SHALL pouvoir rejoindre depuis un ordinateur aussi bien que depuis un téléphone : partout où un QR code est affiché, un lien copiable (page participant avec le code de la salle) SHALL l'accompagner. La page participant SHALL s'élargir sur grand écran, et Ctrl + Entrée (Cmd + Entrée sur Mac) SHALL envoyer un post-it.
+
+### Requirement: ROTI de fin d'atelier
+Une fois le quiz révélé, l'animateur SHALL pouvoir créer en un clic une salle dans l'outil ROTI (https://agileroy.github.io/roti/) : son navigateur en devient l'animateur (vue `?animer=CODE`, liste « Mes ROTI »), et le code est enregistré dans la séance. Les participants SHALL voir alors, dans le débrief, le lien de la salle (`?salle=CODE`) avec un bouton pour le copier en un clic, son code et son QR code. Si l'outil ROTI est injoignable, l'animateur SHALL en être averti et pouvoir réessayer.

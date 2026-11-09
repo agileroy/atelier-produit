@@ -189,7 +189,10 @@ export const JOURNEY_RULES = [
 
 /** Une action du récit : courte, ce que fait la persona (bons et mauvais exemples). */
 export const ACTION_EXAMPLES = {
-  good: ['propose 2 places pour lundi', 'prévient qu\'elle a du retard'],
+  good: {
+    sophie: ['propose 2 places pour lundi', 'prévient qu\'elle a du retard'],
+    karim: ['cherche un trajet pour l\'équipe du matin', 'prévient qu\'il ne viendra pas jeudi'],
+  },
   bad: ['bouton « publier »', 'notifications push'],
 };
 

@@ -96,7 +96,9 @@ export async function startParticipant(api) {
 
   function debriefView() {
     if (!meta || meta.quiz === 'off') {
-      return '<section class="pcard"><p class="lede">Le débrief commence : suivez l\'écran commun.</p></section>';
+      return meta?.roti ? `<section class="pcard roti-card"><p class="kicker">Pour finir</p><h2>Le ROTI de l'atelier</h2>
+        <p class="lede">Notez l'atelier de 1 à 5, sans prénom : ouvrez le lien ou scannez le QR code.</p>${api.rotiBlock(meta.roti)}</section>`
+        : '<section class="pcard"><p class="lede">Le débrief commence : suivez l\'écran commun.</p></section>';
     }
     let body;
     if (meta.quiz === 'open' && !myQuiz) {
@@ -108,7 +110,13 @@ export async function startParticipant(api) {
     } else {
       body = '<p class="lede">Les réponses sont révélées : regardez l\'écran commun.</p>';
     }
-    return `<section class="pcard pquiz-card">
+    const roti = meta.roti ? `<section class="pcard roti-card">
+      <p class="kicker">Pour finir</p>
+      <h2>Le ROTI de l'atelier</h2>
+      <p class="lede">Le temps passé valait-il le coup ? Notez l'atelier de 1 à 5, sans prénom : ouvrez le lien ou scannez le QR code.</p>
+      ${api.rotiBlock(meta.roti)}
+    </section>` : '';
+    return `${roti}<section class="pcard pquiz-card">
       <p class="kicker">Débrief · quiz</p>
       <h2 class="pquiz-title">${meta.quiz === 'revealed' && myQuiz ? 'Votre correction' : 'À vous de jouer'}</h2>
       ${body}
@@ -315,6 +323,7 @@ export async function startParticipant(api) {
     shared.groups = meta.groups;
     shared.restitution = meta.restitution;
     shared.timer = meta.timer;
+    shared.practice = meta.practice;
     store.onServerOffset((ms) => { shared.offset = ms; });
     api.setStep(meta.step);
     store.onMeta(sid, (raw) => {
@@ -325,6 +334,7 @@ export async function startParticipant(api) {
       meta = next;
       shared.groups = next.groups;
       shared.timer = next.timer;
+      shared.practice = next.practice;
       shared.restitution = next.restitution;
       if (phase !== 'ready') return;
       syncBoards();

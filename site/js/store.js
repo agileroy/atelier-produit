@@ -17,7 +17,8 @@ import { newId, newCode, metaFor, DEFAULT_PERSONAS } from './session-core.js?v=_
 const ROOT = 'atelierProduit';
 
 export function createStore() {
-  const app = initializeApp(firebaseConfig);
+  // Application nommée : l'application par défaut est celle de l'outil ROTI, chargé en fin d'atelier.
+  const app = initializeApp(firebaseConfig, 'atelier-produit');
   const auth = getAuth(app);
   const db = getDatabase(app);
   const at = (path) => ref(db, `${ROOT}/${path}`);
