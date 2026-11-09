@@ -1242,3 +1242,41 @@ main.is-readonly .note-x { display: none; }
 .qphases-art { position: absolute; inset: 0; width: 100%; height: 100%; pointer-events: none; }
 .qphases-art path { fill: color-mix(in srgb, var(--accent) 7%, transparent); stroke: color-mix(in srgb, var(--accent) 40%, transparent); stroke-width: .6; vector-effect: non-scaling-stroke; stroke-dasharray: 5 5; }
 .qphases .qzone { position: relative; background: color-mix(in srgb, var(--surface) 70%, transparent); border-style: dashed; min-height: 150px; }
+
+/* Direction artistique de l'accueil, sur tout le parcours */
+.step-head { align-items: center; }
+.step-head-art { display: grid; justify-items: center; gap: 6px; flex: none; }
+.step-art { width: min(300px, 34vw); height: auto; display: block; }
+.wa-panel { fill: color-mix(in srgb, var(--accent) 5%, transparent); stroke: color-mix(in srgb, var(--accent) 35%, transparent); stroke-width: 1.5; stroke-dasharray: 5 5; }
+.wa-head { fill: color-mix(in srgb, var(--accent) 12%, var(--surface)); stroke: color-mix(in srgb, var(--accent) 50%, transparent); stroke-width: 1.5; }
+.wa-face { fill: none; stroke: color-mix(in srgb, var(--accent) 60%, transparent); stroke-width: 1.8; stroke-linecap: round; }
+circle.wa-face { fill: color-mix(in srgb, var(--accent) 30%, transparent); stroke: none; }
+.wa-branch { fill: none; stroke: color-mix(in srgb, var(--accent) 40%, transparent); stroke-width: 1.6; }
+.wa-version { stroke: hsl(330 65% 55%); stroke-width: 1.8; stroke-dasharray: 7 5; }
+.wa-star { fill: hsl(44 95% 55%); stroke: hsl(36 80% 40%); stroke-width: .6; }
+.wa-block { fill: color-mix(in srgb, var(--accent) 22%, var(--surface)); }
+.wa-block--2 { fill: color-mix(in srgb, var(--accent) 14%, var(--surface)); }
+.wa-block--3 { fill: color-mix(in srgb, var(--accent) 9%, var(--surface)); }
+.wa-rank { font: 800 22px var(--display, system-ui); fill: var(--accent); text-anchor: middle; }
+@media (max-width: 760px) { .step-art { display: none; } }
+
+/* Théorie : trois cartes colorées, comme à l'accueil */
+.theory-grid { gap: 14px; }
+.theory-col { position: relative; padding: 18px 18px 16px; border-radius: 14px; background: var(--surface); border: 1px solid var(--line); border-top: 4px solid var(--wc); }
+.theory-col--why { --wc: hsl(205 70% 50%); }
+.theory-col--how { --wc: hsl(150 55% 42%); }
+.theory-col--pitfalls { --wc: hsl(330 65% 55%); }
+.theory-col h3 { color: var(--wc); }
+.theory-col li::marker { color: var(--wc); }
+.theory-col .welcome-icon { margin-bottom: 4px; }
+
+/* « À faire » : une carte avec l'horloge */
+.brief { border-left: 1px solid var(--line); border-top: 4px solid hsl(28 85% 55%); --wc: hsl(28 85% 55%); }
+.brief-title { align-items: center; }
+.brief-title .welcome-icon { width: 34px; height: 34px; border-radius: 10px; }
+.brief-time { padding: 2px 10px; border-radius: 999px; background: color-mix(in srgb, var(--wc) 15%, transparent); color: var(--wc) !important; font-weight: 700 !important; }
+.brief ol li::marker { color: var(--wc); font-weight: 700; }
+
+/* Points d'étape et attente de la pratique : la même touche colorée */
+.checkpoint { border-top: 4px solid hsl(205 70% 50%); }
+.practice-gate { border-left: 4px solid var(--accent); }

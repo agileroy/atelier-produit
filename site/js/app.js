@@ -479,7 +479,7 @@ function stepHeader(step) {
       <h1 tabindex="-1">${esc(debrief ? 'Débrief' : tool.name)}</h1>
       <p class="lede">${esc(debrief ? 'Un quiz individuel, chacun sur son ordinateur ou son téléphone, puis la révélation : chacun reçoit sa correction, l\'écran montre les bonnes réponses et le podium.' : tool.oneLine)}</p>
     </div>
-    ${diamondMini(STEP_PHASES[step])}
+    <div class="step-head-art">${stepArt(step)}${diamondMini(STEP_PHASES[step])}</div>
   </header>
   ${debrief ? '' : theoryBlock(step)}
   ${withCase ? caseBlock() : ''}
@@ -534,14 +534,17 @@ function theoryBlock(step, { closable = true, extra = '' } = {}) {
       <h2 id="theory-${step}">${esc(t.name)}</h2>
     </div>
     <div class="theory-grid">
-      <div class="theory-col">
+      <div class="theory-col theory-col--why">
+        <span class="welcome-icon">${WELCOME_ICONS.goal}</span>
         <h3>À quoi ça sert</h3><p>${esc(t.why)}</p>
         <h3>Quand l'utiliser</h3><ul>${t.when.map((w) => `<li>${esc(w)}</li>`).join('')}</ul>
       </div>
-      <div class="theory-col">
+      <div class="theory-col theory-col--how">
+        <span class="welcome-icon">${WELCOME_ICONS.format}</span>
         <h3>Comment faire</h3><ol class="theory-how">${t.how.map((w) => `<li>${esc(w)}</li>`).join('')}</ol>
       </div>
-      <div class="theory-col">
+      <div class="theory-col theory-col--pitfalls">
+        <span class="welcome-icon">${WELCOME_ICONS.warn}</span>
         <h3>Pièges classiques</h3><ul class="pitfalls">${t.pitfalls.map((w) => `<li>${esc(w)}</li>`).join('')}</ul>
       </div>
     </div>
@@ -558,7 +561,7 @@ function briefBlock(step) {
   const brief = BRIEFS[step];
   if (!brief) return '';
   return `<section class="brief" aria-label="À faire">
-    <p class="brief-title">À faire <span>${esc(brief.duration)}</span></p>
+    <p class="brief-title"><span class="welcome-icon">${WELCOME_ICONS.clock}</span>À faire <span class="brief-time">${esc(brief.duration)}</span></p>
     <ol>${brief.steps.map((x) => `<li>${esc(x)}</li>`).join('')}</ol>
   </section>`;
 }
@@ -737,6 +740,45 @@ function trayHtml(step, title, hint) {
 
 /* ---------- Étape « cadre » ---------- */
 
+/* ---------- Direction artistique : petits post-its illustrés, comme à l'accueil ---------- */
+
+/** Un post-it dessiné (x, y : centre ; r : rotation ; h : teinte). */
+function artNote(x, y, r, h, w = 34, ht = 30, star = false) {
+  return `<g transform="translate(${x} ${y}) rotate(${r})" filter="url(#ashadow)">
+    <rect class="wa-note" x="${-w / 2}" y="${-ht / 2}" width="${w}" height="${ht}" rx="3" style="--h:${h}"/>
+    <path class="wa-line" d="M${-w / 2 + 7} -3 h${w - 16} M${-w / 2 + 7} 5 h${w - 22}"/>
+    ${star ? `<path class="wa-star" d="M${w / 2 - 6} ${-ht / 2 - 2} l2 4 4.4.6-3.2 3 .8 4.4-4-2.1-4 2.1.8-4.4-3.2-3 4.4-.6z"/>` : ''}</g>`;
+}
+const artDefs = '<defs><filter id="ashadow" x="-30%" y="-30%" width="160%" height="170%"><feDropShadow dx="0" dy="2" stdDeviation="2" flood-opacity=".18"/></filter></defs>';
+
+/** Illustration d'en-tête de chaque étape. */
+function stepArt(step) {
+  const svg = (label, body) => `<svg class="step-art" viewBox="0 0 300 170" role="img" aria-label="${esc(label)}">${artDefs}${body}</svg>`;
+  if (step === 'frame') {
+    return svg('Le double diamant et ses post-its', `<path class="wa-diamond" d="M10 85 L80 15 L150 85 L80 155 Z M150 85 L220 15 L290 85 L220 155 Z"/><path class="wa-axis" d="M10 85 H290"/>
+      ${[[50, 60, -6, 205], [96, 96, 5, 330], [64, 116, 4, 150], [190, 56, -5, 44], [236, 100, 6, 265], [200, 118, -3, 6]].map((n) => artNote(...n)).join('')}`);
+  }
+  if (step === 'empathy') {
+    return svg('Une carte d\'empathie : quatre zones autour de la persona', `<rect class="wa-panel" x="20" y="10" width="260" height="150" rx="12"/>
+      <path class="wa-axis" d="M150 10 V160 M20 85 H280"/>
+      <circle class="wa-head" cx="150" cy="85" r="22"/><circle class="wa-face" cx="150" cy="80" r="7"/><path class="wa-face" d="M138 97 q12 -12 24 0"/>
+      ${[[62, 42, -5, 205], [104, 50, 4, 205], [196, 42, 6, 330], [238, 50, -4, 330], [62, 122, 3, 150], [106, 128, -5, 150], [198, 122, -4, 44], [240, 128, 5, 44]].map((n) => artNote(...n)).join('')}`);
+  }
+  if (step === 'impact') {
+    return svg('Une impact map : objectif, acteurs, impacts, livrables', `<path class="wa-branch" d="M48 85 C80 85 80 45 108 45 M48 85 C80 85 80 125 108 125 M128 45 C160 45 160 30 188 30 M128 45 C160 45 160 62 188 62 M128 125 C160 125 160 112 188 112 M128 125 C160 125 160 142 188 142 M208 30 H246 M208 62 H246 M208 112 H246 M208 142 H246"/>
+      ${artNote(34, 85, 0, 6, 40, 36)}${artNote(118, 45, -3, 205)}${artNote(118, 125, 3, 205)}${artNote(198, 30, 2, 150, 30, 24)}${artNote(198, 62, -2, 150, 30, 24)}${artNote(198, 112, 3, 150, 30, 24)}${artNote(198, 142, -3, 150, 30, 24)}
+      ${artNote(262, 30, -4, 44, 30, 24, true)}${artNote(262, 62, 3, 44, 30, 24)}${artNote(262, 112, 4, 44, 30, 24, true)}${artNote(262, 142, -2, 44, 30, 24)}`);
+  }
+  if (step === 'story') {
+    return svg('Une story map : le parcours en haut, les versions dessous', `${[0, 1, 2, 3].map((i) => artNote(55 + i * 64, 28, i % 2 ? 2 : -2, 230, 50, 28)).join('')}
+      ${[[55, 72, 3, 44], [119, 70, -3, 44], [183, 74, 2, 44], [247, 71, -2, 44], [55, 128, -3, 150], [183, 130, 4, 150], [247, 126, -2, 330]].map((n) => artNote(...n)).join('')}
+      <path class="wa-version" d="M15 99 H290"/>`);
+  }
+  return svg('Un podium et des étoiles', `<rect class="wa-block" x="110" y="60" width="80" height="100" rx="6"/><rect class="wa-block wa-block--2" x="30" y="90" width="80" height="70" rx="6"/><rect class="wa-block wa-block--3" x="190" y="110" width="80" height="50" rx="6"/>
+    <text class="wa-rank" x="150" y="118">1</text><text class="wa-rank" x="70" y="134">2</text><text class="wa-rank" x="230" y="144">3</text>
+    ${artNote(150, 32, -4, 44, 34, 30, true)}${artNote(70, 66, 5, 205)}${artNote(230, 86, -5, 330)}`);
+}
+
 /** Illustration de l'accueil : des post-its qui s'organisent en double diamant. */
 function welcomeArt() {
   const notes = [
@@ -760,6 +802,8 @@ const WELCOME_ICONS = {
   goal: '<svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="9"/><circle cx="12" cy="12" r="5"/><circle cx="12" cy="12" r="1.5"/></svg>',
   format: '<svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="4" width="8" height="7" rx="1.5"/><rect x="13" y="4" width="8" height="7" rx="1.5"/><rect x="3" y="13" width="8" height="7" rx="1.5"/><path d="M16 14v5M13.5 16.5h5"/></svg>',
   rules: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M7 11l4-4 3 3 4-4"/><path d="M3 20h18"/><path d="M5 16l3-3 3 3 5-5"/></svg>',
+  warn: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3 2.5 20h19z"/><path d="M12 10v4.5M12 17.5v.5"/></svg>',
+  clock: '<svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg>',
 };
 
 /** Accueil : le but, le format, les règles, et rejoindre. Pas de théorie ici. */
@@ -803,10 +847,13 @@ function viewFrame() {
     ${diamondBoard({ chips })}
   </section>`;
   return `
-  <header class="intro intro--frame">
-    <p class="kicker">Le cadre</p>
-    <h1 tabindex="-1">Le Design Thinking et le double diamant</h1>
-    <p class="lede">Le Design Thinking donne la démarche ; les outils qu'on va pratiquer s'y rangent.</p>
+  <header class="step-head">
+    <div class="intro">
+      <p class="kicker">Le cadre</p>
+      <h1 tabindex="-1">Le Design Thinking et le double diamant</h1>
+      <p class="lede">Le Design Thinking donne la démarche ; les outils qu'on va pratiquer s'y rangent.</p>
+    </div>
+    <div class="step-head-art">${stepArt('frame')}</div>
   </header>
 
   ${theoryBlock('frame', { extra: diamond })}
