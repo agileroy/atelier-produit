@@ -22,7 +22,7 @@ export function metaFor({ title, step, persona, code, groups }) {
   return {
     ...(isCode(code) ? { code } : {}),
     title: String(title ?? '').trim().slice(0, 80) || 'Atelier Produit',
-    step: STEP_IDS.includes(step) ? step : 'frame',
+    step: STEP_IDS.includes(step) ? step : 'welcome',
     persona: PERSONA_IDS.includes(persona) ? persona : PERSONA_IDS[0],
     closed: false,
     quiz: 'off',
@@ -39,7 +39,7 @@ export function readMeta(raw) {
   if (!raw || typeof raw !== 'object' || typeof raw.title !== 'string') return null;
   return {
     title: raw.title,
-    step: STEP_IDS.includes(raw.step) ? raw.step : 'frame',
+    step: STEP_IDS.includes(raw.step) ? raw.step : 'welcome',
     persona: PERSONA_IDS.includes(raw.persona) ? raw.persona : PERSONA_IDS[0],
     closed: raw.closed === true,
     quiz: QUIZ_STATES.includes(raw.quiz) ? raw.quiz : 'off',
@@ -48,6 +48,7 @@ export function readMeta(raw) {
     restitution: raw.restitution === true,
     timer: readTimer(raw.timer),
     practice: Object.fromEntries(['frame', 'empathy', 'impact', 'story'].filter((st) => raw.practice?.[st] === true).map((st) => [st, true])),
+    quizEndsAt: typeof raw.quizEndsAt === 'number' && raw.quizEndsAt > 0 ? raw.quizEndsAt : null,
     roti: typeof raw.roti === 'string' && /^[A-HJKMNP-Z]{4}$/.test(raw.roti) ? raw.roti : null,
     createdAt: typeof raw.createdAt === 'number' ? raw.createdAt : null,
   };
@@ -118,14 +119,29 @@ export function quizProgress({ placement = {}, answers = {} } = {}) {
     + SITUATIONS.filter((s) => SITUATION_CHOICES.includes(answers[s.id])).length;
 }
 
-/** Réponses prêtes à écrire (submittedAt est ajouté par le magasin), ou null si incomplètes. */
-export function quizPayload({ author, placement = {}, answers = {} }) {
+/** Réponse laissée vide à la fin du temps : elle compte zéro. */
+export const NO_ANSWER = 'none';
+export const QUIZ_DURATION = 3 * 60000;
+
+/** Numéros (1 à 12) des questions sans réponse, dans l'ordre du questionnaire. */
+export function missingQuestions({ placement = {}, answers = {} } = {}) {
+  const out = [];
+  TOOL_IDS.forEach((t, i) => { if (!PLACE_IDS.includes(placement[t])) out.push(i + 1); });
+  SITUATIONS.forEach((s, i) => { if (!SITUATION_CHOICES.includes(answers[s.id])) out.push(TOOL_IDS.length + i + 1); });
+  return out;
+}
+
+/**
+ * Réponses prêtes à écrire (submittedAt est ajouté par le magasin), ou null si incomplètes.
+ * partial : copie envoyée à la fin du temps, les questions sans réponse valent « none » (zéro).
+ */
+export function quizPayload({ author, placement = {}, answers = {} }, { partial = false } = {}) {
   const a = cleanAuthor(author);
-  if (!a || quizProgress({ placement, answers }) !== QUIZ_QUESTIONS) return null;
+  if (!a || (!partial && quizProgress({ placement, answers }) !== QUIZ_QUESTIONS)) return null;
   return {
     author: a,
-    placement: Object.fromEntries(TOOL_IDS.map((t) => [t, placement[t]])),
-    answers: Object.fromEntries(SITUATIONS.map((s) => [s.id, answers[s.id]])),
+    placement: Object.fromEntries(TOOL_IDS.map((t) => [t, PLACE_IDS.includes(placement[t]) ? placement[t] : NO_ANSWER])),
+    answers: Object.fromEntries(SITUATIONS.map((s) => [s.id, SITUATION_CHOICES.includes(answers[s.id]) ? answers[s.id] : NO_ANSWER])),
   };
 }
 
@@ -144,7 +160,7 @@ export function quizScore(entry) {
 export function readQuizEntries(tree) {
   const out = [];
   for (const [uid, raw] of Object.entries(tree ?? {})) {
-    const payload = quizPayload(raw ?? {});
+    const payload = quizPayload(raw ?? {}, { partial: true });
     if (!payload) continue;
     const submittedAt = typeof raw.submittedAt === 'number' ? raw.submittedAt : 0;
     out.push({ uid, ...payload, submittedAt, score: quizScore(payload) });

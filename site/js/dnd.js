@@ -108,6 +108,8 @@ export function setupDnd(root, { accepts, onDrop }) {
     const el = e.target.closest('[data-drag]');
     if (!el || !root.contains(el) || e.target.closest('[data-nodrag], input, textarea, select')) return;
     drag = { el, key: el.dataset.drag, x: e.clientX, y: e.clientY, active: false, touch: e.pointerType === 'touch', ready: e.pointerType !== 'touch' };
+    // Safari : sans cela, la souris démarre une sélection de texte ou un glisser natif, et le glisser se perd.
+    if (e.pointerType === 'mouse') e.preventDefault();
     if (drag.touch) {
       drag.timer = setTimeout(() => {
         if (!drag) return;

@@ -19,15 +19,18 @@ Le double diamant SHALL garder les noms officiels des phases (Découvrir, Défin
 - **WHEN** l'équipe relit la première version de la story map
 - **THEN** l'outil rappelle qu'elle sert aussi à tester auprès des utilisateurs et peut renvoyer au premier diamant
 
+### Requirement: Accueil
+L'atelier SHALL commencer par une étape « Accueil », sans théorie ni minuteur : le but de l'atelier, le format (théorie puis pratique en groupe, restitutions), la durée totale, les règles du jeu et la carte pour rejoindre. Elle ne dit rien du débrief ni du quiz. L'étape suivante, « Le cadre », présente le Design Thinking et le double diamant, puis le cas fil rouge.
+
 ### Requirement: La théorie avant la pratique
 Chaque étape (Cadre compris, débrief excepté) SHALL d'abord n'afficher que la théorie de l'outil (à quoi ça sert, quand l'utiliser, comment faire, pièges, origine). Seul l'animateur SHALL pouvoir cliquer sur « Passer à la pratique » : la pratique (consigne « À faire » et tableaux) s'ouvre alors pour tous, et la théorie se replie en une ligne que chacun peut rouvrir puis replier. Le premier clic SHALL démarrer le minuteur de l'étape (empathy, impact, story) ; rouvrir et replier la théorie ensuite n'y touche pas.
 
 ### Requirement: Ne pas dévoiler la suite
-La barre d'étapes et la navigation SHALL ne nommer que les étapes déjà atteintes ; les suivantes s'affichent « Étape N » (« Étape suivante »). « Le déroulé » de l'étape Cadre SHALL être purement informatif (pas de liens) et suivre la même règle, en gardant les durées.
+La barre d'étapes et la navigation SHALL ne nommer que les étapes déjà atteintes ; les suivantes s'affichent « Étape N » (« Étape suivante »). Il n'y a pas de déroulé détaillé des étapes à venir.
 
 #### Scenario: Page d'accueil dans le même ordre
 - **WHEN** on ouvre l'étape Cadre
-- **THEN** elle montre la carte pour rejoindre, la théorie du Design Thinking et le double diamant ; une fois la pratique lancée par l'animateur, la partie « Place à la pratique » : le cas, les personas et le déroulé
+- **THEN** elle montre la théorie du Design Thinking et le double diamant ; une fois la pratique lancée par l'animateur, la partie « Place à la pratique » : le cas et les personas
 
 #### Scenario: Exemple complet sur un autre sujet
 - **WHEN** la théorie de l'impact mapping ou du story mapping est dépliée

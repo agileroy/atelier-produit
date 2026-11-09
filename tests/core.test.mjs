@@ -5,7 +5,7 @@ import {
   availableExtracts, placeExtract, unplaceExtract, compareEmpathy, emptyZones,
   toggleKeep, keptDeliverables, importDeliverable, deliverablePath,
   allActions, looseActions, actionsOf, stepsWithoutDeliverable,
-  useJourneyExample, validateJourney, reopenJourney, journeyNotes, journeyDone, journeyHints, simulatedNotes,
+  useJourneyExample, journeyNotes, journeyHints, simulatedNotes,
   mvpGaps, setPlacement, checkPlacement, answerSituation, situationScore, situationVerdict,
   mergeRemote, reportText, serialize, parseSaved, sanitize, encodePlace, decodePlace, nextStep, prevStep,
 } from '../site/js/core.js';
@@ -13,7 +13,7 @@ import { PERSONAS, JOURNEY_EXAMPLES, SIMULATED, SITUATIONS } from '../site/js/co
 
 const BACKBONE_EXAMPLE = JOURNEY_EXAMPLES.sophie;
 /** Pose le parcours type de Sophie et le valide : il devient la colonne vertébrale. */
-const useBackboneExample = (s) => { const n = useJourneyExample(s, 'sophie'); validateJourney(s); return n; };
+const useBackboneExample = (s) => useJourneyExample(s, 'sophie');
 
 /** Petit arbre d'impact : un objectif, un acteur, un impact, un livrable. */
 function impactTree(goalText = '-20 % d\'autosolistes') {
@@ -25,21 +25,22 @@ function impactTree(goalText = '-20 % d\'autosolistes') {
   return { s, goal, actor, impact, deliv };
 }
 
-test('état initial : étape « cadre », rien sur les tableaux', () => {
+test('état initial : étape « accueil », rien sur les tableaux', () => {
   const s = newState();
-  assert.equal(s.step, 'frame');
-  assert.deepEqual(s.visited, ['frame']);
+  assert.equal(s.step, 'welcome');
+  assert.deepEqual(s.visited, ['welcome']);
   assert.equal(s.notes.length, 0);
 });
 
 test('étapes : navigation et étapes visitées', () => {
   const s = newState();
   assert.equal(setStep(s, 'impact'), true);
-  assert.deepEqual(s.visited, ['frame', 'impact']);
+  assert.deepEqual(s.visited, ['welcome', 'impact']);
   assert.equal(setStep(s, 'nope'), false);
+  assert.equal(nextStep('welcome'), 'frame');
   assert.equal(nextStep('frame'), 'empathy');
   assert.equal(nextStep('debrief'), null);
-  assert.equal(prevStep('frame'), null);
+  assert.equal(prevStep('welcome'), null);
 });
 
 test('emplacements : encodage réversible', () => {
@@ -166,72 +167,56 @@ test('impact → story : les livrables retenus s\'importent une seule fois', () 
 test('story map : colonne vertébrale d\'exemple, première version trouée', () => {
   const s = newState();
   assert.equal(useBackboneExample(s), BACKBONE_EXAMPLE.length);
-  assert.equal(useBackboneExample(s), 0, 'pas deux fois');
+  assert.equal(useBackboneExample(s), BACKBONE_EXAMPLE.length, 'une deuxième fois : remplace, sans doublon');
+  assert.equal(notesIn(s, { b: 'backbone' }).length, BACKBONE_EXAMPLE.length);
   assert.equal(mvpGaps(s).length, BACKBONE_EXAMPLE.length);
   const col = notesIn(s, { b: 'backbone' })[0];
   addNote(s, { b: 'story', col: col.id, lane: 'mvp' }, 'x');
   assert.equal(mvpGaps(s).length, BACKBONE_EXAMPLE.length - 1);
 });
 
-test('parcours : récit, validation en colonne vertébrale, retour au récit sans perdre les stories', () => {
+test('parcours : les étapes sont directement la colonne vertébrale ; ancien format relu', () => {
   const s = newState();
-  assert.equal(journeyDone(s), false);
-  assert.ok(addNote(s, { b: 'journey' }, 'Chercher un trajet'));
-  addNote(s, { b: 'journey' }, 'Réserver sa place');
-  assert.equal(validateJourney(s), 2);
-  assert.equal(journeyDone(s), true);
-  assert.deepEqual(notesIn(s, { b: 'backbone' }).map((n) => n.text), ['Chercher un trajet', 'Réserver sa place']);
-  const col = notesIn(s, { b: 'backbone' })[1];
+  addNote(s, { b: 'backbone' }, 'Chercher un trajet');
+  const col = addNote(s, { b: 'backbone' }, 'Réserver sa place');
+  assert.deepEqual(journeyNotes(s).map((n) => n.text), ['Chercher un trajet', 'Réserver sa place']);
   addNote(s, { b: 'story', col: col.id, lane: 'mvp' }, 'Demander une place');
-  assert.equal(reopenJourney(s), 2);
-  assert.equal(journeyNotes(s).length, 2);
-  // Relu depuis la base pendant le récit : la story reste attachée à son étape.
+  // Une étape enregistrée à l'ancien format (« journey ») se relit comme une étape de la colonne.
   const tree = Object.fromEntries(s.notes.map((n, i) => [n.id, noteRecord(n, i)]));
+  tree[col.id].place = 'journey';
   const back = recordsToNotes(tree);
+  assert.equal(back.find((n) => n.id === col.id).place.b, 'backbone');
   assert.equal(back.find((n) => n.text === 'Demander une place').place.col, col.id);
-  validateJourney(s);
-  assert.equal(notesIn(s, { b: 'story', col: col.id, lane: 'mvp' }).length, 1);
-  assert.deepEqual(placesFor(s, journeyNotes(s)[0]?.id ?? 'none'), []);
 });
 
-test('récit : actions en vrac, regroupées sous des étapes, qui suivent le parcours validé', () => {
+test('récit : actions en vrac, regroupées sous des étapes ; secours de l\'animateur', () => {
   const s = newState();
-  assert.equal(s.journey, 'recit');
   const a1 = addNote(s, { b: 'action' }, 'entend parler de l\'appli', { author: 'Léa' });
   const a2 = addNote(s, { b: 'action' }, 'installe l\'appli');
   const a3 = addNote(s, { b: 'action' }, 'voit ses économies');
-  const step = addNote(s, { b: 'journey' }, 'Rejoindre le service');
+  const step = addNote(s, { b: 'backbone' }, 'Rejoindre le service');
   assert.equal(moveNote(s, a1.id, { b: 'action', parent: step.id }).ok, true);
   assert.equal(moveNote(s, a2.id, { b: 'action', parent: step.id }).ok, true);
-  assert.equal(moveNote(s, a1.id, { b: 'journey' }).ok, false, 'une action ne devient pas une étape');
+  assert.equal(moveNote(s, a1.id, { b: 'backbone' }).ok, false, 'une action ne devient pas une étape');
   assert.equal(moveNote(s, step.id, { b: 'action' }).ok, false, 'une étape ne devient pas une action');
   assert.deepEqual(actionsOf(s, step.id).map((n) => n.text), ['entend parler de l\'appli', 'installe l\'appli']);
   assert.deepEqual(looseActions(s).map((n) => n.id), [a3.id]);
   assert.deepEqual(placesFor(s, a3.id).map((p) => p.label), ['Pas encore regroupée', 'Sous « Rejoindre le service »']);
-  validateJourney(s);
-  assert.equal(actionsOf(s, step.id).length, 2, 'les actions restent attachées à l\'étape validée');
-  // Relu depuis la base : toujours attachées ; étape supprimée : elles retournent dans le récit.
   const back = recordsToNotes(Object.fromEntries(s.notes.map((n, i) => [n.id, noteRecord(n, i)])));
   assert.equal(back.filter((n) => n.place.b === 'action' && n.place.parent === step.id).length, 2);
-  reopenJourney(s);
-  // Secours de l'animateur : les étapes du groupe sont remplacées, les actions reviennent en vrac.
+  addNote(s, { b: 'story', col: step.id, lane: 'mvp' }, 'Une story');
+  // Secours : les étapes du groupe sont remplacées, les actions reviennent en vrac, les stories au bac.
   assert.equal(useJourneyExample(s, 'karim'), JOURNEY_EXAMPLES.karim.length);
   assert.deepEqual(journeyNotes(s).map((n) => n.text), JOURNEY_EXAMPLES.karim);
   assert.equal(looseActions(s).length, 3);
-  validateJourney(s);
-  const first = notesIn(s, { b: 'backbone' })[0];
-  removeNote(s, first.id);
-  assert.equal(looseActions(s).length, 3);
+  assert.equal(notesIn(s, { b: 'tray', step: 'story' }).length, 1);
   assert.equal(allActions(s).length, 3);
-  assert.equal(sanitize({ journey: 'regroup' }).journey, 'regroup');
-  assert.equal(sanitize({ journey: 'x' }).journey, 'recit');
 });
 
 test('story map : étapes sans livrable de l\'impact map', () => {
   const { s, deliv } = impactTree();
-  addNote(s, { b: 'journey' }, 'Chercher un trajet');
-  addNote(s, { b: 'journey' }, 'Faire le trajet');
-  validateJourney(s);
+  addNote(s, { b: 'backbone' }, 'Chercher un trajet');
+  addNote(s, { b: 'backbone' }, 'Faire le trajet');
   const [c1, c2] = notesIn(s, { b: 'backbone' });
   addNote(s, { b: 'story', col: c2.id, lane: 'mvp' }, 'Une story maison');
   assert.deepEqual(stepsWithoutDeliverable(s).map((c) => c.id), [c1.id, c2.id]);
@@ -351,7 +336,7 @@ test('fichier abîmé : orphelins rangés dans le bac, doublons et intrus écart
     },
   };
   const s = parseSaved(file);
-  assert.equal(s.step, 'frame');
+  assert.equal(s.step, 'welcome');
   assert.deepEqual(s.notes.map((n) => [n.id, n.place.b]), [
     ['abcd0001', 'tray'], ['abcd0002', 'tray'], ['abcd0003', 'empathy'], ['abcd0006', 'goal'],
   ]);

@@ -21,7 +21,7 @@
               ".validate": "newData.isString() && newData.val().length >= 1 && newData.val().length <= 80"
             },
             "step": {
-              ".validate": "newData.isString() && newData.val().matches(/^(frame|empathy|impact|story|debrief)$/)"
+              ".validate": "newData.isString() && newData.val().matches(/^(welcome|frame|empathy|impact|story|debrief)$/)"
             },
             "persona": {
               ".validate": "newData.isString() && newData.val().matches(/^(sophie|karim)$/)"
@@ -48,6 +48,9 @@
               "$step": {
                 ".validate": "$step.matches(/^(frame|empathy|impact|story)$/) && newData.isBoolean()"
               }
+            },
+            "quizEndsAt": {
+              ".validate": "newData.isNumber() && newData.val() > 0"
             },
             "roti": {
               ".validate": "newData.isString() && newData.val().matches(/^[A-HJKMNP-Z]{4}$/)"
@@ -125,16 +128,16 @@
               "placement": {
                 ".validate": "newData.hasChildren(['designThinking', 'empathy', 'impact', 'story'])",
                 "empathy": {
-                  ".validate": "newData.isString() && newData.val().matches(/^(discover|define|develop|deliver|all)$/)"
+                  ".validate": "newData.isString() && newData.val().matches(/^(discover|define|develop|deliver|all|none)$/)"
                 },
                 "impact": {
-                  ".validate": "newData.isString() && newData.val().matches(/^(discover|define|develop|deliver|all)$/)"
+                  ".validate": "newData.isString() && newData.val().matches(/^(discover|define|develop|deliver|all|none)$/)"
                 },
                 "story": {
-                  ".validate": "newData.isString() && newData.val().matches(/^(discover|define|develop|deliver|all)$/)"
+                  ".validate": "newData.isString() && newData.val().matches(/^(discover|define|develop|deliver|all|none)$/)"
                 },
                 "designThinking": {
-                  ".validate": "newData.isString() && newData.val().matches(/^(discover|define|develop|deliver|all)$/)"
+                  ".validate": "newData.isString() && newData.val().matches(/^(discover|define|develop|deliver|all|none)$/)"
                 },
                 "$other": {
                   ".validate": false
@@ -143,28 +146,28 @@
               "answers": {
                 ".validate": "newData.hasChildren(['adoption', 'backlog', 'sponsor', 'new-product', 'release', 'two-profiles', 'kpi', 'wrong-problem'])",
                 "adoption": {
-                  ".validate": "newData.isString() && newData.val().matches(/^(empathy|impact|story|designThinking)$/)"
+                  ".validate": "newData.isString() && newData.val().matches(/^(empathy|impact|story|designThinking|none)$/)"
                 },
                 "backlog": {
-                  ".validate": "newData.isString() && newData.val().matches(/^(empathy|impact|story|designThinking)$/)"
+                  ".validate": "newData.isString() && newData.val().matches(/^(empathy|impact|story|designThinking|none)$/)"
                 },
                 "sponsor": {
-                  ".validate": "newData.isString() && newData.val().matches(/^(empathy|impact|story|designThinking)$/)"
+                  ".validate": "newData.isString() && newData.val().matches(/^(empathy|impact|story|designThinking|none)$/)"
                 },
                 "new-product": {
-                  ".validate": "newData.isString() && newData.val().matches(/^(empathy|impact|story|designThinking)$/)"
+                  ".validate": "newData.isString() && newData.val().matches(/^(empathy|impact|story|designThinking|none)$/)"
                 },
                 "release": {
-                  ".validate": "newData.isString() && newData.val().matches(/^(empathy|impact|story|designThinking)$/)"
+                  ".validate": "newData.isString() && newData.val().matches(/^(empathy|impact|story|designThinking|none)$/)"
                 },
                 "two-profiles": {
-                  ".validate": "newData.isString() && newData.val().matches(/^(empathy|impact|story|designThinking)$/)"
+                  ".validate": "newData.isString() && newData.val().matches(/^(empathy|impact|story|designThinking|none)$/)"
                 },
                 "kpi": {
-                  ".validate": "newData.isString() && newData.val().matches(/^(empathy|impact|story|designThinking)$/)"
+                  ".validate": "newData.isString() && newData.val().matches(/^(empathy|impact|story|designThinking|none)$/)"
                 },
                 "wrong-problem": {
-                  ".validate": "newData.isString() && newData.val().matches(/^(empathy|impact|story|designThinking)$/)"
+                  ".validate": "newData.isString() && newData.val().matches(/^(empathy|impact|story|designThinking|none)$/)"
                 },
                 "$other": {
                   ".validate": false

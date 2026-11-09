@@ -648,9 +648,7 @@ button.tchip { cursor: grab; touch-action: manipulation; }
   width: var(--col-w); flex: none; display: grid; gap: 8px; align-content: start; min-height: 96px;
   padding: 8px; border-radius: 10px; background: color-mix(in srgb, var(--surface) 55%, transparent);
 }
-.scell .add-btn { min-height: 34px; opacity: 0; transition: opacity .15s; }
-.scell:hover .add-btn, .scell:focus-within .add-btn, .scell:not(:has(.note)) .add-btn { opacity: 1; }
-@media (hover: none) { .scell .add-btn { opacity: 1; } }
+.scell .add-btn { min-height: 34px; }
 .srow--mvp .scell { background: color-mix(in srgb, var(--accent-soft) 70%, transparent); }
 .sline { display: grid; grid-template-columns: var(--label-w) 1fr; gap: 12px; align-items: center; height: 22px; }
 .sline span { font-size: 10px; font-weight: 600; letter-spacing: .06em; text-transform: uppercase; color: var(--accent); white-space: nowrap; }
@@ -1039,9 +1037,10 @@ body[data-mode="participant"] .brand { pointer-events: none; }
 
 /* Story map avant le parcours validé : raconter, puis regrouper */
 .jstages { list-style: none; margin: 0; padding: 0; display: flex; flex-wrap: wrap; gap: 8px; align-items: center; font-size: 14px; font-weight: 600; color: var(--muted); }
-.jstages li { padding: 6px 12px; border-radius: 999px; background: var(--surface); border: 1px solid var(--line); }
-.jstages li + li::before { content: none; }
-.jstages li.is-on { background: var(--accent); border-color: var(--accent); color: var(--accent-ink); }
+.jstages button { padding: 6px 12px; border-radius: 999px; background: var(--surface); border: 1px solid var(--line); font: inherit; color: inherit; cursor: pointer; }
+.jstages button:hover:not(:disabled):not(.is-on) { border-color: var(--accent); color: var(--accent); }
+.jstages button.is-on { background: var(--accent); border-color: var(--accent); color: var(--accent-ink); cursor: default; }
+.jstages button:disabled:not(.is-on) { opacity: .5; cursor: not-allowed; }
 .jhead { display: grid; gap: 4px; }
 .jhead h2 { margin: 0; font-size: 24px; }
 .jhead p { margin: 0; max-width: 85ch; }
@@ -1151,3 +1150,41 @@ div.plan-item:hover { border-color: var(--line); }
 .note--action.is-grouped { opacity: .72; cursor: default; }
 .note--action.is-grouped .note-meta { font-size: 12px; }
 .jrescue { margin: 0; font-size: 14px; color: var(--muted); }
+
+/* Quiz : temps et réponses manquantes */
+.pq-clock { font-variant-numeric: tabular-nums; font-weight: 700; }
+.pq-clock.is-low { color: var(--danger); }
+.pq-missing { margin: 0; padding: 10px 12px; border-radius: 10px; background: var(--danger-soft, #FDE8E6); color: var(--danger); font-weight: 600; font-size: 14px; }
+.pq legend .pq-n { margin-right: 8px; }
+
+/* Accueil */
+.welcome-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 14px; }
+.welcome-card { display: grid; gap: 8px; align-content: start; padding: 18px 20px; border-radius: 14px; background: var(--surface); border: 1px solid var(--line); }
+.welcome-card h2 { margin: 0; font-size: 19px; }
+.welcome-card p { margin: 0; }
+.welcome-card ul { margin: 0; padding-left: 18px; display: grid; gap: 6px; }
+@media (max-width: 900px) { .welcome-grid { grid-template-columns: minmax(0, 1fr); } }
+
+/* Supprimer un post-it en un clic */
+.note-x {
+  position: absolute; top: 2px; right: 2px; width: 22px; height: 22px; display: grid; place-items: center;
+  border: 0; border-radius: 50%; background: transparent; color: var(--ink); opacity: .45;
+  font: 700 16px/1 system-ui, sans-serif; cursor: pointer; padding: 0;
+}
+.note:hover .note-x, .note:focus-within .note-x, .note-x:focus-visible { opacity: .85; }
+.note-x:hover { opacity: 1; background: hsl(var(--h, 48) 60% 50% / .18); }
+.note:has(.note-x) .note-text { padding-right: 16px; }
+@media (hover: none) { .note-x { opacity: .7; } }
+main.is-readonly .note-x { display: none; }
+.toast-undo { margin-left: 10px; padding: 3px 10px; border-radius: 999px; border: 1px solid currentColor; background: none; color: inherit; font: inherit; font-weight: 700; cursor: pointer; }
+
+/* Exemple d'empathy map (cantine) */
+.emap-example { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px; }
+.eex-zone { display: grid; gap: 8px; align-content: start; padding: 10px; border-radius: 12px; background: hsl(var(--h) 70% 50% / .08); border-top: 3px solid hsl(var(--h) 60% 50%); }
+.eex-zone h4 { margin: 0; font-size: 14px; }
+.eex-zone .note { min-height: 0; font-size: 14px; }
+@media (max-width: 760px) { .emap-example { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+
+/* Glisser-déposer : Safari lance sinon une sélection ou un glisser natif */
+[data-drag] { -webkit-user-select: none; user-select: none; -webkit-touch-callout: none; -webkit-user-drag: none; }
+[data-drag] * { -webkit-user-drag: none; }

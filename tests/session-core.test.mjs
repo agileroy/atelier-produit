@@ -11,7 +11,7 @@ test('identifiants de séance et clés', () => {
 
 test('fiche de séance : valeurs bornées', () => {
   assert.deepEqual(metaFor({ title: '  Atelier  ', step: 'impact', persona: 'karim' }), { title: 'Atelier', step: 'impact', persona: 'karim', closed: false, quiz: 'off', groups: 2, restitution: false });
-  assert.deepEqual(metaFor({ step: 'lune', persona: 'bob' }), { title: 'Atelier Produit', step: 'frame', persona: 'sophie', closed: false, quiz: 'off', groups: 2, restitution: false });
+  assert.deepEqual(metaFor({ step: 'lune', persona: 'bob' }), { title: 'Atelier Produit', step: 'welcome', persona: 'sophie', closed: false, quiz: 'off', groups: 2, restitution: false });
   assert.equal(readMeta(null), null);
   assert.equal(readMeta({ title: 'x', step: 'story', closed: true }).closed, true);
 });
@@ -88,13 +88,13 @@ test('quiz : podium à trois, égalité départagée par l\'ordre de validation'
     u4: { author: 'Max', ...low, submittedAt: 5 },
     u5: { author: 'Bob', placement: {}, answers: {}, submittedAt: 1 },
   });
-  assert.equal(entries.length, 4, 'copie incomplète ignorée');
+  assert.equal(entries.length, 5, 'copie vide envoyée à la fin du temps : elle compte zéro');
+  assert.equal(entries.find((e) => e.author === 'Bob').score.points, 0);
   assert.deepEqual(podium(entries).map((p) => p.author), ['Sam', 'Léa', 'Max']);
   const stats = quizStats(entries);
-  assert.equal(stats.count, 4);
+  assert.equal(stats.count, 5);
   assert.equal(stats.situations.backlog.empathy, 2);
-  assert.equal(stats.hardest.id, 'backlog');
-  assert.equal(stats.average, (12 + 12 + 11 + 11) / 4);
+  assert.equal(stats.average, (12 + 12 + 11 + 11) / 5);
 });
 
 import { newCode, isCode, normalizeCode, nameKey, readPresence, waitingFor, CODE_ALPHABET } from '../site/js/session-core.js';
@@ -163,20 +163,20 @@ test('groupes : nouvelle répartition au hasard, équilibrée', () => {
 test('minuteur : durée préconisée, pause, reprise, temps ajouté', async () => {
   const sc = await import('../site/js/session-core.js');
   const { stepDuration, startTimer, pauseTimer, resumeTimer, addTime, timerLeft, timerRunning, readTimer, formatClock } = sc;
-  assert.equal(stepDuration('empathy'), 25 * 60000);
+  assert.equal(stepDuration('empathy'), 10 * 60000);
   assert.equal(stepDuration('frame'), 0);
-  assert.equal(timerLeft(null, 'impact', 0), 30 * 60000, 'pas démarré : durée pleine');
+  assert.equal(timerLeft(null, 'impact', 0), 20 * 60000, 'pas démarré : durée pleine');
   let t = startTimer('empathy', 1000);
   assert.ok(timerRunning(t, 'empathy'));
-  assert.equal(timerLeft(t, 'empathy', 61000), 24 * 60000);
-  assert.equal(timerLeft(t, 'impact', 61000), 30 * 60000, 'minuteur d\'une autre étape ignoré');
+  assert.equal(timerLeft(t, 'empathy', 61000), 9 * 60000);
+  assert.equal(timerLeft(t, 'impact', 61000), 20 * 60000, 'minuteur d\'une autre étape ignoré');
   t = pauseTimer(t, 'empathy', 61000);
-  assert.deepEqual(t, { step: 'empathy', left: 24 * 60000 });
-  assert.equal(timerLeft(t, 'empathy', 10 ** 9), 24 * 60000, 'en pause, le temps ne file pas');
+  assert.deepEqual(t, { step: 'empathy', left: 9 * 60000 });
+  assert.equal(timerLeft(t, 'empathy', 10 ** 9), 9 * 60000, 'en pause, le temps ne file pas');
   t = addTime(t, 'empathy', 5 * 60000, 0);
-  assert.equal(t.left, 29 * 60000);
+  assert.equal(t.left, 14 * 60000);
   t = resumeTimer(t, 'empathy', 100);
-  assert.equal(t.endsAt, 100 + 29 * 60000);
+  assert.equal(t.endsAt, 100 + 14 * 60000);
   assert.equal(timerLeft(t, 'empathy', 10 ** 9), 0);
   assert.deepEqual(readTimer({ step: 'story', left: -1 }), null);
   assert.deepEqual(readTimer({ step: 'story', endsAt: 5, over: true, x: 1 }), { step: 'story', endsAt: 5, over: true });
@@ -191,4 +191,18 @@ test('ROTI : code lu dans la fiche de séance seulement s\'il est valide', async
   assert.equal(readMeta({ title: 'A', step: 'debrief', roti: 'QVZS' }).roti, 'QVZS');
   assert.equal(readMeta({ title: 'A', step: 'debrief', roti: 'QVZI' }).roti, null, 'pas de I, L ni O');
   assert.equal(readMeta({ title: 'A', step: 'debrief' }).roti, null);
+});
+
+test('quiz : copie partielle à la fin du temps, numéros des questions manquantes', async () => {
+  const { quizPayload, missingQuestions, quizScore } = await import('../site/js/session-core.js');
+  const draft = { author: 'Léa', placement: { empathy: 'discover' }, answers: { backlog: 'story' } };
+  assert.equal(quizPayload(draft), null, 'incomplète : pas d\'envoi à la main');
+  const p = quizPayload(draft, { partial: true });
+  assert.equal(p.placement.impact, 'none');
+  assert.equal(p.answers.backlog, 'story');
+  const missing = missingQuestions(draft);
+  assert.equal(missing.length, 10);
+  assert.ok(!missing.includes(2), 'empathy (2e notion) répondue');
+  const sc = quizScore(p);
+  assert.equal(sc.points, 2);
 });

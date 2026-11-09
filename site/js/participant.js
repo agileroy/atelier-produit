@@ -5,7 +5,7 @@
 
 import { firebaseConfig } from './firebase-config.js?v=__VERSION__';
 import {
-  readMeta, isSessionId, quizPayload, quizProgress, quizScore, QUIZ_QUESTIONS, QUIZ_MAX,
+  readMeta, isSessionId, quizPayload, quizProgress, quizScore, QUIZ_QUESTIONS, QUIZ_MAX, formatClock,
   nameKey, normalizeCode, isCode, CODE_LENGTH, groupName,
 } from './session-core.js?v=__VERSION__';
 import { TOOLS, TOOL_PHASES, PLACES, SITUATIONS, SITUATION_CHOICES, PLACEMENT_FEEDBACK } from './content.js?v=__VERSION__';
@@ -13,10 +13,10 @@ import { MAX_AUTHOR, TOOL_IDS } from './core.js?v=__VERSION__';
 import { $, esc, load, save, toast, announce } from './shared.js?v=__VERSION__';
 
 const AUTHOR_KEY = 'atelier-produit.author';
-const CHOICE_LABELS = { empathy: 'Empathy map', impact: 'Impact mapping', story: 'Story mapping', designThinking: 'La démarche complète (Design Thinking)' };
+const CHOICE_LABELS = { empathy: 'Empathy map', impact: 'Impact mapping', story: 'Story mapping', designThinking: 'La démarche complète (Design Thinking)', none: 'pas de réponse' };
 const BOARD_STEPS = ['empathy', 'impact', 'story'];
 const fmt = (n) => String(n).replace('.', ',');
-const phaseLabel = (id) => PLACES.find((p) => p.id === id)?.label ?? '';
+const phaseLabel = (id) => PLACES.find((p) => p.id === id)?.label ?? 'pas de réponse';
 
 export async function startParticipant(api) {
   const { hooks, shared } = api;
@@ -36,6 +36,23 @@ export async function startParticipant(api) {
   const quizDraft = { placement: {}, answers: {}, ...(load(QUIZ_KEY) ?? {}) };
   let myQuiz = null;
   let sending = false;
+  let autoSent = false; // copie envoyée toute seule à la fin du temps
+  /** Ordre des notions propre à chacun (mélangé une fois, gardé au rechargement). */
+  const toolOrder = (() => {
+    const saved = load('atelier-produit.quiz-order');
+    if (Array.isArray(saved) && saved.length === TOOL_IDS.length && TOOL_IDS.every((t) => saved.includes(t))) return saved;
+    const order = [...TOOL_IDS];
+    for (let i = order.length - 1; i > 0; i--) { const j = Math.floor(Math.random() * (i + 1)); [order[i], order[j]] = [order[j], order[i]]; }
+    save('atelier-produit.quiz-order', order);
+    return order;
+  })();
+  /** Questions sans réponse, numérotées comme à l'écran (notions 1 à 4 puis situations). */
+  const missingNumbers = () => [
+    ...toolOrder.map((t, i) => (PLACES.some((pl) => pl.id === quizDraft.placement[t]) ? 0 : i + 1)),
+    ...SITUATIONS.map((x, i) => (SITUATION_CHOICES.includes(quizDraft.answers[x.id]) ? 0 : toolOrder.length + i + 1)),
+  ].filter(Boolean);
+  const listFr = (nums) => (nums.length > 1 ? `${nums.slice(0, -1).join(', ')} et ${nums.at(-1)}` : String(nums[0]));
+  const quizLeft = () => (meta?.quizEndsAt ? Math.max(0, meta.quizEndsAt - (Date.now() + (shared.offset ?? 0))) : null);
 
   /* ---------- Écrans avant le tableau ---------- */
 
@@ -126,22 +143,23 @@ export async function startParticipant(api) {
   function quizForm() {
     const done = quizProgress(quizDraft);
     return `<form class="pform pquiz" id="quizform">
-      <div class="pprogress" aria-live="polite"><p><span id="qprogress">${done} / ${QUIZ_QUESTIONS}</span> réponses</p>
+      <div class="pprogress" aria-live="polite"><p><span id="qprogress">${done} / ${QUIZ_QUESTIONS}</span> réponses${quizLeft() !== null ? ` · <span class="pq-clock" id="qclock">${formatClock(quizLeft())}</span>` : ''}</p>
         <i><b id="qbar" style="width:${(done / QUIZ_QUESTIONS) * 100}%"></b></i></div>
       <h3 class="pq-title">1. Où se range chaque notion sur le double diamant ?</h3>
-      ${TOOL_IDS.map((t) => `<fieldset class="pq">
-        <legend><span class="tchip tchip--${t}">${esc(TOOLS[t].name)}</span></legend>
+      ${toolOrder.map((t, k) => `<fieldset class="pq" id="q${k + 1}">
+        <legend><span class="pq-n">${k + 1}</span><span class="tchip tchip--${t}">${esc(TOOLS[t].name)}</span></legend>
         <div class="pq-choices pq-choices--phases">${PLACES.map((p) => `<label class="pq-choice"><input type="radio" name="t:${t}" value="${p.id}" ${quizDraft.placement[t] === p.id ? 'checked' : ''}>
           <span><strong>${esc(p.label)}</strong><small>${esc(p.plain)}</small></span></label>`).join('')}</div>
       </fieldset>`).join('')}
       <h3 class="pq-title">2. Quel outil pour quelle situation ?</h3>
-      ${SITUATIONS.map((x, k) => `<fieldset class="pq">
-        <legend><span class="pq-n">${k + 1}</span>${esc(x.text)}</legend>
+      ${SITUATIONS.map((x, k) => `<fieldset class="pq" id="q${toolOrder.length + k + 1}">
+        <legend><span class="pq-n">${toolOrder.length + k + 1}</span>${esc(x.text)}</legend>
         <div class="pq-choices">${SITUATION_CHOICES.map((c) => `<label class="pq-choice"><input type="radio" name="s:${x.id}" value="${c}" ${quizDraft.answers[x.id] === c ? 'checked' : ''}>
           <span><strong>${esc(CHOICE_LABELS[c])}</strong></span></label>`).join('')}</div>
       </fieldset>`).join('')}
-      <p class="hint">Une fois validées, vos réponses ne peuvent plus changer.</p>
-      <button type="submit" class="btn btn-primary btn-block" id="qsubmit" ${done === QUIZ_QUESTIONS && !sending ? '' : 'disabled'}>${sending ? 'Envoi…' : 'Valider mes réponses'}</button>
+      <p class="hint">Une fois validées, vos réponses ne peuvent plus changer. À la fin du temps, ce que vous avez coché est envoyé tout seul.</p>
+      <p class="pq-missing" id="qmissing" role="alert" hidden></p>
+      <button type="submit" class="btn btn-primary btn-block" id="qsubmit" ${sending ? 'disabled' : ''}>${sending ? 'Envoi…' : 'Valider mes réponses'}</button>
     </form>`;
   }
 
@@ -153,7 +171,7 @@ export async function startParticipant(api) {
       <ul class="pcorr">${sc.tools.map((t) => `<li class="dresult ${t.ok ? 'is-right' : 'is-wrong'}">
         <p class="dresult-head"><span class="tchip tchip--${t.tool}">${esc(TOOLS[t.tool].name)}</span> <span>vous : <strong>${esc(phaseLabel(t.phase))}</strong></span></p>
         <p class="dresult-verdict">${t.ok ? 'Bien vu.' : `Sa place : ${esc(TOOL_PHASES[t.tool].map(phaseLabel).join(' et '))}.`}</p>
-        <p>${esc(PLACEMENT_FEEDBACK[t.tool][t.phase])}</p>
+        ${PLACEMENT_FEEDBACK[t.tool][t.phase] ? `<p>${esc(PLACEMENT_FEEDBACK[t.tool][t.phase])}</p>` : ''}
       </li>`).join('')}</ul>
       <h3 class="pq-title">2. Les situations</h3>
       <ol class="pcorr">${sc.situations.map((v, k) => {
@@ -174,8 +192,48 @@ export async function startParticipant(api) {
     const bar = $('#qbar');
     if (bar) bar.style.width = `${(done / QUIZ_QUESTIONS) * 100}%`;
     const btn = $('#qsubmit');
-    if (btn) btn.disabled = done !== QUIZ_QUESTIONS || sending;
+    if (btn) btn.disabled = sending;
+    const miss = $('#qmissing');
+    if (miss && !miss.hidden) {
+      const nums = missingNumbers();
+      miss.hidden = !nums.length;
+      if (nums.length) miss.textContent = `Il vous reste ${nums.length > 1 ? 'les questions' : 'la question'} ${listFr(nums)} avant de pouvoir valider.`;
+    }
   }
+
+  /** Envoie la copie : complète (bouton), ou telle quelle à la fin du temps (les manques comptent zéro). */
+  async function sendQuiz({ partial = false } = {}) {
+    if (sending) return;
+    const payload = quizPayload({ author, ...quizDraft }, { partial });
+    if (!payload) {
+      const nums = missingNumbers();
+      const miss = $('#qmissing');
+      if (miss) { miss.hidden = false; miss.textContent = `Il vous reste ${nums.length > 1 ? 'les questions' : 'la question'} ${listFr(nums)} avant de pouvoir valider.`; }
+      $(`#q${nums[0]}`)?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      return;
+    }
+    sending = true;
+    updateQuizProgress();
+    try {
+      await store.submitQuiz(sid, payload);
+      toast(partial ? 'Temps écoulé : vos réponses ont été envoyées.' : 'Réponses envoyées !');
+      window.scrollTo({ top: 0 });
+    } catch {
+      if (!partial) toast('Envoi refusé : le quiz est peut-être fermé, ou vous avez déjà répondu.');
+    }
+    sending = false;
+    updateQuizProgress();
+  }
+
+  // Compte à rebours du quiz ; à zéro, la copie part toute seule.
+  setInterval(() => {
+    if (meta?.quiz !== 'open' || myQuiz) return;
+    const left = quizLeft();
+    if (left === null) return;
+    const clock = $('#qclock');
+    if (clock) { clock.textContent = formatClock(left); clock.classList.toggle('is-low', left <= 30000); }
+    if (left === 0 && !autoSent && author) { autoSent = true; sendQuiz({ partial: true }); }
+  }, 1000);
 
   /* ---------- Saisies (code, prénom, quiz) ---------- */
 
@@ -207,20 +265,7 @@ export async function startParticipant(api) {
       else show('name');
       return;
     }
-    if (sending) return;
-    const payload = quizPayload({ author, ...quizDraft });
-    if (!payload) { toast('Répondez à toutes les questions avant de valider.'); return; }
-    sending = true;
-    updateQuizProgress();
-    try {
-      await store.submitQuiz(sid, payload);
-      toast('Réponses envoyées !');
-      window.scrollTo({ top: 0 });
-    } catch {
-      toast('Envoi refusé : le quiz est peut-être fermé, ou vous avez déjà répondu.');
-    }
-    sending = false;
-    updateQuizProgress();
+    sendQuiz();
   });
 
   /** Réserve le prénom (unique dans la salle), libère l'ancien et se déclare présent. */
@@ -294,7 +339,7 @@ export async function startParticipant(api) {
     });
     store.onKept(sid, (tree) => api.receiveKept(tree), () => {});
     store.onMyQuiz(sid, (raw) => {
-      const payload = raw ? quizPayload(raw) : null;
+      const payload = raw ? quizPayload(raw, { partial: true }) : null;
       const changed = !!payload !== !!myQuiz;
       myQuiz = payload;
       if (changed && meta?.step === 'debrief') api.render();

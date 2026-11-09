@@ -4,12 +4,22 @@
 
 /** Les étapes de l'atelier, dans l'ordre. */
 export const STEPS = [
+  { id: 'welcome', label: 'Accueil', short: 'Accueil' },
   { id: 'frame', label: 'Le cadre', short: 'Cadre' },
   { id: 'empathy', label: 'Empathy map', short: 'Empathy' },
   { id: 'impact', label: 'Impact mapping', short: 'Impact' },
   { id: 'story', label: 'Story mapping', short: 'Story' },
   { id: 'debrief', label: 'Débrief', short: 'Débrief' },
 ];
+
+/** Accueil : le but, le format, les règles (rien sur la suite, ni sur le débrief). */
+export const WELCOME = {
+  blocks: [
+    { title: 'Le but', text: 'Découvrir des techniques produit en les essayant : à quoi elles servent, quand les utiliser, comment elles s\'enchaînent. Pas besoin de les connaître avant.' },
+    { title: 'Le format', items: ['Un peu de théorie, puis la pratique en groupe, sur un même cas fil rouge.', 'Chacun manipule les tableaux de son groupe depuis son ordinateur ou son téléphone.', 'Après chaque exercice, les groupes présentent leur travail et on en discute.', 'Environ 2 heures en tout.'] },
+    { title: 'Les règles du jeu', items: ['Pas de mauvaise réponse : on essaie, puis on en discute.', 'On écrit court : une idée par post-it.', 'On respecte le minuteur : l\'important est d\'aller au bout, pas d\'être parfait.', 'L\'animateur fait avancer l\'atelier pour tout le monde.'] },
+  ],
+};
 
 /** Étapes où l'on peut envoyer des post-its depuis un téléphone. */
 export const PHONE_STEPS = ['empathy', 'impact', 'story'];
@@ -86,6 +96,7 @@ export const PLACEMENT_FEEDBACK = {
 
 /** Phase mise en avant pour chaque étape (repère « vous êtes ici »). */
 export const STEP_PHASES = {
+  welcome: [],
   frame: [],
   empathy: ['discover'],
   impact: ['define'],
@@ -275,6 +286,19 @@ export const EXAMPLE_CASE = {
   context: 'La cantine d\'une entreprise jette chaque jour près d\'un repas sur cinq : on cuisine sans savoir combien de personnes viendront.',
 };
 
+/** Une empathy map remplie : Lucie, qui déjeune à la cantine. */
+export const EMPATHY_EXAMPLE = {
+  persona: 'Lucie, 34 ans, technicienne, déjeune à la cantine trois fois par semaine.',
+  zones: {
+    says: ['« Le menu n\'est jamais en ligne à temps. »', '« Le matin, je ne sais pas si j\'aurai une réunion à midi. »'],
+    thinks: ['Si je réserve et que je ne viens pas, je gâche.', 'La cantine, c\'est surtout pour voir les collègues.'],
+    does: ['Décide à 11 h 50 avec son équipe', 'Prend un sandwich quand la file est trop longue'],
+    feels: ['Agacée par la file d\'attente', 'Un peu coupable devant les poubelles pleines'],
+    pains: ['Menu connu trop tard', 'Pas de portion adaptée à son appétit'],
+    gains: ['Savoir la veille ce qu\'il y aura', 'Manger sans attendre'],
+  },
+};
+
 /** Une impact map complète : pourquoi → qui → comment → quoi. */
 export const IMPACT_EXAMPLE = {
   goal: 'Réduire de 30 % les repas jetés à la cantine d\'ici 6 mois',
@@ -419,7 +443,7 @@ export const TOOLS = {
 /** Consignes de chaque étape, affichées dans l'encadré « À faire ». */
 export const BRIEFS = {
   empathy: {
-    duration: '25 min',
+    duration: '10 min',
     steps: [
       'Lisez la fiche de votre persona (s\'il y a deux groupes, chacun a le sien : Sophie ou Karim).',
       'Faites glisser les extraits d\'interview dans les zones. Discutez des cas où vous hésitez.',
@@ -428,16 +452,16 @@ export const BRIEFS = {
     ],
   },
   impact: {
-    duration: '30 min',
+    duration: '20 min',
     steps: [
-      'Écrivez un objectif mesurable (combien, d\'ici quand).',
+      'Écrivez un objectif mesurable (combien, d\'ici quand). Vous pouvez en écrire plusieurs si vous avez de l\'inspiration.',
       'Ajoutez les acteurs : Sophie et Karim, mais aussi la direction, les RH, les chefs d\'équipe…',
       'Pour chaque acteur, quel changement de comportement aiderait l\'objectif ?',
       'Ajoutez les livrables. À la restitution, on choisit tous ensemble ceux qu\'on retient pour la story map.',
     ],
   },
   story: {
-    duration: '50 min',
+    duration: '30 min',
     steps: [
       'Racontez la semaine de votre persona avec l\'appli : chacun ajoute des actions courtes. Regroupez-les en 4 à 7 grandes étapes et validez : c\'est la première ligne de votre story map.',
       'Glissez les livrables retenus (les mêmes pour tous les groupes) sous les étapes, ajoutez les stories qui manquent.',

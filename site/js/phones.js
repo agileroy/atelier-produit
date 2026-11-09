@@ -341,6 +341,7 @@ export function createPhones({ button, dialog, count, current, onRemote, onChang
     resume, sync, show, setQuiz, clearQuiz,
     end, setRoti, get roti() { return meta?.roti ?? null; },
     setPractice, get practice() { return meta?.practice ?? {}; },
+    setQuizEnd: (ms) => store.setMeta(session.sid, { quizEndsAt: ms }), get quizEndsAt() { return meta?.quizEndsAt ?? null; },
     setGroups, shuffle, moveMember, setRestitution, writeBoard, setBoardState, setKept, setTimer, setDone,
     get timer() { return meta?.timer ?? null; },
     /** Heure du serveur (ms), pour que le minuteur soit le même sur tous les écrans. */

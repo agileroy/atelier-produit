@@ -2,9 +2,9 @@
 // L'état vit dans le navigateur (localStorage) ; les post-its des téléphones arrivent par phones.js.
 
 import {
-  STEPS, CASE, PERSONAS, EMPATHY_ZONES, IMPACT_LEVELS, STORY_LANES, TOOLS, PHASES, PLACES, ALL_PLACE, TOOL_PHASES,
+  STEPS, WELCOME, CASE, PERSONAS, EMPATHY_ZONES, IMPACT_LEVELS, STORY_LANES, TOOLS, PHASES, PLACES, ALL_PLACE, TOOL_PHASES,
   STEP_PHASES, BRIEFS, SITUATIONS, SITUATION_CHOICES, PHONE_STEPS, DIAMOND_MESSAGE, DIAMOND_LOOP,
-  PLACEMENT_FEEDBACK, EXAMPLE_CASE, IMPACT_EXAMPLE, STORY_EXAMPLE, EXAMPLE_JOURNEY,
+  PLACEMENT_FEEDBACK, EXAMPLE_CASE, EMPATHY_EXAMPLE, IMPACT_EXAMPLE, STORY_EXAMPLE, EXAMPLE_JOURNEY,
   JOURNEY_RULES, JOURNEY_QUESTIONS, JOURNEY_MIN, JOURNEY_MAX, ACTION_EXAMPLES,
 } from './content.js?v=__VERSION__';
 import {
@@ -12,7 +12,7 @@ import {
   notesIn, getNote, childrenOf, placesFor, encodePlace, decodePlace, samePlace, familyOf, placeLabel,
   availableExtracts, placeExtract, unplaceExtract, extractById, compareEmpathy, emptyZones, personaById,
   toggleKeep, keptDeliverables, importDeliverable, mvpGaps,
-  useJourneyExample, validateJourney, reopenJourney, journeyNotes, journeyDone, journeyHints, simulatedNotes,
+  useJourneyExample, journeyNotes, journeyHints, simulatedNotes,
   allActions, looseActions, actionsOf, stepsWithoutDeliverable,
   setPlacement, checkPlacement, answerSituation, situationScore, situationVerdict, mergeRemote, reportText,
   boardUpdates, recordsToNotes,
@@ -22,7 +22,7 @@ import { createRoti, rotiJoinUrl, rotiHostUrl } from './roti.js?v=__VERSION__';
 import { $, $$, esc, toast, announce, copyText, load, save, setupTheme, downloadJson, today, qrSvg, ICONS } from './shared.js?v=__VERSION__';
 import {
   podium, quizStats, waitingFor, QUIZ_MAX, groupIdsFor, groupName, DEFAULT_PERSONAS,
-  TIMER_STEPS, stepDuration, timerLeft, timerRunning, startTimer, pauseTimer, resumeTimer, addTime, formatClock,
+  TIMER_STEPS, stepDuration, QUIZ_DURATION, timerLeft, timerRunning, startTimer, pauseTimer, resumeTimer, addTime, formatClock,
 } from './session-core.js?v=__VERSION__';
 import { setupDnd } from './dnd.js?v=__VERSION__';
 import { createPhones } from './phones.js?v=__VERSION__';
@@ -38,7 +38,7 @@ const CHOICE_LABELS = { empathy: 'Empathy map', impact: 'Impact mapping', story:
 
 const main = $('#main');
 let state = restore();
-const ui = { selectedTool: null, info: null, theoryOpen: new Set(), quizEntries: [], actionDraft: '' };
+const ui = { selectedTool: null, info: null, theoryOpen: new Set(), quizEntries: [], actionDraft: '', storyStage: 'recit' };
 let phones = null; // animateur : module Participants
 const hooks = {}; // participant : vues fournies par participant.js (débrief, attente)
 
@@ -105,20 +105,20 @@ function showGroup(g) {
   state.notes = clone(shared.boards[g].notes);
   state.persona = groupPersona(g);
   state.compare = { [state.persona]: shared.boards[g].state?.compare === true };
-  state.journey = shared.boards[g].state?.journey === 'regroup' ? 'regroup' : 'recit';
 }
 
-/** Story map : passer du récit au regroupement (et retour), pour le tableau affiché. */
-function setJourneyStage(stage) {
-  state.journey = stage;
-  if (shared.on) {
-    const b = shared.boards[shared.group];
-    b.state = { ...b.state, journey: stage };
-    shared.setState(shared.group, 'journey', stage).catch(() => toast('Changement non enregistré : la connexion est peut-être coupée.'));
-    render();
-    return;
-  }
-  commit();
+/**
+ * Story map : les trois temps (raconter, regrouper, la story map). Chacun y navigue librement, de son
+ * côté ; pendant la restitution, tout le monde est sur la story map.
+ */
+function storyStage() {
+  if (shared.group === 'sim' || (shared.on && shared.restitution)) return 'map';
+  return ui.storyStage;
+}
+function setStoryStage(stage) {
+  ui.storyStage = stage;
+  render();
+  main.querySelector('.jstages')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
 }
 
 /** Passe en tableaux partagés (l'animateur garde son tableau local de côté). */
@@ -336,7 +336,20 @@ dock?.addEventListener('click', async (e) => {
   }
 });
 
-setInterval(() => { renderDock(); checkLock(); }, 1000);
+let quizClosing = false;
+/** Quiz : compte à rebours chez l'animateur ; quelques secondes après zéro (le temps que les copies arrivent), on révèle. */
+function quizTick() {
+  if (!HOST || !phones?.live || phones.quiz !== 'open' || !phones.quizEndsAt) return;
+  const left = Math.max(0, phones.quizEndsAt - phones.now);
+  const clock = main.querySelector('#host-qclock');
+  if (clock) clock.textContent = formatClock(left);
+  if (left === 0 && phones.now >= phones.quizEndsAt + 4000 && !quizClosing) {
+    quizClosing = true;
+    actions['quiz-reveal']().finally(() => { quizClosing = false; });
+  }
+}
+
+setInterval(() => { renderDock(); checkLock(); quizTick(); }, 1000);
 
 /** Rafraîchit le QR code en grand (pour les retardataires) s'il est affiché. */
 function refreshJoinDialog() {
@@ -438,7 +451,7 @@ $('#stepper').addEventListener('click', (e) => {
  * l'animateur lance la pratique pour tous (« Passer à la pratique »). Le débrief n'a pas de théorie.
  */
 function practiceOn(step = state.step) {
-  if (step === 'debrief') return true;
+  if (step === 'debrief' || step === 'welcome') return true;
   if (shared.on && !HOST) return shared.practice?.[step] === true;
   return state.practice.includes(step) || phones?.practice?.[step] === true;
 }
@@ -449,7 +462,7 @@ function practiceGate(step) {
     ${HOST || !shared.on
       ? `<p>Présentez la théorie, puis lancez la pratique pour tout le monde${TIMER_STEPS.includes(step) && phones?.live ? ' : le minuteur démarre en même temps' : ''}.</p>
         <button type="button" class="btn btn-primary" data-act="practice-start" data-focus="practice-start">Passer à la pratique ↓</button>`
-      : '<p>Place à la théorie : l\'animateur lancera la pratique juste après.</p>'}
+      : '<p>Un peu de patience : quelques minutes de théorie, puis on passe à la pratique.</p>'}
   </section>
   ${HOST ? stepNav() : ''}`;
 }
@@ -477,7 +490,7 @@ function stepHeader(step) {
  * restitution ; pendant la restitution, chaque participant peut aussi regarder l'autre groupe.
  */
 function boardBar() {
-  if (!shared.on || state.step === 'frame') return '';
+  if (!shared.on || state.step === 'frame' || state.step === 'welcome') return '';
   const groups = boardGroups();
   const solo = shared.groups === 1;
   if (!HOST && !shared.restitution) {
@@ -494,7 +507,7 @@ function boardBar() {
   const partHint = shared.group === 'sim' ? 'le tableau du groupe simulé' : shared.group === shared.myGroup ? 'votre tableau' : 'le tableau de l\'autre groupe';
   return `<div class="board-bar">
     <div class="group-tabs" role="tablist" aria-label="Tableau affiché">${tabs}</div>
-    ${HOST ? `<button type="button" class="btn ${shared.restitution ? 'btn-quiet' : 'btn-primary'} btn-small" data-act="restitution" data-focus="restitution">${shared.restitution ? 'Terminer la restitution' : 'Lancer la restitution'}</button>
+    ${HOST ? `${shared.restitution || practiceOn() ? `<button type="button" class="btn ${shared.restitution ? 'btn-quiet' : 'btn-primary'} btn-small" data-act="restitution" data-focus="restitution">${shared.restitution ? 'Terminer la restitution' : 'Lancer la restitution'}</button>` : ''}
       <p class="hint">${hostHint}</p>`
       : `<p class="hint">Restitution : ${partHint}, en lecture seule. L'animateur déplace les post-its.</p>`}
   </div>`;
@@ -529,7 +542,7 @@ function theoryBlock(step, { closable = true } = {}) {
         <h3>Pièges classiques</h3><ul class="pitfalls">${t.pitfalls.map((w) => `<li>${esc(w)}</li>`).join('')}</ul>
       </div>
     </div>
-    ${step === 'impact' ? impactExample() : step === 'story' ? storyExample() : ''}
+    ${step === 'empathy' ? empathyExample() : step === 'impact' ? impactExample() : step === 'story' ? storyExample() : ''}
     <div class="theory-foot">
       <p class="theory-origin">${esc(t.origin)}</p>
       ${closable && practiceOn(step) ? '<button type="button" class="btn btn-quiet" data-act="theory-close" data-focus="theory">Replier la théorie ↑</button>' : ''}
@@ -551,6 +564,16 @@ const staticNote = (text, hue, cls = '') => `<div class="note note--static ${cls
 
 function exampleHead(title) {
   return `<div class="example-head"><p class="kicker">Exemple complet · ${esc(EXAMPLE_CASE.name)}</p><h3>${esc(title)}</h3><p class="hint">${esc(EXAMPLE_CASE.context)} Un autre sujet que le vôtre, exprès : regardez la forme, pas les réponses.</p></div>`;
+}
+
+function empathyExample() {
+  const ex = EMPATHY_EXAMPLE;
+  return `<div class="example">
+    ${exampleHead('Une empathy map remplie')}
+    <p class="hint"><strong>${esc(ex.persona)}</strong> On range ce qu'on a entendu et observé, sans interpréter trop vite.</p>
+    <div class="emap-example">${EMPATHY_ZONES.map((z) => `<div class="eex-zone" style="--h:${ZONE_HUES[z.id]}">
+      <h4>${esc(z.label)}</h4>${(ex.zones[z.id] ?? []).map((t) => staticNote(t, ZONE_HUES[z.id])).join('')}</div>`).join('')}</div>
+  </div>`;
 }
 
 function impactExample() {
@@ -613,7 +636,7 @@ function stepNav() {
   const label = (id) => (stepRevealed(id) ? STEPS.find((s) => s.id === id).label : 'Étape suivante');
   return `<nav class="stepnav" aria-label="Étapes">
     ${prev ? `<button type="button" class="btn btn-quiet" data-go="${prev}">‹ ${esc(label(prev))}</button>` : '<span></span>'}
-    ${next ? `<button type="button" class="btn btn-primary" data-go="${next}" data-focus="next">${state.step === 'frame' ? 'Commencer' : esc(label(next))} ›</button>` : ''}
+    ${next ? `<button type="button" class="btn btn-primary" data-go="${next}" data-focus="next">${state.step === 'welcome' ? 'Commencer' : esc(label(next))} ›</button>` : ''}
   </nav>`;
 }
 
@@ -684,9 +707,10 @@ function noteHtml(n, opts = {}) {
   if (fromDeliv) meta.push('<span class="note-from" title="Venu de l\'impact map">↳ impact map</span>');
   if (n.place.b === 'tray' && n.kind) meta.push(`<span class="note-kind">${esc(IMPACT_LEVELS.find((l) => l.id === n.kind).name.replace(/s$/, ''))}</span>`);
   if (opts.badge) meta.push(opts.badge);
+  const del = canEdit() ? `<button type="button" class="note-x" data-del="${n.id}" data-nodrag title="${extract ? 'Remettre dans la pioche' : 'Supprimer'}" aria-label="${extract ? 'Remettre dans la pioche' : 'Supprimer'} : ${esc(n.text)}">×</button>` : '';
   return `<div class="note ${kind} ${opts.cls ?? ''}" style="--h:${hue}" data-drag="note:${n.id}" data-note="${n.id}" data-focus="note:${n.id}" role="button" tabindex="0"
       aria-label="${esc(n.text)}. Ouvrir pour modifier ou déplacer.">
-    <span class="note-text">${esc(n.text)}</span>
+    ${del}<span class="note-text">${esc(n.text)}</span>
     ${meta.length ? `<span class="note-meta">${meta.join('')}</span>` : ''}
   </div>`;
 }
@@ -709,6 +733,29 @@ function trayHtml(step, title, hint) {
 
 /* ---------- Étape « cadre » ---------- */
 
+/** Accueil : le but, le format, les règles, et rejoindre. Pas de théorie ici. */
+function viewWelcome() {
+  return `
+  <header class="intro intro--welcome">
+    <p class="kicker">Bienvenue</p>
+    <h1 tabindex="-1">Atelier Produit</h1>
+    <p class="lede">Découvrir quelques techniques produit en les pratiquant, en équipe, sur un même cas fil rouge.</p>
+  </header>
+
+  ${joinCard()}
+
+  <section class="welcome-grid">
+    ${WELCOME.blocks.map((blk) => `<article class="welcome-card">
+      <h2>${esc(blk.title)}</h2>
+      ${blk.text ? `<p>${esc(blk.text)}</p>` : ''}
+      ${blk.items ? `<ul>${blk.items.map((x) => `<li>${esc(x)}</li>`).join('')}</ul>` : ''}
+    </article>`).join('')}
+  </section>
+  ${HOST ? '' : '<p class="hint">L\'animateur fait avancer l\'atelier : cette page suit l\'écran commun.</p>'}
+  ${stepNav()}`;
+}
+
+/** Le cadre : le Design Thinking et le double diamant, puis le cas fil rouge. */
 function viewFrame() {
   const chips = { all: ['designThinking'] };
   for (const tool of TOOL_IDS) {
@@ -716,20 +763,12 @@ function viewFrame() {
     const phase = TOOL_PHASES[tool][0];
     (chips[phase] ??= []).push(tool);
   }
-  const plan = [
-    ['empathy', 'Pour qui ?', 'Comprendre deux futurs utilisateurs à partir d\'extraits d\'interview.'],
-    ['impact', 'Pourquoi ?', 'Relier un objectif mesurable aux comportements à changer, puis aux livrables.'],
-    ['story', 'Quoi, dans quel ordre ?', 'Raconter le parcours de la persona, en tirer la colonne vertébrale, puis tracer une première version utile.'],
-    ['debrief', 'Quand utiliser quoi ?', 'Ranger les outils et s\'entraîner sur des situations réelles.'],
-  ];
   return `
   <header class="intro intro--frame">
-    <p class="kicker">Atelier Produit</p>
-    <h1 tabindex="-1">Quatre techniques, un même fil rouge</h1>
-    <p class="lede">Le Design Thinking donne la démarche ; l'empathy map, l'impact mapping et le story mapping en sont des outils. Pour voir comment ils s'enchaînent, on les applique l'un après l'autre sur le même cas.</p>
+    <p class="kicker">Le cadre</p>
+    <h1 tabindex="-1">Le Design Thinking et le double diamant</h1>
+    <p class="lede">Le Design Thinking donne la démarche ; les outils qu'on va pratiquer s'y rangent. Pour voir comment ils s'enchaînent, on les applique l'un après l'autre sur le même cas.</p>
   </header>
-
-  ${joinCard()}
 
   ${theoryBlock('frame')}
 
@@ -762,23 +801,6 @@ function viewFrame() {
         <ul>${p.facts.map((f) => `<li>${esc(f)}</li>`).join('')}</ul></div>
       </article>`).join('')}
     </div>
-  </section>
-
-
-  <section>
-    <h2 class="section-title">Le déroulé</h2>
-    <ol class="plan">
-      ${plan.map(([id, q, text], i) => {
-        const step = STEPS.find((s) => s.id === id);
-        return `<li><div class="plan-item">
-          <span class="plan-n">${i + 1}</span>
-          <span class="plan-body">${stepRevealed(id) ? `<strong>${esc(step.label)}</strong> <em>${esc(q)}</em><span>${esc(text)}</span>` : `<strong>Étape ${i + 1}</strong><span>À découvrir le moment venu.</span>`}</span>
-          <span class="plan-time">${esc(BRIEFS[id].duration)}</span>
-        </div></li>`;
-      }).join('')}
-    </ol>
-    ${HOST ? '' : '<p class="hint">L\'animateur fait avancer l\'atelier : cette page suit l\'écran commun.</p>'}
-    <p class="hint">Environ 2 h 15. L'écran est projeté, et chacun manipule les tableaux de son groupe depuis son ordinateur ou son téléphone.</p>
   </section>
   ${stepNav()}` : practiceGate('frame')}`;
 }
@@ -1007,7 +1029,10 @@ function journeyRescue() {
 
 function journeyStages(active) {
   const items = [['recit', '1. On raconte'], ['regroup', '2. On regroupe en étapes'], ['map', '3. La story map']];
-  return `<ol class="jstages" aria-label="Les trois temps de la story map">${items.map(([id, label]) => `<li class="${id === active ? 'is-on' : ''}" ${id === active ? 'aria-current="step"' : ''}>${esc(label)}</li>`).join('')}</ol>`;
+  const locked = shared.on && shared.restitution;
+  return `<ol class="jstages" aria-label="Les trois temps de la story map">${items.map(([id, label]) => `<li>
+    <button type="button" class="${id === active ? 'is-on' : ''}" data-stage="${id}" ${id === active ? 'aria-current="step"' : ''} ${locked && id !== active ? 'disabled' : ''}>${esc(label)}</button></li>`).join('')}</ol>
+    ${locked ? '<p class="hint">Restitution : tout le monde regarde la story map.</p>' : ''}`;
 }
 
 function personaTip(persona) {
@@ -1095,11 +1120,11 @@ function viewRegroup() {
   </div>
   <section class="groupage" aria-label="Regroupement">
     <div class="canvas-scroll">
-      <div class="jcols" data-drop="journey" data-axis="x">
+      <div class="jcols" data-drop="backbone" data-axis="x">
         ${steps.map((st) => `<div class="jcol">${noteHtml(st)}
           <div class="jcol-acts" data-drop="${encodePlace({ b: 'action', parent: st.id })}">${actionsOf(state, st.id).map((n) => noteHtml(n, { cls: 'note--action' })).join('')}</div>
         </div>`).join('')}
-        <div class="jcol jcol--add">${addButton({ b: 'journey' }, 'Étape')}</div>
+        <div class="jcol jcol--add">${addButton({ b: 'backbone' }, 'Étape')}</div>
       </div>
     </div>
     <div class="loose">
@@ -1109,23 +1134,23 @@ function viewRegroup() {
   </section>
   <section class="checkpoint">
     <div>
-      <h2>Prêts à valider ?</h2>
+      <h2>Prêts pour la story map ?</h2>
       <ul class="journey-tips">${tips.map((t) => `<li>${t}</li>`).join('')}</ul>
-      <p class="hint">Une fois validé, le parcours devient la première ligne de votre story map. Les actions restent dessous, pour mémoire.
+      <p class="hint">Vos étapes forment la première ligne de la story map ; les actions restent dessous, pour mémoire. On peut revenir ici à tout moment.
         <button type="button" class="link-btn" data-act="journey-back" data-focus="journey-back">‹ Revenir au récit</button></p>
     </div>
-    <button type="button" class="btn btn-primary" data-act="journey-validate" data-focus="journey-validate" ${steps.length >= 2 ? '' : 'disabled'}>Valider le parcours ›</button>
+    <button type="button" class="btn btn-primary" data-act="journey-validate" data-focus="journey-validate">Passer à la story map ›</button>
   </section>
   ${stepNav()}`;
 }
 
 function viewJourney() {
-  return state.journey === 'regroup' ? viewRegroup() : viewRecit();
+  return storyStage() === 'regroup' ? viewRegroup() : viewRecit();
 }
 
 function viewStory() {
   if (!practiceOn('story')) return stepHeader('story') + practiceGate('story');
-  if (!journeyDone(state) && shared.group !== 'sim') return viewJourney();
+  if (storyStage() !== 'map') return viewJourney();
   const cols = notesIn(state, { b: 'backbone' });
   const kept = keptForStory();
   const gaps = mvpGaps(state);
@@ -1156,7 +1181,7 @@ function viewStory() {
       <div class="smap" style="--cols:${cols.length}">
         <div class="srow srow--backbone">
           <div class="slabel"><strong>Le parcours</strong><span>De gauche à droite, les grandes étapes de ${esc(personaById(state.persona)?.name ?? 'l\'utilisateur')}.</span>
-            ${canEdit() && shared.group !== 'sim' ? '<button type="button" class="link-btn" data-act="journey-reopen" data-focus="journey-reopen">Revenir au récit</button>' : ''}</div>
+            ${shared.group !== 'sim' && !(shared.on && shared.restitution) ? '<button type="button" class="link-btn" data-act="journey-reopen" data-focus="journey-reopen">‹ Revenir au regroupement</button>' : ''}</div>
           <div class="backbone" data-drop="backbone" data-axis="x">
             ${cols.map((c) => `<div class="bcell">${noteHtml(c)}</div>`).join('')}
             <div class="bcell bcell--add">${addButton({ b: 'backbone' }, 'Étape')}
@@ -1278,9 +1303,9 @@ function quizPanel() {
     return `<section class="dsection qpanel">
       <div class="qstatus">
         <div>
-          <p class="kicker">${open ? 'Quiz en cours' : 'Quiz prêt'}</p>
+          <p class="kicker">${open ? `Quiz en cours${phones.quizEndsAt ? ` · <span class="pq-clock" id="host-qclock">${formatClock(Math.max(0, phones.quizEndsAt - phones.now))}</span>` : ''}` : 'Quiz prêt'}</p>
           <h2>${open ? 'Chacun répond de son côté' : 'Lancez le quiz quand tout le monde est connecté'}</h2>
-          <p class="hint">${QUIZ_MAX} questions : ranger les quatre notions sur le double diamant (Design Thinking compris), puis huit situations. Un point par bonne réponse, un demi-point pour une réponse défendable.</p>
+          <p class="hint">${QUIZ_MAX} questions en 3 minutes : ranger les quatre notions sur le double diamant (Design Thinking compris), puis huit situations. Un point par bonne réponse, un demi-point pour une réponse défendable. À la fin du temps, les copies partent telles quelles et les réponses sont révélées.</p>
           ${open ? quizProgressHtml(entries) : `<p class="hint"><strong>${phones.presence.length}</strong> connecté${phones.presence.length > 1 ? 's' : ''}${phones.presence.length ? ` : ${esc(phones.presence.map((p) => p.author).join(', '))}` : ''}.</p>`}
           <div class="qactions">
             ${open
@@ -1350,7 +1375,7 @@ function quizPanel() {
   </section>`;
 }
 
-const views = { frame: viewFrame, empathy: viewEmpathy, impact: viewImpact, story: viewStory, debrief: viewDebrief };
+const views = { welcome: viewWelcome, frame: viewFrame, empathy: viewEmpathy, impact: viewImpact, story: viewStory, debrief: viewDebrief };
 
 document.addEventListener('keydown', (e) => {
   if (e.key === 'Escape' && ui.info && !document.querySelector('dialog[open]')) { ui.info = null; render(); }
@@ -1521,9 +1546,50 @@ function blockMessage(reason) {
 
 /* ---------- Clics dans la page ---------- */
 
-const EDIT_TARGETS = '[data-add], [data-note], [data-extract], [data-keep], [data-deliv], [data-persona], [data-act="compare"], [data-act="journey-example"], [data-act="journey-validate"], [data-act="journey-reopen"], [data-act="journey-next"], [data-act="journey-back"]';
+const EDIT_TARGETS = '[data-add], [data-note], [data-extract], [data-keep], [data-deliv], [data-persona], [data-act="compare"], [data-act="journey-example"]';
+
+/**
+ * Suppression en un clic (croix du post-it). Un post-it simple part tout de suite, avec « Annuler » ;
+ * une carte qui en porte d'autres demande d'abord une confirmation. Un extrait retourne dans la pioche.
+ */
+function deleteNote(id) {
+  const n = getNote(state, id);
+  if (!n || !canEdit()) return;
+  if (n.from?.startsWith('extract:')) { unplaceExtract(state, id); commit(); announce('Extrait remis dans la pioche'); return; }
+  const kids = childrenOf(state, id).length;
+  if (kids && !confirm(`Supprimer « ${n.text} » ? ${['backbone', 'journey'].includes(n.place.b)
+    ? `Ses ${kids} post-it${kids > 1 ? 's' : ''} ne sont pas perdus : les actions retournent dans « Pas encore regroupées », les stories dans le bac.`
+    : `Les ${kids} post-it${kids > 1 ? 's' : ''} rattachés seront supprimés aussi.`}`)) return;
+  const before = clone(state.notes);
+  removeNote(state, id);
+  const kept = new Map(state.notes.map((x) => [x.id, x]));
+  const removed = before.map((x, i) => ({ x, i })).filter(({ x }) => !kept.has(x.id));
+  const moved = before.filter((x) => kept.has(x.id) && encodePlace(x.place) !== encodePlace(kept.get(x.id).place));
+  commit();
+  undoToast(removed.length > 1 ? `${removed.length} post-its supprimés.` : 'Post-it supprimé.', () => {
+    for (const { x, i } of removed) if (!getNote(state, x.id)) state.notes.splice(Math.min(i, state.notes.length), 0, clone(x));
+    for (const x of moved) { const cur = getNote(state, x.id); if (cur) cur.place = x.place; }
+    commit();
+    announce('Suppression annulée');
+  });
+}
+
+/** Message avec un bouton « Annuler », quelques secondes. */
+function undoToast(message, onUndo) {
+  const el = $('#toast');
+  clearTimeout(toast.timer);
+  el.innerHTML = `<span>${esc(message)}</span> <button type="button" class="toast-undo">Annuler</button>`;
+  el.hidden = false;
+  const btn = el.querySelector('.toast-undo');
+  btn.addEventListener('click', () => { el.hidden = true; onUndo(); }, { once: true });
+  toast.timer = setTimeout(() => { el.hidden = true; }, 6000);
+}
 
 main.addEventListener('click', (e) => {
+  const delBtn = e.target.closest('[data-del]');
+  if (delBtn) { e.stopPropagation(); deleteNote(delBtn.dataset.del); return; }
+  const stage = e.target.closest('[data-stage]');
+  if (stage && !stage.disabled) { setStoryStage(stage.dataset.stage); return; }
   const t = e.target;
   const groupTab = t.closest('[data-group]');
   if (groupTab) { showGroup(groupTab.dataset.group); render(`group:${groupTab.dataset.group}`); return; }
@@ -1667,10 +1733,14 @@ const actions = {
   },
   async 'quiz-start'() {
     await phones.clearQuiz();
-    if (await phones.setQuiz('open')) announce('Quiz lancé');
+    await phones.setQuizEnd(phones.now + QUIZ_DURATION).catch(() => {});
+    if (await phones.setQuiz('open')) announce('Quiz lancé : 3 minutes');
   },
+  /** Révéler : fin du quiz (à la main ou à la fin du temps), puis le ROTI part tout seul. */
   async 'quiz-reveal'() {
-    if (await phones.setQuiz('revealed')) announce('Réponses révélées');
+    if (!(await phones.setQuiz('revealed'))) return;
+    announce('Réponses révélées');
+    if (!phones.roti) actions['roti-create']();
   },
   async 'quiz-stop'() {
     if (!confirm('Fermer le quiz ? Les participants reviennent à l\'écran d\'attente.')) return;
@@ -1680,6 +1750,7 @@ const actions = {
     if (!confirm('Effacer toutes les copies et relancer un quiz ?')) return;
     await phones.setQuiz('off');
     await phones.clearQuiz();
+    await phones.setQuizEnd(phones.now + QUIZ_DURATION).catch(() => {});
     await phones.setQuiz('open');
   },
   compare() {
@@ -1687,34 +1758,24 @@ const actions = {
     if (shared.on) { shared.setState(shared.group, 'compare', !state.compare[state.persona]); return; }
     state.compare[state.persona] = !state.compare[state.persona]; commit({ focus: 'compare' });
   },
-  restitution() { phones?.setRestitution(!shared.restitution); },
+  restitution() {
+    if (!shared.restitution && !practiceOn()) { toast('Lancez d\'abord la pratique (« Passer à la pratique »).'); return; }
+    phones?.setRestitution(!shared.restitution);
+  },
   'journey-example'() {
     if (!HOST) return;
     const name = personaById(state.persona)?.name ?? '';
     const n = journeyNotes(state).length;
     if (n && !confirm(`Remplacer les ${n} étape${n > 1 ? 's' : ''} du groupe par les étapes types de ${name} ? Leurs actions retournent dans « Pas encore regroupées ».`)) return;
     useJourneyExample(state, state.persona);
+    ui.storyStage = 'regroup';
     commit();
-    setJourneyStage('regroup');
     announce('Étapes types posées : le groupe y range ses actions');
   },
-  'journey-next'() { setJourneyStage('regroup'); },
-  'journey-back'() { setJourneyStage('recit'); },
-  'journey-validate'() {
-    const loose = looseActions(state).length;
-    if (loose && !confirm(`${loose} action${loose > 1 ? 's ne sont' : ' n\'est'} sous aucune étape. Valider le parcours quand même ?`)) return;
-    const n = validateJourney(state);
-    if (!n) return;
-    commit();
-    toast('Parcours validé : il devient la première ligne de votre story map.');
-  },
-  'journey-reopen'() {
-    if (!confirm('Revenir au récit du parcours ? Les stories déjà posées restent attachées à leur étape.')) return;
-    reopenJourney(state);
-    state.journey = 'regroup';
-    if (shared.on) shared.setState(shared.group, 'journey', 'regroup').catch(() => {});
-    commit();
-  },
+  'journey-next'() { setStoryStage('regroup'); },
+  'journey-back'() { setStoryStage('recit'); },
+  'journey-validate'() { setStoryStage('map'); },
+  'journey-reopen'() { setStoryStage('regroup'); },
   check() { state.debrief.checked = true; commit({ focus: 'check' }); },
   async copy() {
     const text = reportBoards().map(({ title, notes }) => `${title ? `===== ${title.toUpperCase()} =====\n` : ''}${reportText({ ...state, notes }, today())}`).join('\n\n');

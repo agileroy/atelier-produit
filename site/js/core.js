@@ -38,8 +38,8 @@ const cleanText = (value, max = MAX_TEXT) => String(value ?? '').replace(/\s+/g,
 export function newState() {
   return {
     version: FORMAT_VERSION,
-    step: 'frame',
-    visited: ['frame'],
+    step: 'welcome',
+    visited: ['welcome'],
     persona: PERSONA_IDS[0],
     notes: [],
     compare: {},
@@ -104,7 +104,7 @@ export function decodePlace(key) {
     case 'impact': return { b, parent: a };
     case 'deliverable': return { b, parent: a };
     case 'action': return a ? { b, parent: a } : { b };
-    case 'journey':
+    case 'journey': return { b: 'backbone' }; // ancien format : une étape en cours de regroupement
     case 'backbone': return { b };
     case 'story': return { b, col: a, lane: c };
     default: return null;
@@ -245,7 +245,7 @@ export function placesFor(state, id) {
     out.push({ place: { b: 'journey' }, label: 'Étape du parcours' });
   } else if (family === 'recit') {
     out.push({ place: { b: 'action' }, label: 'Pas encore regroupée' });
-    for (const st of notesIn(state, { b: 'journey' })) out.push({ place: { b: 'action', parent: st.id }, label: `Sous « ${label(st)} »` });
+    for (const st of notesIn(state, { b: 'backbone' })) out.push({ place: { b: 'action', parent: st.id }, label: `Sous « ${label(st)} »` });
   } else if (family === 'story') {
     out.push({ place: { b: 'tray', step: 'story' }, label: 'Bac « à placer »' });
     out.push({ place: { b: 'backbone' }, label: 'Étape du parcours' });
@@ -357,8 +357,8 @@ export function deliverablePath(state, id) {
 
 /* ---------- Story mapping ---------- */
 
-/** Les étapes du parcours en cours de regroupement. */
-export const journeyNotes = (state) => notesIn(state, { b: 'journey' });
+/** Les grandes étapes du parcours : ce sont directement les colonnes de la story map. */
+export const journeyNotes = (state) => notesIn(state, { b: 'backbone' });
 /** Les actions du récit : toutes, pas encore regroupées, ou regroupées sous une étape. */
 export const allActions = (state) => state.notes.filter((n) => n.place.b === 'action');
 export const looseActions = (state) => notesIn(state, { b: 'action' });
@@ -370,34 +370,15 @@ export function stepsWithoutDeliverable(state) {
   return cols.filter((c) => !state.notes.some((n) => n.place.b === 'story' && n.place.col === c.id && n.from?.startsWith('deliverable:')));
 }
 
-/** Le parcours est-il validé ? (Il est alors la colonne vertébrale de la story map.) */
-export const journeyDone = (state) => notesIn(state, { b: 'backbone' }).length > 0;
-
 /**
  * Bouton de secours de l'animateur : remplace les étapes du groupe par les étapes types de la
- * persona. Les actions déjà regroupées retournent dans « Pas encore regroupées ».
+ * persona. Les actions retournent dans « Pas encore regroupées », les stories dans le bac.
  */
 export function useJourneyExample(state, personaId) {
   const list = JOURNEY_EXAMPLES[personaId] ?? [];
-  if (journeyDone(state)) return 0;
   for (const st of journeyNotes(state)) removeNote(state, st.id);
-  for (const text of list) addNote(state, { b: 'journey' }, text, { from: 'example' });
+  for (const text of list) addNote(state, { b: 'backbone' }, text, { from: 'example' });
   return list.length;
-}
-
-/** Valide le parcours : ses étapes deviennent, dans l'ordre, la colonne vertébrale. */
-export function validateJourney(state) {
-  const steps = journeyNotes(state);
-  if (!steps.length) return 0;
-  for (const n of steps) n.place = { b: 'backbone' };
-  return steps.length;
-}
-
-/** Revient au récit : la colonne vertébrale redevient le parcours (les stories restent attachées). */
-export function reopenJourney(state) {
-  const cols = notesIn(state, { b: 'backbone' });
-  for (const n of cols) n.place = { b: 'journey' };
-  return cols.length;
 }
 
 /**
@@ -605,7 +586,7 @@ export function sanitize(raw) {
   const state = newState();
   if (STEP_IDS.includes(raw.step)) state.step = raw.step;
   if (Array.isArray(raw.visited)) state.visited = STEP_IDS.filter((s) => raw.visited.includes(s) || s === state.step);
-  if (!state.visited.includes('frame')) state.visited.unshift('frame');
+  if (!state.visited.includes('welcome')) state.visited.unshift('welcome');
   if (PERSONA_IDS.includes(raw.persona)) state.persona = raw.persona;
 
   // Post-its : on garde les valides, en plusieurs passes pour que les parents passent avant les enfants.
