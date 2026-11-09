@@ -1188,3 +1188,57 @@ main.is-readonly .note-x { display: none; }
 /* Glisser-déposer : Safari lance sinon une sélection ou un glisser natif */
 [data-drag] { -webkit-user-select: none; user-select: none; -webkit-touch-callout: none; -webkit-user-drag: none; }
 [data-drag] * { -webkit-user-drag: none; }
+
+/* Story map, temps 3 : relier les livrables au parcours */
+.lcols { display: flex; gap: 12px; align-items: stretch; width: max-content; min-width: 100%; padding-bottom: 4px; }
+.lcol { width: 210px; flex: none; display: grid; grid-template-rows: auto auto 1fr; gap: 8px; }
+.lcol .note--backbone { min-height: 56px; }
+.lcol-acts { display: grid; gap: 3px; align-content: start; padding: 6px 8px; font-size: 12px; color: var(--muted); line-height: 1.3; }
+.lcol-acts span:not(.hint)::before { content: "· "; }
+.lcol-drop { display: grid; gap: 8px; align-content: start; padding: 8px; min-height: 90px; border-radius: 10px; border: 1.5px dashed var(--line); background: color-mix(in srgb, var(--surface) 60%, transparent); }
+.srow--sort .scell { border: 1.5px dashed var(--line); }
+
+/* Accueil illustré */
+.welcome-hero { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1.05fr); gap: 28px; align-items: center; padding: 8px 0 4px; }
+.welcome-hero h1 { font-size: clamp(36px, 5vw, 56px); margin: 4px 0 10px; }
+.welcome-hero .lede { margin: 0; font-size: 19px; }
+.welcome-art { width: 100%; height: auto; display: block; }
+.wa-diamond { fill: color-mix(in srgb, var(--accent) 7%, transparent); stroke: color-mix(in srgb, var(--accent) 45%, transparent); stroke-width: 2; stroke-dasharray: 6 6; }
+.wa-axis { stroke: var(--line); stroke-width: 1.5; }
+.wa-note { fill: hsl(var(--h) 85% 80%); }
+.wa-line { stroke: hsl(0 0% 20% / .35); stroke-width: 2.5; stroke-linecap: round; }
+.wa-label { font: 600 12px 'IBM Plex Sans', system-ui, sans-serif; fill: var(--muted); text-anchor: middle; }
+[data-theme="dark"] .wa-note { fill: hsl(var(--h) 55% 62%); }
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) .wa-note { fill: hsl(var(--h) 55% 62%); } }
+.welcome-card { position: relative; border-top: 4px solid var(--wc); padding-top: 22px; }
+.welcome-card--goal { --wc: hsl(205 70% 50%); }
+.welcome-card--format { --wc: hsl(150 55% 42%); }
+.welcome-card--rules { --wc: hsl(330 65% 55%); }
+.welcome-icon { width: 40px; height: 40px; display: grid; place-items: center; border-radius: 12px; background: color-mix(in srgb, var(--wc) 14%, transparent); color: var(--wc); }
+.welcome-icon svg { width: 22px; height: 22px; fill: none; stroke: currentColor; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; }
+.welcome-card li::marker { color: var(--wc); }
+@media (max-width: 860px) { .welcome-hero { grid-template-columns: minmax(0, 1fr); } }
+
+/* Cas fil rouge en tête de pratique */
+.case-block { display: grid; gap: 10px; padding: 18px; border-radius: 16px; background: var(--surface); border: 1px solid var(--line); }
+.case-foot { display: flex; justify-content: flex-end; }
+
+/* Quiz sur ordinateur : les notions sur le double diamant */
+.qdiamond { display: grid; gap: 12px; }
+.qdiamond > .hint { margin: 0; }
+.qtray { display: flex; flex-wrap: wrap; gap: 8px; min-height: 48px; padding: 10px; border-radius: 12px; border: 1.5px dashed var(--line); background: var(--bg); }
+.qphases { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 8px; }
+.qzone { display: grid; gap: 4px; align-content: start; min-height: 110px; padding: 10px; border-radius: 12px; background: color-mix(in srgb, var(--accent) 6%, var(--surface)); border: 1.5px solid var(--line); cursor: pointer; }
+.qphases .qzone:nth-child(-n+2) { clip-path: none; }
+.qzone strong { font-size: 14px; }
+.qzone small { font-size: 12px; color: var(--muted); }
+.qzone--all { min-height: 70px; background: color-mix(in srgb, var(--accent) 10%, var(--surface)); }
+.qzone-chips { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 4px; }
+.qzone.is-over, .qtray.is-over { border-color: var(--accent); box-shadow: 0 0 0 3px var(--accent-soft); }
+.qchip { cursor: grab; border: 0; font: inherit; display: inline-flex; align-items: center; gap: 6px; }
+.qchip.is-picked { outline: 3px solid var(--accent); outline-offset: 2px; }
+.qchip .pq-n { margin: 0; }
+.qphases { position: relative; padding: 6px 0; }
+.qphases-art { position: absolute; inset: 0; width: 100%; height: 100%; pointer-events: none; }
+.qphases-art path { fill: color-mix(in srgb, var(--accent) 7%, transparent); stroke: color-mix(in srgb, var(--accent) 40%, transparent); stroke-width: .6; vector-effect: non-scaling-stroke; stroke-dasharray: 5 5; }
+.qphases .qzone { position: relative; background: color-mix(in srgb, var(--surface) 70%, transparent); border-style: dashed; min-height: 150px; }

@@ -46,6 +46,33 @@ export async function startParticipant(api) {
     save('atelier-produit.quiz-order', order);
     return order;
   })();
+  /** Sur ordinateur : les notions se déposent sur le schéma du double diamant (téléphone : liste à cocher). */
+  const wideQuiz = () => matchMedia('(min-width: 760px) and (pointer: fine)').matches;
+  let pickedTool = null; // notion choisie au clic, en attendant une zone
+  const qchip = (t) => `<button type="button" class="qchip tchip tchip--${t} ${pickedTool === t ? 'is-picked' : ''}" data-drag="qtool:${t}" data-qtool="${t}" aria-pressed="${pickedTool === t}">
+      <span class="pq-n">${toolOrder.indexOf(t) + 1}</span>${esc(TOOLS[t].name)}</button>`;
+  function diamondQuiz() {
+    const at = (zone) => toolOrder.filter((t) => (quizDraft.placement[t] ?? '') === zone);
+    const loose = toolOrder.filter((t) => !PLACES.some((p) => p.id === quizDraft.placement[t]));
+    const phase = (p) => `<div class="qzone qzone--${p.id}" data-qzone="${p.id}" data-drop="qzone:${p.id}"><strong>${esc(p.label)}</strong><small>${esc(p.plain)}</small>
+      <div class="qzone-chips">${at(p.id).map(qchip).join('')}</div></div>`;
+    return `<div class="qdiamond" id="q1">
+      <p class="hint">Glissez chaque notion à sa place sur le double diamant (ou cliquez sur une notion, puis sur une zone).</p>
+      <div class="qtray" data-qzone="" data-drop="qzone:">${loose.length ? loose.map(qchip).join('') : '<span class="hint">Toutes les notions sont placées.</span>'}</div>
+      <div class="qphases">
+        <svg class="qphases-art" viewBox="0 0 100 100" preserveAspectRatio="none" aria-hidden="true"><path d="M0.5 50 L25 1 L49.5 50 L25 99 Z M50.5 50 L75 1 L99.5 50 L75 99 Z"/></svg>
+        ${PLACES.filter((p) => p.id !== 'all').map(phase).join('')}</div>
+      ${phase(PLACES.find((p) => p.id === 'all'))}
+    </div>`;
+  }
+  function placeTool(t, zone) {
+    if (!toolOrder.includes(t)) return;
+    if (zone) quizDraft.placement[t] = zone; else delete quizDraft.placement[t];
+    pickedTool = null;
+    save(QUIZ_KEY, quizDraft);
+    api.render();
+  }
+
   /** Questions sans réponse, numérotées comme à l'écran (notions 1 à 4 puis situations). */
   const missingNumbers = () => [
     ...toolOrder.map((t, i) => (PLACES.some((pl) => pl.id === quizDraft.placement[t]) ? 0 : i + 1)),
@@ -146,7 +173,7 @@ export async function startParticipant(api) {
       <div class="pprogress" aria-live="polite"><p><span id="qprogress">${done} / ${QUIZ_QUESTIONS}</span> réponses${quizLeft() !== null ? ` · <span class="pq-clock" id="qclock">${formatClock(quizLeft())}</span>` : ''}</p>
         <i><b id="qbar" style="width:${(done / QUIZ_QUESTIONS) * 100}%"></b></i></div>
       <h3 class="pq-title">1. Où se range chaque notion sur le double diamant ?</h3>
-      ${toolOrder.map((t, k) => `<fieldset class="pq" id="q${k + 1}">
+      ${wideQuiz() ? diamondQuiz() : toolOrder.map((t, k) => `<fieldset class="pq" id="q${k + 1}">
         <legend><span class="pq-n">${k + 1}</span><span class="tchip tchip--${t}">${esc(TOOLS[t].name)}</span></legend>
         <div class="pq-choices pq-choices--phases">${PLACES.map((p) => `<label class="pq-choice"><input type="radio" name="t:${t}" value="${p.id}" ${quizDraft.placement[t] === p.id ? 'checked' : ''}>
           <span><strong>${esc(p.label)}</strong><small>${esc(p.plain)}</small></span></label>`).join('')}</div>
@@ -209,7 +236,6 @@ export async function startParticipant(api) {
       const nums = missingNumbers();
       const miss = $('#qmissing');
       if (miss) { miss.hidden = false; miss.textContent = `Il vous reste ${nums.length > 1 ? 'les questions' : 'la question'} ${listFr(nums)} avant de pouvoir valider.`; }
-      $(`#q${nums[0]}`)?.scrollIntoView({ behavior: 'smooth', block: 'center' });
       return;
     }
     sending = true;
@@ -236,6 +262,15 @@ export async function startParticipant(api) {
   }, 1000);
 
   /* ---------- Saisies (code, prénom, quiz) ---------- */
+
+  // Quiz sur ordinateur : glisser une notion sur le diamant (glisser-déposer de l'atelier), ou cliquer la notion puis la zone.
+  hooks.placeQuizTool = (t, zone) => placeTool(t, zone);
+  main.addEventListener('click', (e) => {
+    const chip = e.target.closest('[data-qtool]');
+    if (chip) { e.preventDefault(); pickedTool = pickedTool === chip.dataset.qtool ? null : chip.dataset.qtool; api.render(); return; }
+    const zone = e.target.closest('[data-qzone]');
+    if (zone && pickedTool) placeTool(pickedTool, zone.dataset.qzone);
+  });
 
   main.addEventListener('change', (e) => {
     const [kind, id] = String(e.target.name).split(':');

@@ -9,7 +9,7 @@ import {
 } from './content.js?v=__VERSION__';
 import {
   newState, setStep, nextStep, prevStep, stepIndex, addNote, updateNote, moveNote, moveBlocker, removeNote,
-  notesIn, getNote, childrenOf, placesFor, encodePlace, decodePlace, samePlace, familyOf, placeLabel,
+  SORT_LANE, notesIn, getNote, childrenOf, placesFor, encodePlace, decodePlace, samePlace, familyOf, placeLabel,
   availableExtracts, placeExtract, unplaceExtract, extractById, compareEmpathy, emptyZones, personaById,
   toggleKeep, keptDeliverables, importDeliverable, mvpGaps,
   useJourneyExample, journeyNotes, journeyHints, simulatedNotes,
@@ -38,7 +38,7 @@ const CHOICE_LABELS = { empathy: 'Empathy map', impact: 'Impact mapping', story:
 
 const main = $('#main');
 let state = restore();
-const ui = { selectedTool: null, info: null, theoryOpen: new Set(), quizEntries: [], actionDraft: '', storyStage: 'recit' };
+const ui = { selectedTool: null, info: null, theoryOpen: new Set(), frameFolded: false, caseOpen: {}, quizEntries: [], actionDraft: '', storyStage: 'recit' };
 let phones = null; // animateur : module Participants
 const hooks = {}; // participant : vues fournies par participant.js (débrief, attente)
 
@@ -451,7 +451,7 @@ $('#stepper').addEventListener('click', (e) => {
  * l'animateur lance la pratique pour tous (« Passer à la pratique »). Le débrief n'a pas de théorie.
  */
 function practiceOn(step = state.step) {
-  if (step === 'debrief' || step === 'welcome') return true;
+  if (step === 'debrief' || step === 'welcome' || step === 'frame') return true;
   if (shared.on && !HOST) return shared.practice?.[step] === true;
   return state.practice.includes(step) || phones?.practice?.[step] === true;
 }
@@ -468,6 +468,7 @@ function practiceGate(step) {
 }
 
 function stepHeader(step) {
+  const withCase = ['empathy', 'impact', 'story'].includes(step) && practiceOn(step);
   const tool = TOOLS[STEP_TOOL[step]];
   const n = STEP_NUMBER[step];
   const phases = STEP_PHASES[step].map((p) => PHASES.find((x) => x.id === p).label).join(' · ');
@@ -481,6 +482,7 @@ function stepHeader(step) {
     ${diamondMini(STEP_PHASES[step])}
   </header>
   ${debrief ? '' : theoryBlock(step)}
+  ${withCase ? caseBlock() : ''}
   ${practiceOn(step) ? briefBlock(step) : ''}
   ${debrief ? '' : boardBar()}`;
 }
@@ -514,14 +516,15 @@ function boardBar() {
 }
 
 /** La théorie de l'outil : dépliée au départ, repliée une fois qu'on passe à la pratique. */
-function theoryBlock(step, { closable = true } = {}) {
+function theoryBlock(step, { closable = true, extra = '' } = {}) {
   const t = TOOLS[STEP_TOOL[step]];
-  // Pratique lancée : la théorie se replie, chacun peut la rouvrir (chez soi).
-  const closed = practiceOn(step) && !ui.theoryOpen.has(step);
+  // Pratique lancée : la théorie se replie, chacun peut la rouvrir (chez soi). Le Cadre n'est que
+  // de la théorie : ouvert d'abord, chacun le replie s'il veut.
+  const closed = step === 'frame' ? ui.frameFolded : practiceOn(step) && !ui.theoryOpen.has(step);
   if (closed) {
     return `<section class="theory is-closed">
       <button type="button" class="theory-toggle" data-act="theory-open" data-focus="theory" aria-expanded="false">
-        ${ICONS.book}<span><strong>La théorie : ${esc(t.name)}</strong> à quoi ça sert, quand l'utiliser, comment faire${step === 'impact' || step === 'story' ? ', et un exemple complet' : ''}</span><span class="theory-open">Revoir</span>
+        ${ICONS.book}<span><strong>La théorie : ${esc(t.name)}</strong> ${step === 'frame' ? 'et le double diamant' : `à quoi ça sert, quand l'utiliser, comment faire${['empathy', 'impact', 'story'].includes(step) ? ', et un exemple complet' : ''}`}</span><span class="theory-open">Revoir</span>
       </button>
     </section>`;
   }
@@ -543,9 +546,10 @@ function theoryBlock(step, { closable = true } = {}) {
       </div>
     </div>
     ${step === 'empathy' ? empathyExample() : step === 'impact' ? impactExample() : step === 'story' ? storyExample() : ''}
+    ${extra}
     <div class="theory-foot">
       <p class="theory-origin">${esc(t.origin)}</p>
-      ${closable && practiceOn(step) ? '<button type="button" class="btn btn-quiet" data-act="theory-close" data-focus="theory">Replier la théorie ↑</button>' : ''}
+      ${closable && (practiceOn(step) || step === 'frame') ? '<button type="button" class="btn btn-quiet" data-act="theory-close" data-focus="theory">Replier la théorie ↑</button>' : ''}
     </div>
   </section>`;
 }
@@ -733,19 +737,48 @@ function trayHtml(step, title, hint) {
 
 /* ---------- Étape « cadre » ---------- */
 
+/** Illustration de l'accueil : des post-its qui s'organisent en double diamant. */
+function welcomeArt() {
+  const notes = [
+    [70, 70, -8, 205], [112, 118, 6, 330], [62, 150, 4, 150], [150, 74, -4, 44],
+    [214, 98, 7, 265], [196, 150, -6, 6], [300, 66, 5, 44], [344, 120, -7, 150],
+    [292, 160, 3, 205], [404, 84, -5, 330], [440, 140, 6, 265], [380, 172, -3, 6],
+  ];
+  return `<svg class="welcome-art" viewBox="0 0 520 250" role="img" aria-label="Des post-its colorés qui s'organisent en double diamant">
+    <defs><filter id="wshadow" x="-20%" y="-20%" width="140%" height="160%"><feDropShadow dx="0" dy="3" stdDeviation="3" flood-opacity=".18"/></filter></defs>
+    <path class="wa-diamond" d="M20 125 L135 20 L250 125 L135 230 Z M250 125 L380 20 L500 125 L380 230 Z"/>
+    <path class="wa-axis" d="M20 125 H500"/>
+    ${notes.map(([x, y, r, h], i) => `<g transform="translate(${x} ${y}) rotate(${r})" filter="url(#wshadow)">
+      <rect class="wa-note" x="-22" y="-20" width="44" height="40" rx="4" style="--h:${h}"/>
+      <path class="wa-line" d="M-13 -6 h${18 + (i % 3) * 4} M-13 3 h${12 + (i % 4) * 4}"/></g>`).join('')}
+    <text class="wa-label" x="78" y="244">Découvrir</text><text class="wa-label" x="188" y="244">Définir</text>
+    <text class="wa-label" x="310" y="244">Développer</text><text class="wa-label" x="430" y="244">Livrer</text>
+  </svg>`;
+}
+
+const WELCOME_ICONS = {
+  goal: '<svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="9"/><circle cx="12" cy="12" r="5"/><circle cx="12" cy="12" r="1.5"/></svg>',
+  format: '<svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="4" width="8" height="7" rx="1.5"/><rect x="13" y="4" width="8" height="7" rx="1.5"/><rect x="3" y="13" width="8" height="7" rx="1.5"/><path d="M16 14v5M13.5 16.5h5"/></svg>',
+  rules: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M7 11l4-4 3 3 4-4"/><path d="M3 20h18"/><path d="M5 16l3-3 3 3 5-5"/></svg>',
+};
+
 /** Accueil : le but, le format, les règles, et rejoindre. Pas de théorie ici. */
 function viewWelcome() {
   return `
-  <header class="intro intro--welcome">
-    <p class="kicker">Bienvenue</p>
-    <h1 tabindex="-1">Atelier Produit</h1>
-    <p class="lede">Découvrir quelques techniques produit en les pratiquant, en équipe, sur un même cas fil rouge.</p>
+  <header class="welcome-hero">
+    <div class="welcome-hero-text">
+      <p class="kicker">Bienvenue</p>
+      <h1 tabindex="-1">Atelier Produit</h1>
+      <p class="lede">Découvrir quelques techniques produit en les pratiquant, en équipe, sur un même cas fil rouge.</p>
+    </div>
+    ${welcomeArt()}
   </header>
 
   ${joinCard()}
 
   <section class="welcome-grid">
-    ${WELCOME.blocks.map((blk) => `<article class="welcome-card">
+    ${WELCOME.blocks.map((blk) => `<article class="welcome-card welcome-card--${blk.id}">
+      <span class="welcome-icon">${WELCOME_ICONS[blk.id] ?? ''}</span>
       <h2>${esc(blk.title)}</h2>
       ${blk.text ? `<p>${esc(blk.text)}</p>` : ''}
       ${blk.items ? `<ul>${blk.items.map((x) => `<li>${esc(x)}</li>`).join('')}</ul>` : ''}
@@ -755,7 +788,7 @@ function viewWelcome() {
   ${stepNav()}`;
 }
 
-/** Le cadre : le Design Thinking et le double diamant, puis le cas fil rouge. */
+/** Le cadre : la théorie seulement, le Design Thinking et le double diamant (replié avec elle). */
 function viewFrame() {
   const chips = { all: ['designThinking'] };
   for (const tool of TOOL_IDS) {
@@ -763,46 +796,48 @@ function viewFrame() {
     const phase = TOOL_PHASES[tool][0];
     (chips[phase] ??= []).push(tool);
   }
+  const diamond = `<section class="frame-diamond">
+    <div class="section-head"><h3>Le double diamant</h3></div>
+    <p class="diamond-message">${esc(DIAMOND_MESSAGE)}</p>
+    <p class="hint">Au fil de l'atelier, chaque outil vient prendre sa place sur le diamant.</p>
+    ${diamondBoard({ chips })}
+  </section>`;
   return `
   <header class="intro intro--frame">
     <p class="kicker">Le cadre</p>
     <h1 tabindex="-1">Le Design Thinking et le double diamant</h1>
-    <p class="lede">Le Design Thinking donne la démarche ; les outils qu'on va pratiquer s'y rangent. Pour voir comment ils s'enchaînent, on les applique l'un après l'autre sur le même cas.</p>
+    <p class="lede">Le Design Thinking donne la démarche ; les outils qu'on va pratiquer s'y rangent.</p>
   </header>
 
-  ${theoryBlock('frame')}
+  ${theoryBlock('frame', { extra: diamond })}
+  ${stepNav()}`;
+}
 
-  <section class="frame-diamond">
-    <div class="section-head">
-      <h2>Le double diamant</h2>
+/** Le cas fil rouge : présenté au début de la pratique de l'empathy map, repliable ensuite. */
+const caseOpen = () => ui.caseOpen[state.step] ?? state.step === 'empathy';
+function caseBlock() {
+  if (!caseOpen()) {
+    return `<section class="case-mini"><button type="button" class="theory-toggle" data-act="case-toggle" data-focus="case" aria-expanded="false">
+      ${ICONS.users}<span><strong>Le cas : ${esc(CASE.name)}</strong> ${esc(CASE.tagline)} · ${PERSONAS.map((p) => esc(p.name)).join(' et ')}</span><span class="theory-open">Revoir</span></button></section>`;
+  }
+  return `<section class="case-block" aria-labelledby="case-title">
+    <div class="frame-grid">
+      <article class="case">
+        <p class="kicker">Le cas fil rouge</p>
+        <h2 id="case-title">${esc(CASE.name)} <span>${esc(CASE.tagline)}</span></h2>
+        ${CASE.context.map((p) => `<p>${esc(p)}</p>`).join('')}
+        <p class="case-request"><strong>La commande.</strong> ${esc(CASE.request)}</p>
+      </article>
+      <div class="personas">
+        ${PERSONAS.map((p) => `<article class="persona-card" style="--h:${p.hue}">
+          ${avatar(p)}
+          <div><h3>${esc(p.name)}, ${p.age} ans</h3><p class="persona-role">${esc(p.role)} · ${esc(p.profile)}</p>
+          <ul>${p.facts.map((f) => `<li>${esc(f)}</li>`).join('')}</ul></div>
+        </article>`).join('')}
+      </div>
     </div>
-    <p class="diamond-message">${esc(DIAMOND_MESSAGE)}</p>
-    <p class="hint">Au fil de l'atelier, chaque outil vient prendre sa place sur le diamant.</p>
-    ${diamondBoard({ chips })}
-  </section>
-
-  ${practiceOn('frame') ? `<section class="practice-head">
-    <p class="kicker">Place à la pratique</p>
-    <h2>L'exercice : un cas fil rouge</h2>
-    <p class="hint">On applique maintenant chaque outil, l'un après l'autre, au même cas.</p>
-  </section>
-
-  <section class="frame-grid">
-    <article class="case">
-      <p class="kicker">Le cas</p>
-      <h2>${esc(CASE.name)} <span>${esc(CASE.tagline)}</span></h2>
-      ${CASE.context.map((p) => `<p>${esc(p)}</p>`).join('')}
-      <p class="case-request"><strong>La commande.</strong> ${esc(CASE.request)}</p>
-    </article>
-    <div class="personas">
-      ${PERSONAS.map((p) => `<article class="persona-card" style="--h:${p.hue}">
-        ${avatar(p)}
-        <div><h3>${esc(p.name)}, ${p.age} ans</h3><p class="persona-role">${esc(p.role)} · ${esc(p.profile)}</p>
-        <ul>${p.facts.map((f) => `<li>${esc(f)}</li>`).join('')}</ul></div>
-      </article>`).join('')}
-    </div>
-  </section>
-  ${stepNav()}` : practiceGate('frame')}`;
+    <div class="case-foot"><button type="button" class="btn btn-quiet" data-act="case-toggle" data-focus="case">Replier le cas ↑</button></div>
+  </section>`;
 }
 
 /**
@@ -1028,7 +1063,7 @@ function journeyRescue() {
 }
 
 function journeyStages(active) {
-  const items = [['recit', '1. On raconte'], ['regroup', '2. On regroupe en étapes'], ['map', '3. La story map']];
+  const items = [['recit', '1. On raconte'], ['regroup', '2. On regroupe en étapes'], ['link', '3. On relie aux livrables'], ['map', '4. On découpe en versions']];
   const locked = shared.on && shared.restitution;
   return `<ol class="jstages" aria-label="Les trois temps de la story map">${items.map(([id, label]) => `<li>
     <button type="button" class="${id === active ? 'is-on' : ''}" data-stage="${id}" ${id === active ? 'aria-current="step"' : ''} ${locked && id !== active ? 'disabled' : ''}>${esc(label)}</button></li>`).join('')}</ol>
@@ -1134,12 +1169,12 @@ function viewRegroup() {
   </section>
   <section class="checkpoint">
     <div>
-      <h2>Prêts pour la story map ?</h2>
+      <h2>Prêts à relier les livrables ?</h2>
       <ul class="journey-tips">${tips.map((t) => `<li>${t}</li>`).join('')}</ul>
       <p class="hint">Vos étapes forment la première ligne de la story map ; les actions restent dessous, pour mémoire. On peut revenir ici à tout moment.
         <button type="button" class="link-btn" data-act="journey-back" data-focus="journey-back">‹ Revenir au récit</button></p>
     </div>
-    <button type="button" class="btn btn-primary" data-act="journey-validate" data-focus="journey-validate">Passer à la story map ›</button>
+    <button type="button" class="btn btn-primary" data-act="journey-validate" data-focus="journey-validate">Relier aux livrables ›</button>
   </section>
   ${stepNav()}`;
 }
@@ -1148,49 +1183,102 @@ function viewJourney() {
   return storyStage() === 'regroup' ? viewRegroup() : viewRecit();
 }
 
+/** Les livrables retenus à l'impact mapping, à relier au parcours (temps 3). */
+function keptSection(kept, toPlace) {
+  return `<section class="kept" data-drop="kept">
+      <h2>Vos livrables retenus <span class="count">${toPlace.length}</span></h2>
+      ${toPlace.length
+        ? `<p class="hint">Ce que vous avez décidé de livrer à l'impact mapping. Glissez chacun sous l'étape où il aide ${esc(personaById(state.persona)?.name ?? 'la persona')}, ou cliquez dessus pour choisir. Un livrable placé quitte cette liste ; glissez-le ici pour l'y remettre.</p>
+           <div class="kept-list">${toPlace.map((d) => `<button type="button" class="kchip" data-drag="deliv:${d.id}" data-deliv="${d.id}" data-focus="deliv:${d.id}">${esc(d.text)}</button>`).join('')}</div>`
+        : kept.length ? '<p class="hint">Tous vos livrables retenus sont reliés au parcours. Glissez-en un ici pour le retirer.</p>'
+        : HOST ? `<p class="hint">Aucun livrable retenu : cochez l'étoile des livrables dans <button type="button" class="link-btn" data-go="impact">l'impact map</button>.</p>`
+          : '<p class="hint">Aucun livrable retenu pour l\'instant : ils sont choisis tous ensemble, à la fin de l\'impact mapping.</p>'}
+    </section>`;
+}
+
+/** Temps 3 : relier les livrables retenus aux étapes du parcours. */
+function viewLink() {
+  const persona = personaById(state.persona) ?? PERSONAS[0];
+  const cols = notesIn(state, { b: 'backbone' });
+  const kept = keptForStory();
+  const toPlace = kept.filter((d) => !d.imported);
+  const noDeliv = stepsWithoutDeliverable(state);
+  return `
+  ${stepHeader('story')}
+  ${journeyStages('link')}
+  <section class="jhead">
+    <p class="kicker">Temps 3 · On relie aux livrables</p>
+    <h2>À quel moment du parcours vos livrables aident-ils ${esc(persona.name)} ?</h2>
+    <p>Les actions disent ce que vit ${esc(persona.name)} ; les livrables, ce qu'on construit pour l'aider. Placez chaque livrable sous l'étape où il sert. Si une étape n'a rien, ajoutez la story qui manque.</p>
+  </section>
+  <div class="story-sources">
+    ${keptSection(kept, toPlace)}
+    ${trayHtml('story', 'À placer', 'Glissez ces post-its sous une étape du parcours.')}
+  </div>
+  ${cols.length ? `<section class="groupage" aria-label="Livrables par étape">
+    <div class="canvas-scroll">
+      <div class="lcols">
+        ${cols.map((c) => {
+          const place = { b: 'story', col: c.id, lane: SORT_LANE };
+          return `<div class="lcol">
+            <div class="note note--backbone note--static" style="--h:48"><span class="note-text">${esc(c.text)}</span></div>
+            <div class="lcol-acts">${actionsOf(state, c.id).map((x) => `<span>${esc(x.text)}</span>`).join('') || '<span class="hint">Pas d\'action rangée ici.</span>'}</div>
+            <div class="lcol-drop" data-drop="${encodePlace(place)}">${notesIn(state, place).map((n) => noteHtml(n)).join('')}${addButton(place, 'Story')}</div>
+          </div>`;
+        }).join('')}
+      </div>
+    </div>
+  </section>` : `<p class="hint">Pas encore d'étapes : <button type="button" class="link-btn" data-stage="regroup">regroupez d'abord les actions</button>.</p>`}
+  <section class="checkpoint">
+    <div><h2>Chaque étape est-elle couverte ?</h2>
+      ${noDeliv.length && cols.length
+        ? `<p>Rien sous <strong>${esc(noDeliv.map((c) => c.text).join(', '))}</strong> venant de l'impact map : faut-il y ajouter une story ? Ou est-ce un oubli de l'impact map ? C'est l'aller-retour du double diamant.</p>`
+        : cols.length ? '<p>Chaque étape a au moins un livrable. Reste à découper en versions.</p>' : ''}
+      ${toPlace.length ? `<p class="hint">${toPlace.length} livrable${toPlace.length > 1 ? 's' : ''} pas encore relié${toPlace.length > 1 ? 's' : ''} au parcours.</p>` : ''}
+    </div>
+    <button type="button" class="btn btn-primary" data-act="journey-cut" data-focus="journey-cut">Découper en versions ›</button>
+  </section>
+  ${stepNav()}`;
+}
+
 function viewStory() {
   if (!practiceOn('story')) return stepHeader('story') + practiceGate('story');
+  if (storyStage() === 'link') return viewLink();
   if (storyStage() !== 'map') return viewJourney();
   const cols = notesIn(state, { b: 'backbone' });
   const kept = keptForStory();
   const gaps = mvpGaps(state);
-  const noDeliv = stepsWithoutDeliverable(state);
   const toPlace = kept.filter((d) => !d.imported);
+  const sorting = cols.some((c) => notesIn(state, { b: 'story', col: c.id, lane: SORT_LANE }).length);
   const cell = (c, lane) => {
     const place = { b: 'story', col: c.id, lane: lane.id };
     return `<div class="scell" data-drop="${encodePlace(place)}">${notesIn(state, place).map((n) => noteHtml(n)).join('')}${addButton(place, 'Story')}</div>`;
   };
   return `
   ${stepHeader('story')}
-  ${shared.group === 'sim' ? simNotice() : `${journeyStages('map')}<div class="story-sources">
-    <section class="kept" data-drop="kept">
-      <h2>Livrables retenus <span class="count">${toPlace.length}</span></h2>
-      ${toPlace.length
-        ? `<p class="hint">Glissez-les sous une étape du parcours, ou cliquez sur l'un d'eux pour choisir où le placer. Un livrable placé quitte cette liste ; glissez-le ici pour l'y remettre.</p>
-           <div class="kept-list">${toPlace.map((d) => `<button type="button" class="kchip ${d.imported ? 'is-imported' : ''}" data-drag="deliv:${d.id}" data-deliv="${d.id}" data-focus="deliv:${d.id}">
-             ${d.imported ? ICONS.check : ''}${esc(d.text)}</button>`).join('')}</div>`
-        : kept.length ? '<p class="hint">Tous les livrables retenus sont placés. Glissez-en un ici pour le retirer de la story map.</p>'
-        : HOST ? `<p class="hint">Aucun livrable retenu : cochez l'étoile des livrables dans <button type="button" class="link-btn" data-go="impact">l'impact map</button>.</p>`
-          : '<p class="hint">Aucun livrable retenu pour l\'instant : ils sont choisis tous ensemble, à la fin de l\'impact mapping.</p>'}
-    </section>
-    ${trayHtml('story', 'À placer', 'Glissez ces post-its sous une étape du parcours.')}
-  </div>`}
+  ${shared.group === 'sim' ? simNotice() : `${journeyStages('map')}
+  <section class="jhead">
+    <p class="kicker">Temps 4 · On découpe en versions</p>
+    <h2>Rangez chaque story dans une version</h2>
+    <p>La première version doit traverser tout le parcours, même de façon rudimentaire. Ce qui peut attendre descend sous la ligne de version.</p>
+    ${toPlace.length ? `<p class="hint">${toPlace.length} livrable${toPlace.length > 1 ? 's' : ''} retenu${toPlace.length > 1 ? 's' : ''} pas encore relié${toPlace.length > 1 ? 's' : ''} au parcours : <button type="button" class="link-btn" data-stage="link">revenir au temps 3</button>.</p>` : ''}
+  </section>`}
 
   <div class="canvas">
     <div class="canvas-scroll">
       <div class="smap" style="--cols:${cols.length}">
         <div class="srow srow--backbone">
           <div class="slabel"><strong>Le parcours</strong><span>De gauche à droite, les grandes étapes de ${esc(personaById(state.persona)?.name ?? 'l\'utilisateur')}.</span>
-            ${shared.group !== 'sim' && !(shared.on && shared.restitution) ? '<button type="button" class="link-btn" data-act="journey-reopen" data-focus="journey-reopen">‹ Revenir au regroupement</button>' : ''}</div>
+</div>
           <div class="backbone" data-drop="backbone" data-axis="x">
             ${cols.map((c) => `<div class="bcell">${noteHtml(c)}</div>`).join('')}
             <div class="bcell bcell--add">${addButton({ b: 'backbone' }, 'Étape')}
 </div>
           </div>
         </div>
-        ${cols.some((c) => actionsOf(state, c.id).length) ? `<div class="srow srow--recall">
-          <div class="slabel"><strong>Ce que vit ${esc(personaById(state.persona)?.name ?? '')}</strong><span>Les actions du récit, pour mémoire</span></div>
-          <div class="lane">${cols.map((c) => `<div class="rcell">${actionsOf(state, c.id).map((a) => `<span>${esc(a.text)}</span>`).join('')}</div>`).join('')}</div>
+        ${cols.length && (sorting || shared.group !== 'sim') ? `<div class="srow srow--lane srow--sort">
+          <div class="slabel"><strong>À découper</strong><span>Reliés au parcours au temps 3 : glissez-les dans une version.</span></div>
+          <div class="lane">${cols.map((c) => cell(c, { id: SORT_LANE })).join('')}</div>
         </div>` : ''}
         ${cols.length ? STORY_LANES.map((lane, i) => `<div class="srow srow--lane srow--${lane.id}">
           <div class="slabel"><strong>${esc(lane.label)}</strong><span>${esc(lane.hint)}</span></div>
@@ -1204,7 +1292,7 @@ function viewStory() {
     ${gaps.length
       ? `<p>Étapes sans rien en première version : <strong>${esc(gaps.map((g) => g.text).join(', '))}</strong>. Une première version doit traverser tout le parcours, même de façon rudimentaire.</p>`
       : '<p>La première version traverse tout le parcours. Relisez-la : est-ce vraiment le minimum ? Que pourrait-on encore retirer ?</p>'}
-      ${noDeliv.length && shared.group !== 'sim' ? `<p>Aucun livrable de l'impact map sous <strong>${esc(noDeliv.map((c) => c.text).join(', '))}</strong> : faut-il y ajouter une story ? Ou est-ce un oubli de l'impact map ? C'est l'aller-retour du double diamant.</p>` : ''}
+      ${sorting && shared.group !== 'sim' ? '<p>Des stories attendent encore dans « À découper » : rangez-les dans une version.</p>' : ''}
       <p>Cette première version, c'est aussi un test : on la met entre les mains des utilisateurs pour apprendre, et ce qu'on apprend peut renvoyer au premier diamant.</p></div>
   </section>` : ''}
   ${stepNav()}`;
@@ -1447,14 +1535,14 @@ function openPlaceKept(id) {
   const k = keptForStory().find((x) => x.id === id);
   if (!k) return;
   const cols = notesIn(state, { b: 'backbone' });
-  if (!cols.length) { toast('Posez d\'abord les étapes du parcours (« + Étape » ou « Partir du parcours type »).'); return; }
+  if (!cols.length) { toast('Regroupez d\'abord les actions en étapes (temps 2).'); return; }
   openDialog(`<form method="dialog" class="dialog-form" data-form="place-kept">
     <h2 id="editor-title">Où placer ce livrable ?</h2>
     <p class="extract-quote extract-quote--plain">${esc(k.text)}</p>
     <label class="field-wrap"><span class="field-label">Étape du parcours</span>
       <select class="field" name="col">${cols.map((c) => `<option value="${c.id}">${esc(c.text)}</option>`).join('')}</select></label>
     <label class="field-wrap"><span class="field-label">Version</span>
-      <select class="field" name="lane">${STORY_LANES.map((l) => `<option value="${l.id}">${esc(l.label)}</option>`).join('')}</select></label>
+      <select class="field" name="lane">${[{ id: SORT_LANE, label: 'À découper (on choisira la version au temps 4)' }, ...STORY_LANES].map((l) => `<option value="${l.id}">${esc(l.label)}</option>`).join('')}</select></label>
     <div class="dialog-actions"><span></span>
       <button type="button" class="btn btn-quiet" data-cancel>Annuler</button>
       <button type="submit" class="btn btn-primary">Placer</button></div>
@@ -1695,8 +1783,9 @@ function placeTool(tool, phase) {
 }
 
 const actions = {
-  'theory-open'() { ui.theoryOpen.add(state.step); render('theory'); },
-  'theory-close'() { ui.theoryOpen.delete(state.step); render('theory'); },
+  'theory-open'() { if (state.step === 'frame') ui.frameFolded = false; else ui.theoryOpen.add(state.step); render('theory'); },
+  'theory-close'() { if (state.step === 'frame') ui.frameFolded = true; else ui.theoryOpen.delete(state.step); render('theory'); },
+  'case-toggle'() { ui.caseOpen[state.step] = !caseOpen(); render('case'); },
   /** Animateur : lance la pratique pour tous ; la première fois, le minuteur de l'étape démarre. */
   'practice-start'() {
     if (!HOST) return;
@@ -1774,8 +1863,9 @@ const actions = {
   },
   'journey-next'() { setStoryStage('regroup'); },
   'journey-back'() { setStoryStage('recit'); },
-  'journey-validate'() { setStoryStage('map'); },
-  'journey-reopen'() { setStoryStage('regroup'); },
+  'journey-validate'() { setStoryStage('link'); },
+  'journey-cut'() { setStoryStage('map'); },
+  'journey-reopen'() { setStoryStage('link'); },
   check() { state.debrief.checked = true; commit({ focus: 'check' }); },
   async copy() {
     const text = reportBoards().map(({ title, notes }) => `${title ? `===== ${title.toUpperCase()} =====\n` : ''}${reportText({ ...state, notes }, today())}`).join('\n\n');
@@ -1818,6 +1908,8 @@ $('#file-input').addEventListener('change', async (e) => {
 const splitKey = (key) => { const i = key.indexOf(':'); return [key.slice(0, i), key.slice(i + 1)]; };
 
 function accepts(dragKey, dropKey) {
+  // Quiz (participant, sur ordinateur) : une notion se dépose sur une zone du double diamant.
+  if (dragKey.startsWith('qtool:')) return dropKey.startsWith('qzone:');
   if (!canEdit()) return false;
   const [type, id] = splitKey(dragKey);
   if (type === 'tool') return dropKey === 'tools' || dropKey.startsWith('phase:');
@@ -1838,6 +1930,7 @@ function accepts(dragKey, dropKey) {
 }
 
 function onDrop(dragKey, dropKey, beforeKey) {
+  if (dragKey.startsWith('qtool:')) { hooks.placeQuizTool?.(dragKey.slice(6), dropKey.slice(6)); return; }
   const [type, id] = splitKey(dragKey);
   const beforeId = beforeKey?.startsWith('note:') ? beforeKey.slice(5) : null;
   if (type === 'tool') {

@@ -15,7 +15,9 @@ export const MAX_AUTHOR = 30;
 export const STEP_IDS = STEPS.map((s) => s.id);
 export const PERSONA_IDS = PERSONAS.map((p) => p.id);
 export const ZONE_IDS = EMPATHY_ZONES.map((z) => z.id);
-export const LANE_IDS = STORY_LANES.map((l) => l.id);
+/** « À découper » : les livrables reliés au parcours (temps 3), pas encore rangés dans une version. */
+export const SORT_LANE = 'sort';
+export const LANE_IDS = [...STORY_LANES.map((l) => l.id), SORT_LANE];
 export const IMPACT_KINDS = ['actor', 'impact', 'deliverable'];
 export const TOOL_IDS = Object.keys(TOOL_PHASES);
 export const PHASE_IDS = PHASES.map((p) => p.id);

@@ -230,7 +230,7 @@
                     ".validate": "newData.isString() && newData.val().length >= 1 && newData.val().length <= 200"
                   },
                   "place": {
-                    ".validate": "newData.isString() && newData.val().matches(/^(empathy\\|(sophie|karim)\\|(says|thinks|does|feels|pains|gains)|tray\\|(impact|story)|goal|journey|backbone|action|action\\|[a-z0-9]{4,24}|(actor|impact|deliverable)\\|[a-z0-9]{4,24}|story\\|[a-z0-9]{4,24}\\|(mvp|r2|later))$/)"
+                    ".validate": "newData.isString() && newData.val().matches(/^(empathy\\|(sophie|karim)\\|(says|thinks|does|feels|pains|gains)|tray\\|(impact|story)|goal|journey|backbone|action|action\\|[a-z0-9]{4,24}|(actor|impact|deliverable)\\|[a-z0-9]{4,24}|story\\|[a-z0-9]{4,24}\\|(mvp|r2|later|sort))$/)"
                   },
                   "order": {
                     ".validate": "newData.isNumber()"

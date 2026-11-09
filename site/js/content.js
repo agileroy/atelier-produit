@@ -15,9 +15,9 @@ export const STEPS = [
 /** Accueil : le but, le format, les règles (rien sur la suite, ni sur le débrief). */
 export const WELCOME = {
   blocks: [
-    { title: 'Le but', text: 'Découvrir des techniques produit en les essayant : à quoi elles servent, quand les utiliser, comment elles s\'enchaînent. Pas besoin de les connaître avant.' },
-    { title: 'Le format', items: ['Un peu de théorie, puis la pratique en groupe, sur un même cas fil rouge.', 'Chacun manipule les tableaux de son groupe depuis son ordinateur ou son téléphone.', 'Après chaque exercice, les groupes présentent leur travail et on en discute.', 'Environ 2 heures en tout.'] },
-    { title: 'Les règles du jeu', items: ['Pas de mauvaise réponse : on essaie, puis on en discute.', 'On écrit court : une idée par post-it.', 'On respecte le minuteur : l\'important est d\'aller au bout, pas d\'être parfait.', 'L\'animateur fait avancer l\'atelier pour tout le monde.'] },
+    { id: 'goal', title: 'Le but', text: 'Découvrir des techniques produit en les essayant : à quoi elles servent, quand les utiliser, comment elles s\'enchaînent. Pas besoin de les connaître avant.' },
+    { id: 'format', title: 'Le format', items: ['Un peu de théorie, puis la pratique en groupe, sur un même cas fil rouge.', 'Chacun manipule les tableaux de son groupe depuis son ordinateur ou son téléphone.', 'Après chaque exercice, les groupes présentent leur travail et on en discute.', 'Environ 2 heures en tout.'] },
+    { id: 'rules', title: 'Les règles du jeu', items: ['Pas de mauvaise réponse : on essaie, puis on en discute.', 'On écrit court : une idée par post-it.', 'On respecte le minuteur : l\'important est d\'aller au bout, pas d\'être parfait.', 'L\'animateur fait avancer l\'atelier pour tout le monde.'] },
   ],
 };
 
@@ -461,11 +461,12 @@ export const BRIEFS = {
     ],
   },
   story: {
-    duration: '30 min',
+    duration: '35 min',
     steps: [
-      'Racontez la semaine de votre persona avec l\'appli : chacun ajoute des actions courtes. Regroupez-les en 4 à 7 grandes étapes et validez : c\'est la première ligne de votre story map.',
-      'Glissez les livrables retenus (les mêmes pour tous les groupes) sous les étapes, ajoutez les stories qui manquent.',
-      'Rangez-les dans les versions : la première version doit traverser tout le parcours.',
+      'Racontez la semaine de votre persona avec l\'appli : chacun ajoute des actions courtes.',
+      'Regroupez-les en 4 à 7 grandes étapes : c\'est la première ligne de votre story map.',
+      'Reliez les livrables retenus à l\'impact mapping au parcours : sous quelle étape chacun aide-t-il votre persona ? Ajoutez les stories qui manquent.',
+      'Découpez en versions : la première version doit traverser tout le parcours.',
       'Relisez la première version : peut-on vraiment covoiturer avec ? C\'est elle qu\'on fera tester aux utilisateurs pour apprendre.',
     ],
   },
