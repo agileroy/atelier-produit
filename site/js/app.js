@@ -530,7 +530,7 @@ function stepHeader(step) {
     <div class="intro">
       <p class="kicker">${n ? `Étape ${n} · ` : ''}${esc(phases)}</p>
       <h1 tabindex="-1">${esc(debrief ? 'Débrief' : tool.name)}</h1>
-      <p class="lede">${esc(debrief ? 'Un quiz individuel, chacun sur son ordinateur ou son téléphone, puis la révélation : chacun reçoit sa correction, l\'écran montre les bonnes réponses et le podium.' : tool.oneLine)}</p>
+      <p class="lede">${esc(debrief ? 'Un quiz individuel, chacun sur son ordinateur ou son téléphone, puis la révélation : chacun reçoit sa correction, et l\'écran montre les bonnes réponses.' : tool.oneLine)}</p>
     </div>
     <div class="step-head-art">${stepArt(step)}${diamondMini(STEP_PHASES[step])}</div>
   </header>
@@ -856,9 +856,9 @@ function stepArt(step) {
       ${[[55, 72, 3, 44], [119, 70, -3, 44], [183, 74, 2, 44], [247, 71, -2, 44], [55, 128, -3, 150], [183, 130, 4, 150], [247, 126, -2, 330]].map((n) => artNote(...n)).join('')}
       <path class="wa-version" d="M15 99 H290"/>`);
   }
-  return svg('Un podium et des étoiles', `<rect class="wa-block" x="110" y="60" width="80" height="100" rx="6"/><rect class="wa-block wa-block--2" x="30" y="90" width="80" height="70" rx="6"/><rect class="wa-block wa-block--3" x="190" y="110" width="80" height="50" rx="6"/>
-    <text class="wa-rank" x="150" y="118">1</text><text class="wa-rank" x="70" y="134">2</text><text class="wa-rank" x="230" y="144">3</text>
-    ${artNote(150, 32, -4, 44, 34, 30, true)}${artNote(70, 66, 5, 205)}${artNote(230, 86, -5, 330)}`);
+  return svg('Une ampoule et des post-its', `<circle class="wa-head" cx="150" cy="70" r="42"/><path class="wa-face" d="M136 112 h28 M138 122 h24 M143 132 h14"/>
+    <path class="wa-face" d="M150 50 v22 M140 62 l10 10 10-10"/>
+    ${artNote(60, 50, -8, 205)}${artNote(244, 46, 7, 330)}${artNote(70, 120, 5, 150)}${artNote(234, 118, -6, 44)}`);
 }
 
 /** Illustration de l'accueil : des post-its qui s'organisent en double diamant. */
@@ -1590,7 +1590,7 @@ function quizPanel() {
   if (!phones.live) {
     return `<section class="dsection qpanel">
       <h2>Ouvrez d'abord l'atelier aux participants</h2>
-      <p class="hint">Chacun rejoint avec son prénom, répond au quiz sur son ordinateur ou son téléphone, puis vous révélez les réponses : chacun reçoit sa correction, l'écran affiche les bonnes réponses et le podium.</p>
+      <p class="hint">Chacun rejoint avec son prénom, répond au quiz sur son ordinateur ou son téléphone, puis vous révélez les réponses : chacun reçoit sa correction, et l'écran affiche les bonnes réponses.</p>
       <button type="button" class="btn btn-primary" data-act="phones-show" data-focus="phones-show">Ouvrir l'atelier aux participants</button>
     </section>`;
   }

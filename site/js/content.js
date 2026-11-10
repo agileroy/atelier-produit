@@ -501,7 +501,7 @@ export const BRIEFS = {
     steps: [
       'Lancez le quiz quand tout le monde est connecté.',
       'Chacun range les quatre notions sur le double diamant, puis choisit l\'outil adapté à huit situations.',
-      'Révélez les réponses : correction sur chaque téléphone, podium et répartition à l\'écran.',
+      'Révélez les réponses : chacun reçoit sa correction, et l\'écran montre les bonnes réponses.',
       'Discutez des situations les moins réussies, puis notez ce que l\'équipe retient.',
     ],
   },
