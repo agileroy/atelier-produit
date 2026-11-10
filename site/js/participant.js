@@ -16,7 +16,16 @@ const AUTHOR_KEY = 'atelier-produit.author';
 const CHOICE_LABELS = { empathy: 'Empathy map', impact: 'Impact mapping', story: 'Story mapping', designThinking: 'La démarche complète (Design Thinking)', none: 'pas de réponse' };
 const BOARD_STEPS = ['empathy', 'impact', 'story'];
 const fmt = (n) => String(n).replace('.', ',');
-const phaseLabel = (id) => PLACES.find((p) => p.id === id)?.label ?? 'pas de réponse';
+const phaseLabel = (id) => (id === 'develop' || id === 'deliver' ? 'Développer et livrer' : PLACES.find((p) => p.id === id)?.label ?? 'pas de réponse');
+/**
+ * Les zones du quiz : le second losange (développer, livrer) ne fait qu'une zone, la story map
+ * couvrant les deux phases. Elle s'enregistre « develop ».
+ */
+const QUIZ_ZONES = [
+  ...PLACES.filter((p) => ['discover', 'define'].includes(p.id)),
+  { id: 'develop', label: 'Développer et livrer', plain: 'Explorer des solutions, puis les essayer et les améliorer avec les utilisateurs', wide: true },
+];
+const QUIZ_CHOICES = [...QUIZ_ZONES, PLACES.find((p) => p.id === 'all')];
 
 export async function startParticipant(api) {
   const { hooks, shared } = api;
@@ -52,9 +61,9 @@ export async function startParticipant(api) {
   const qchip = (t) => `<button type="button" class="qchip tchip tchip--${t} ${pickedTool === t ? 'is-picked' : ''}" data-drag="qtool:${t}" data-qtool="${t}" aria-pressed="${pickedTool === t}">
       ${esc(TOOLS[t].name)}</button>`;
   function diamondQuiz() {
-    const at = (zone) => toolOrder.filter((t) => (quizDraft.placement[t] ?? '') === zone);
+    const at = (zone) => toolOrder.filter((t) => (quizDraft.placement[t] === 'deliver' ? 'develop' : quizDraft.placement[t] ?? '') === zone);
     const loose = toolOrder.filter((t) => !PLACES.some((p) => p.id === quizDraft.placement[t]));
-    const phase = (p) => `<div class="qzone qzone--${p.id}" data-qzone="${p.id}" data-drop="qzone:${p.id}"><strong>${esc(p.label)}</strong><small>${esc(p.plain)}</small>
+    const phase = (p) => `<div class="qzone qzone--${p.id} ${p.wide ? 'qzone--wide' : ''}" data-qzone="${p.id}" data-drop="qzone:${p.id}"><strong>${esc(p.label)}</strong><small>${esc(p.plain)}</small>
       <div class="qzone-chips">${at(p.id).map(qchip).join('')}</div></div>`;
     const all = PLACES.find((p) => p.id === 'all');
     return `<div class="qdiamond" id="qt-diamond">
@@ -64,7 +73,7 @@ export async function startParticipant(api) {
         <div class="qall-head"><strong>${esc(all.label)}</strong><small>${esc(all.plain)}</small><div class="qzone-chips">${at('all').map(qchip).join('')}</div></div>
         <div class="qphases">
           <svg class="qphases-art" viewBox="0 0 100 100" preserveAspectRatio="none" aria-hidden="true"><path d="M0.5 50 L25 1 L49.5 50 L25 99 Z M50.5 50 L75 1 L99.5 50 L75 99 Z"/></svg>
-          ${PLACES.filter((p) => p.id !== 'all').map(phase).join('')}</div>
+          ${QUIZ_ZONES.map(phase).join('')}</div>
       </div>
     </div>`;
   }
@@ -183,7 +192,7 @@ export async function startParticipant(api) {
       <p class="hint">Où se range chaque notion ? Un point par notion bien placée.</p>
       ${wideQuiz() ? diamondQuiz() : toolOrder.map((t) => `<fieldset class="pq" id="qt-${t}">
         <legend><span class="tchip tchip--${t}">${esc(TOOLS[t].name)}</span></legend>
-        <div class="pq-choices pq-choices--phases">${PLACES.map((p) => `<label class="pq-choice"><input type="radio" name="t:${t}" value="${p.id}" ${quizDraft.placement[t] === p.id ? 'checked' : ''}>
+        <div class="pq-choices pq-choices--phases">${QUIZ_CHOICES.map((p) => `<label class="pq-choice"><input type="radio" name="t:${t}" value="${p.id}" ${(quizDraft.placement[t] === 'deliver' ? 'develop' : quizDraft.placement[t]) === p.id ? 'checked' : ''}>
           <span><strong>${esc(p.label)}</strong><small>${esc(p.plain)}</small></span></label>`).join('')}</div>
       </fieldset>`).join('')}
       <h3 class="pq-title">Les situations <span class="pq-points">8 points</span></h3>
@@ -206,7 +215,7 @@ export async function startParticipant(api) {
       <h3 class="pq-title">Le double diamant</h3>
       <ul class="pcorr">${sc.tools.map((t) => `<li class="dresult ${t.ok ? 'is-right' : 'is-wrong'}">
         <p class="dresult-head"><span class="tchip tchip--${t.tool}">${esc(TOOLS[t.tool].name)}</span> <span>vous : <strong>${esc(phaseLabel(t.phase))}</strong></span></p>
-        <p class="dresult-verdict">${t.ok ? 'Bien vu.' : `Sa place : ${esc(TOOL_PHASES[t.tool].map(phaseLabel).join(' et '))}.`}</p>
+        <p class="dresult-verdict">${t.ok ? 'Bien vu.' : `Sa place : ${esc([...new Set(TOOL_PHASES[t.tool].map(phaseLabel))].join(' et '))}.`}</p>
         ${PLACEMENT_FEEDBACK[t.tool][t.phase] ? `<p>${esc(PLACEMENT_FEEDBACK[t.tool][t.phase])}</p>` : ''}
       </li>`).join('')}</ul>
       <h3 class="pq-title">Les situations</h3>

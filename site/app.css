@@ -1348,3 +1348,6 @@ circle.wa-face { fill: color-mix(in srgb, var(--accent) 30%, transparent); strok
 .qphases .qzone { background: transparent; border-color: color-mix(in srgb, var(--accent) 25%, transparent); }
 .qphases-art path { fill: color-mix(in srgb, var(--accent) 13%, transparent); stroke: color-mix(in srgb, var(--accent) 60%, transparent); stroke-width: 1.2; }
 .qall { background: color-mix(in srgb, var(--accent) 4%, var(--surface)); }
+.qphases { grid-template-columns: repeat(2, minmax(0, 1fr)) minmax(0, 2fr); }
+.qzone--wide { text-align: center; justify-items: center; }
+.qzone--wide .qzone-chips { justify-content: center; }
