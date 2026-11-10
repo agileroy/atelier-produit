@@ -21,7 +21,7 @@
               ".validate": "newData.isString() && newData.val().length >= 1 && newData.val().length <= 80"
             },
             "step": {
-              ".validate": "newData.isString() && newData.val().matches(/^(welcome|frame|empathy|impact|story|bravo|debrief)$/)"
+              ".validate": "newData.isString() && newData.val().matches(/^(welcome|frame|empathy|impact|story|bravo|debrief|merci)$/)"
             },
             "persona": {
               ".validate": "newData.isString() && newData.val().matches(/^(sophie|karim)$/)"

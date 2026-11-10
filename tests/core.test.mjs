@@ -39,7 +39,8 @@ test('étapes : navigation et étapes visitées', () => {
   assert.equal(setStep(s, 'nope'), false);
   assert.equal(nextStep('welcome'), 'frame');
   assert.equal(nextStep('frame'), 'empathy');
-  assert.equal(nextStep('debrief'), null);
+  assert.equal(nextStep('debrief'), 'merci');
+  assert.equal(nextStep('merci'), null);
   assert.equal(prevStep('welcome'), null);
 });
 

@@ -1351,3 +1351,22 @@ circle.wa-face { fill: color-mix(in srgb, var(--accent) 30%, transparent); strok
 .qphases { grid-template-columns: repeat(2, minmax(0, 1fr)) minmax(0, 2fr); }
 .qzone--wide { text-align: center; justify-items: center; }
 .qzone--wide .qzone-chips { justify-content: center; }
+
+/* Merci ! */
+.merci-hero { background: radial-gradient(circle at 50% 0%, color-mix(in srgb, hsl(330 70% 60%) 16%, var(--surface)), var(--surface) 70%); }
+.merci-art .wa-star { fill: hsl(44 95% 60%); stroke: hsl(36 80% 42%); stroke-width: 1.5; }
+.roti-final { display: grid; gap: 16px; padding: 22px 24px; border-radius: 20px; background: var(--surface); border: 2px solid color-mix(in srgb, var(--accent) 45%, var(--line));
+  box-shadow: 0 10px 30px -18px color-mix(in srgb, var(--accent) 60%, transparent); }
+.roti-final-head { display: flex; gap: 14px; align-items: flex-start; }
+.roti-final-head h2 { margin: 0 0 4px; font-size: 24px; }
+.roti-final-head p { margin: 0; color: var(--muted); max-width: 64ch; }
+.roti-final-icon { flex: none; width: 46px; height: 46px; display: grid; place-items: center; border-radius: 14px; font-size: 24px;
+  background: hsl(44 95% 60% / .22); color: hsl(36 80% 38%); }
+.roti-final .hint { margin: 0; }
+.further { padding: 14px 18px; border-radius: 14px; border: 1px dashed var(--line); }
+.further h2 { margin: 0 0 8px; font-size: 15px; color: var(--muted); text-transform: uppercase; letter-spacing: .06em; }
+.further ul { list-style: none; margin: 0; padding: 0; display: flex; flex-wrap: wrap; gap: 8px 20px; }
+.further li { display: grid; font-size: 14px; }
+.further li span { color: var(--muted); font-size: 13px; }
+@media (max-width: 560px) { .roti-final { padding: 18px 16px; } .roti-final-head { flex-direction: column; } }
+@media (max-width: 560px) { .roti-final .roti-share .join-qr { display: none; } }

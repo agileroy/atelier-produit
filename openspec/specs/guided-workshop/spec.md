@@ -5,8 +5,8 @@ Faire découvrir quatre techniques produit en les enchaînant sur un même cas, 
 
 ## Requirements
 
-### Requirement: Cinq étapes dans l'ordre du double diamant
-L'atelier SHALL proposer les étapes Cadre, Empathy map, Impact mapping, Story mapping et Débrief, accessibles à tout moment depuis l'en-tête.
+### Requirement: Les étapes dans l'ordre du double diamant
+L'atelier SHALL proposer les étapes Accueil, Cadre, Empathy map, Impact mapping, Story mapping, Bravo !, Débrief et Merci !, accessibles à tout moment depuis l'en-tête.
 
 #### Scenario: Le double diamant se remplit
 - **WHEN** une étape outil a été visitée
@@ -36,6 +36,9 @@ En séance, l'animateur SHALL ne pouvoir passer à une étape suivante qu'après
 
 ### Requirement: Bravo
 Une étape « Bravo ! », entre la story map et le débrief, SHALL conclure l'exercice de façon festive : le lancement réussi de Covoit'Boulot, le chemin parcouru en trois temps, quelques chiffres et ce que chaque groupe a construit (persona, objectif, livrables retenus, première version).
+
+### Requirement: Merci !
+La dernière étape, « Merci ! », après le débrief (on vote au quiz avant), SHALL remercier les participants pour leur attention et leur implication, illustrée dans le même style que le reste du parcours, et les inciter à donner leur avis par le ROTI (note et commentaire écrit), créé à l'arrivée sur la page (voir phone-postits). Une petite carte « Pour aller plus loin » cite les sources des outils. Pas de tour de table ni de mention de podium.
 
 ### Requirement: Ne pas dévoiler la suite
 La barre d'étapes et la navigation SHALL ne nommer que les étapes déjà atteintes ; les suivantes s'affichent « Étape N » (« Étape suivante »). Il n'y a pas de déroulé détaillé des étapes à venir.

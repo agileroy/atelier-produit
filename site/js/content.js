@@ -11,6 +11,7 @@ export const STEPS = [
   { id: 'story', label: 'Story mapping', short: 'Story' },
   { id: 'bravo', label: 'Bravo !', short: 'Bravo' },
   { id: 'debrief', label: 'Débrief', short: 'Débrief' },
+  { id: 'merci', label: 'Merci !', short: 'Merci' },
 ];
 
 /** Accueil : le but, le format, les règles (rien sur la suite, ni sur le débrief). */
@@ -30,6 +31,21 @@ export const STEP_LINKS = {
   empathy: { from: 'Le cas Covoit\'Boulot et votre persona, présentés juste au-dessus.', to: 'Les douleurs et les gains de votre carte serviront à l\'étape 4.' },
   impact: { from: 'Les douleurs et les gains de votre empathy map : ce qu\'il faut soulager, ce qui ferait la différence (rappelés à droite).', to: 'Les livrables étoilés, au moins 2 par persona, partent à l\'étape 5.' },
   story: { from: 'Votre persona (empathy map) et vos livrables étoilés (impact mapping).', to: 'Votre première version : ce que l\'équipe livrerait d\'abord.' },
+};
+
+/** La dernière page : merci, et le ROTI. */
+export const MERCI = {
+  thanks: [
+    'Merci pour votre attention et votre implication tout au long de l\'atelier : vous avez écouté, choisi, découpé, et vous êtes allés au bout.',
+    'Ces outils sont maintenant les vôtres : à vous de les essayer sur vos propres sujets.',
+  ],
+  roti: 'Une note de 1 à 5 sur le temps passé, anonyme, et un mot si vous voulez : ce qui vous a servi, ce qu\'on améliore pour la prochaine fois.',
+  further: [
+    { name: 'Le double diamant', by: 'Design Council, 2005' },
+    { name: 'User Story Mapping', by: 'Jeff Patton, 2014' },
+    { name: 'Impact Mapping', by: 'Gojko Adzic, 2012' },
+    { name: 'Empathy map', by: 'Dave Gray, XPLANE' },
+  ],
 };
 
 /** La conclusion de l'exercice, avant le débrief. */
@@ -122,6 +138,7 @@ export const PLACEMENT_FEEDBACK = {
 /** Phase mise en avant pour chaque étape (repère « vous êtes ici »). */
 export const STEP_PHASES = {
   welcome: [],
+  merci: [],
   bravo: [],
   frame: [],
   empathy: ['discover'],

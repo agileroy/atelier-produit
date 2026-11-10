@@ -4,7 +4,7 @@
 import {
   STEPS, WELCOME, CASE, PERSONAS, EMPATHY_ZONES, IMPACT_LEVELS, STORY_LANES, TOOLS, PHASES, PLACES, ALL_PLACE, TOOL_PHASES,
   STEP_PHASES, BRIEFS, SITUATIONS, SITUATION_CHOICES, PHONE_STEPS, DIAMOND_MESSAGE, DIAMOND_LOOP,
-  PLACEMENT_FEEDBACK, EXAMPLE_CASE, EMPATHY_EXAMPLE, IMPACT_EXAMPLE, STEP_LINKS, BRAVO, STORY_EXAMPLE, EXAMPLE_JOURNEY,
+  PLACEMENT_FEEDBACK, EXAMPLE_CASE, EMPATHY_EXAMPLE, IMPACT_EXAMPLE, STEP_LINKS, BRAVO, MERCI, STORY_EXAMPLE, EXAMPLE_JOURNEY,
   JOURNEY_RULES, JOURNEY_QUESTIONS, JOURNEY_MIN, JOURNEY_MAX, ACTION_EXAMPLES,
 } from './content.js?v=__VERSION__';
 import {
@@ -409,6 +409,7 @@ function render(focus) {
     if (!ui.scrolled[key] && key.endsWith('exercise') && (ui.scrolled[`${state.step}:case`] || ui.scrolled[`${state.step}:theory`])) main.querySelector('.brief')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
     ui.scrolled[key] = true;
   }
+  if (HOST && state.step === 'merci' && phones?.live && !phones.roti && !ui.rotiBusy && !ui.rotiFailed) setTimeout(() => actions['roti-create'](), 0);
   const input = main.querySelector('#action-input');
   if (input && caret !== null && document.activeElement === input) input.setSelectionRange(caret, caret);
 }
@@ -463,7 +464,7 @@ $('#stepper').addEventListener('click', (e) => {
  * l'animateur lance la pratique pour tous (« Passer à la pratique »). Le débrief n'a pas de théorie.
  */
 function practiceOn(step = state.step) {
-  if (['debrief', 'welcome', 'frame', 'bravo'].includes(step)) return true;
+  if (['debrief', 'welcome', 'frame', 'bravo', 'merci'].includes(step)) return true;
   if (shared.on && !HOST) return shared.practice?.[step] === true;
   return state.practice.includes(step) || phones?.practice?.[step] === true;
 }
@@ -545,7 +546,7 @@ function stepHeader(step) {
  * restitution ; pendant la restitution, chaque participant peut aussi regarder l'autre groupe.
  */
 function boardBar() {
-  if (!shared.on || ['frame', 'welcome', 'bravo'].includes(state.step)) return '';
+  if (!shared.on || ['frame', 'welcome', 'bravo', 'merci'].includes(state.step)) return '';
   const groups = boardGroups();
   const solo = shared.groups === 1;
   if (!HOST && !shared.restitution) {
@@ -911,6 +912,60 @@ function viewWelcome() {
     </article>`).join('')}
   </section>
   ${HOST ? '' : '<p class="hint">L\'animateur fait avancer l\'atelier : cette page suit l\'écran commun.</p>'}
+  ${stepNav()}`;
+}
+
+/* ---------- Merci ! La dernière page : remerciements et ROTI ---------- */
+
+/** Des post-its qui dessinent un cœur. */
+function merciArt() {
+  const pts = [[100, 50], [80, 32], [56, 34], [40, 54], [44, 80], [62, 102], [82, 120], [100, 136], [118, 120], [138, 102], [156, 80], [160, 54], [144, 34], [120, 32]];
+  const hues = [330, 6, 44, 205, 150, 265];
+  return `<svg class="bravo-art merci-art" viewBox="0 0 200 160" role="img" aria-label="Des post-its en forme de cœur">${artDefs}
+    ${pts.map(([x, y], i) => artNote(x, y, ((i * 37) % 20) - 10, hues[i % hues.length], 22, 20)).join('')}
+    <path class="wa-star" d="M100 70 l5 10 11 1.6-8 7.8 1.9 11-9.9-5.2-9.9 5.2 1.9-11-8-7.8 11-1.6z"/>
+  </svg>`;
+}
+
+/** Le bloc ROTI de la page « Merci ! » : le lien dès qu'il existe, sinon où on en est. */
+function merciRoti() {
+  const code = HOST ? phones?.roti : shared.roti;
+  if (code) {
+    return `${rotiBlock(code)}
+      ${HOST ? `<p class="hint">Pour vous seul : <a class="link-btn" href="${esc(rotiHostUrl(code))}" target="_blank" rel="noopener">la vue animateur du ROTI ↗</a> (votes en direct, puis « Révéler »).</p>` : ''}`;
+  }
+  if (HOST && phones?.live) {
+    return ui.rotiFailed
+      ? `<p>Le ROTI n'a pas pu être créé : le réseau (ou le VPN de l'entreprise) bloque peut-être l'outil.</p>
+         <button type="button" class="btn btn-primary" data-act="roti-retry" data-focus="roti-retry">Réessayer</button>`
+      : '<p class="hint">Création du ROTI…</p>';
+  }
+  if (HOST) return '<p class="hint">Ouvrez la séance aux participants (bouton « Participants ») : le ROTI est créé dès l\'arrivée sur cette page.</p>';
+  return '<p class="hint">Le lien arrive dans un instant…</p>';
+}
+
+function viewMerci() {
+  return `
+  <header class="bravo-hero merci-hero">
+    ${confetti()}
+    ${merciArt()}
+    <p class="kicker">C'est la fin</p>
+    <h1 tabindex="-1">Merci !</h1>
+    ${MERCI.thanks.map((x) => `<p class="lede">${esc(x)}</p>`).join('')}
+  </header>
+
+  <section class="roti-final" aria-labelledby="roti-title">
+    <div class="roti-final-head">
+      <span class="roti-final-icon" aria-hidden="true">★</span>
+      <div><h2 id="roti-title">Votre avis en 30 secondes</h2><p>${esc(MERCI.roti)}</p></div>
+    </div>
+    ${merciRoti()}
+  </section>
+
+  <section class="further">
+    <h2>Pour aller plus loin</h2>
+    <ul>${MERCI.further.map((f) => `<li><strong>${esc(f.name)}</strong><span>${esc(f.by)}</span></li>`).join('')}</ul>
+  </section>
   ${stepNav()}`;
 }
 
@@ -1568,19 +1623,6 @@ document.addEventListener('click', (e) => {
   if (roti) copyText(rotiJoinUrl(roti.dataset.copyRoti)).then((ok) => toast(ok ? 'Lien du ROTI copié.' : 'Copie impossible : sélectionnez le lien à la main.'));
 });
 
-function rotiPanel() {
-  const code = phones?.roti;
-  return `<section class="dsection roti-panel">
-    <div class="dsection-head"><span class="dsection-n">★</span><div><h2>Le ROTI de l'atelier</h2>
-      <p class="hint">Le temps passé valait-il le coup ? Chacun note l'atelier de 1 à 5, sans prénom.</p></div></div>
-    ${code ? `${rotiBlock(code)}
-      <p class="hint">Les participants voient ce lien et ce QR code sur leur écran.
-        <a class="link-btn" href="${esc(rotiHostUrl(code))}" target="_blank" rel="noopener">Ouvrir la vue animateur du ROTI ↗</a> (votes en direct, puis « Révéler »).</p>`
-      : `<button type="button" class="btn btn-primary" data-act="roti-create" data-focus="roti-create">Créer le ROTI et l'envoyer aux participants</button>
-      <p class="hint">Une salle est créée dans l'outil ROTI ; ce navigateur en devient l'animateur et la retrouve dans « Mes ROTI ».</p>`}
-  </section>`;
-}
-
 function quizPanel() {
   const entries = ui.quizEntries;
   const fmt = (n) => String(Math.round(n * 10) / 10).replace('.', ',');
@@ -1649,7 +1691,6 @@ function quizPanel() {
     </div>
   </section>
 
-  ${rotiPanel()}
 
   <section class="dsection">
     <div class="dsection-head"><span class="dsection-n">1</span><div><h2>Les notions sur le double diamant</h2>
@@ -1675,7 +1716,7 @@ function quizPanel() {
   </section>`;
 }
 
-const views = { welcome: viewWelcome, bravo: viewBravo, frame: viewFrame, empathy: viewEmpathy, impact: viewImpact, story: viewStory, debrief: viewDebrief };
+const views = { welcome: viewWelcome, bravo: viewBravo, merci: viewMerci, frame: viewFrame, empathy: viewEmpathy, impact: viewImpact, story: viewStory, debrief: viewDebrief };
 
 document.addEventListener('keydown', (e) => {
   if (e.key === 'Escape' && ui.info && !document.querySelector('dialog[open]')) { ui.info = null; render(); }
@@ -2044,18 +2085,22 @@ const actions = {
   },
   'reset-answers'() { state.debrief.answers = {}; commit(); },
   'phones-show'() { phones.show(); },
+  'roti-retry'() { ui.rotiFailed = false; actions['roti-create'](); },
   async 'roti-create'() {
-    if (!HOST || !phones?.live || phones.roti) return;
-    const btn = main.querySelector('[data-act="roti-create"]');
-    if (btn) { btn.disabled = true; btn.textContent = 'Création du ROTI…'; }
+    if (!HOST || !phones?.live || phones.roti || ui.rotiBusy) return;
+    ui.rotiBusy = true;
+    ui.rotiFailed = false;
+    render();
     try {
       const code = await createRoti(`Atelier Produit · ${new Intl.DateTimeFormat('fr-FR', { dateStyle: 'medium' }).format(new Date())}`);
       await phones.setRoti(code);
       toast('ROTI créé : le lien est sur l\'écran des participants.');
     } catch {
+      ui.rotiFailed = true;
       toast('ROTI injoignable : vérifiez le réseau (le VPN de l\'entreprise peut le bloquer), puis réessayez.');
-      render();
     }
+    ui.rotiBusy = false;
+    render();
   },
   async 'copy-link'() {
     const ok = await copyText(phones.shareUrl);
@@ -2066,11 +2111,10 @@ const actions = {
     await phones.setQuizEnd(phones.now + QUIZ_DURATION).catch(() => {});
     if (await phones.setQuiz('open')) announce('Quiz lancé : 3 minutes');
   },
-  /** Révéler : fin du quiz (à la main ou à la fin du temps), puis le ROTI part tout seul. */
+  /** Révéler : fin du quiz (à la main ou à la fin du temps), */
   async 'quiz-reveal'() {
     if (!(await phones.setQuiz('revealed'))) return;
     announce('Réponses révélées');
-    if (!phones.roti) actions['roti-create']();
   },
   async 'quiz-stop'() {
     if (!confirm('Fermer le quiz ? Les participants reviennent à l\'écran d\'attente.')) return;
