@@ -4,7 +4,7 @@
 import {
   STEPS, WELCOME, CASE, PERSONAS, EMPATHY_ZONES, IMPACT_LEVELS, STORY_LANES, TOOLS, PHASES, PLACES, ALL_PLACE, TOOL_PHASES,
   STEP_PHASES, BRIEFS, SITUATIONS, SITUATION_CHOICES, PHONE_STEPS, DIAMOND_MESSAGE, DIAMOND_LOOP,
-  PLACEMENT_FEEDBACK, EXAMPLE_CASE, EMPATHY_EXAMPLE, IMPACT_EXAMPLE, STORY_EXAMPLE, EXAMPLE_JOURNEY,
+  PLACEMENT_FEEDBACK, EXAMPLE_CASE, EMPATHY_EXAMPLE, IMPACT_EXAMPLE, STEP_LINKS, BRAVO, STORY_EXAMPLE, EXAMPLE_JOURNEY,
   JOURNEY_RULES, JOURNEY_QUESTIONS, JOURNEY_MIN, JOURNEY_MAX, ACTION_EXAMPLES,
 } from './content.js?v=__VERSION__';
 import {
@@ -31,14 +31,15 @@ import { createPhones } from './phones.js?v=__VERSION__';
 export const HOST = document.body.dataset.mode !== 'participant';
 const STORE_KEY = HOST ? 'atelier-produit.state' : 'atelier-produit.participant';
 const STEP_TOOL = { frame: 'designThinking', empathy: 'empathy', impact: 'impact', story: 'story', debrief: 'designThinking' };
-const STEP_NUMBER = { empathy: 1, impact: 2, story: 3 };
+/** Numéro de l'étape dans la barre du haut. */
+const STEP_NUMBER = Object.fromEntries(STEPS.map((x, i) => [x.id, i + 1]));
 const ZONE_HUES = { says: 205, thinks: 265, does: 150, feels: 330, pains: 6, gains: 44 };
 const KIND_HUES = { goal: 262, actor: 205, impact: 28, deliverable: 150 };
 const CHOICE_LABELS = { empathy: 'Empathy map', impact: 'Impact mapping', story: 'Story mapping', designThinking: 'La démarche complète (Design Thinking)' };
 
 const main = $('#main');
 let state = restore();
-const ui = { selectedTool: null, info: null, theoryOpen: new Set(), frameFolded: false, caseOpen: {}, quizEntries: [], actionDraft: '', storyStage: 'recit' };
+const ui = { selectedTool: null, info: null, theoryOpen: new Set(), frameFolded: false, caseOpen: {}, exampleOpen: {}, scrolled: {}, quizEntries: [], actionDraft: '', storyStage: 'recit' };
 let phones = null; // animateur : module Participants
 const hooks = {}; // participant : vues fournies par participant.js (débrief, attente)
 
@@ -243,7 +244,7 @@ const groupDone = (g, step = state.step) => shared.boards[g]?.state?.done?.[step
 
 function dockVisible() {
   if (!shared.on || !TIMER_STEPS.includes(state.step)) return false;
-  return HOST ? !!phones?.live : !!shared.myGroup && !hooks.screen?.() && practiceOn();
+  return HOST ? !!phones?.live : !!shared.myGroup && !hooks.screen?.() && exerciseOn();
 }
 
 function renderDock() {
@@ -322,7 +323,7 @@ dock?.addEventListener('click', async (e) => {
       plus: () => addTime(t, step, 5 * 60000, now),
       reset: () => ({ step, left: stepDuration(step), ...over }),
     }[act]?.();
-    if (act === 'restitution') { await phones.setRestitution(true).catch(() => toast('Restitution non lancée : la connexion est peut-être coupée.')); return; }
+    if (act === 'restitution') { if (TIMER_STEPS.includes(state.step)) phones.setMetaFlag('restituted', state.step).catch(() => {}); await phones.setRestitution(true).catch(() => toast('Restitution non lancée : la connexion est peut-être coupée.')); return; }
     if (next) await phones.setTimer(next).catch(() => toast('Minuteur non enregistré : la connexion est peut-être coupée.'));
     return;
   }
@@ -402,6 +403,12 @@ function render(focus) {
   refreshJoinDialog();
   renderDock();
   if (keep) main.querySelector(`[data-focus="${CSS.escape(keep)}"]`)?.focus({ preventScroll: true });
+  if (shared.on && ['empathy', 'impact', 'story'].includes(state.step)) {
+    const key = `${state.step}:${exerciseOn() ? 'exercise' : practiceOn() ? 'case' : 'theory'}`;
+    if (!ui.scrolled[key] && key.endsWith('case')) main.querySelector('.case-block')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    if (!ui.scrolled[key] && key.endsWith('exercise') && (ui.scrolled[`${state.step}:case`] || ui.scrolled[`${state.step}:theory`])) main.querySelector('.brief')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    ui.scrolled[key] = true;
+  }
   const input = main.querySelector('#action-input');
   if (input && caret !== null && document.activeElement === input) input.setSelectionRange(caret, caret);
 }
@@ -410,6 +417,11 @@ const focusKey = (el) => el.closest('[data-focus]')?.dataset.focus ?? null;
 
 function go(step) {
   if (!HOST) return;
+  const idx = (x) => STEPS.findIndex((st) => st.id === x);
+  if (phones?.live && TIMER_STEPS.includes(state.step) && idx(step) > idx(state.step) && !phones.restituted?.[state.step] && !shared.restitution) {
+    toast('Lancez d\'abord la restitution de cette étape, puis passez à la suite.');
+    return;
+  }
   if (step === 'story' && state.step !== 'story') {
     const missing = keptCounts().filter((k) => k.n < KEPT_MIN);
     if (missing.length) {
@@ -451,9 +463,50 @@ $('#stepper').addEventListener('click', (e) => {
  * l'animateur lance la pratique pour tous (« Passer à la pratique »). Le débrief n'a pas de théorie.
  */
 function practiceOn(step = state.step) {
-  if (step === 'debrief' || step === 'welcome' || step === 'frame') return true;
+  if (['debrief', 'welcome', 'frame', 'bravo'].includes(step)) return true;
   if (shared.on && !HOST) return shared.practice?.[step] === true;
   return state.practice.includes(step) || phones?.practice?.[step] === true;
+}
+
+/**
+ * L'exercice est-il lancé ? Pour l'empathy map, l'animateur montre d'abord le cas fil rouge
+ * (« Passer à la pratique »), puis lance l'exercice (consigne, carte, minuteur). Ailleurs, c'est la pratique.
+ */
+function exerciseOn(step = state.step) {
+  if (step !== 'empathy') return practiceOn(step);
+  if (!practiceOn(step)) return false;
+  if (shared.on && !HOST) return shared.exercise?.[step] === true;
+  return state.exercise.includes(step) || phones?.exercise?.[step] === true;
+}
+
+/** Exemple de la cantine : replié jusqu'à ce que l'animateur le dévoile, puis chacun le replie chez soi. */
+function exampleRevealed(step) {
+  if (shared.on && !HOST) return shared.examples?.[step] === true;
+  return state.examples.includes(step) || phones?.examples?.[step] === true;
+}
+function exampleBlock(step, html) {
+  if (!exampleRevealed(step)) {
+    return HOST || !shared.on
+      ? `<div class="example-gate"><p>${ICONS.book} Un exemple complet, sur un autre sujet : à montrer une fois la théorie présentée.</p>
+          <button type="button" class="btn btn-primary btn-small" data-act="example-show" data-focus="example">Afficher l'exemple${shared.on ? ' pour tous' : ''}</button></div>`
+      : '<div class="example-gate"><p>L\'exemple sera montré après la théorie.</p></div>';
+  }
+  const open = ui.exampleOpen[step] ?? true;
+  if (!open) {
+    return `<div class="example-gate"><p>${ICONS.book} Exemple complet : ${esc(EXAMPLE_CASE.name)}.</p>
+      <button type="button" class="btn btn-quiet btn-small" data-act="example-toggle" data-focus="example">Revoir l'exemple</button></div>`;
+  }
+  return `${html}<div class="example-foot"><button type="button" class="btn btn-quiet btn-small" data-act="example-toggle" data-focus="example">Replier l'exemple ↑</button></div>`;
+}
+
+/** Le fil entre les étapes : d'où l'on repart, à quoi ça servira. */
+function stepLink(step) {
+  const l = STEP_LINKS[step];
+  if (!l) return '';
+  return `<section class="step-link" aria-label="Le fil de l'atelier">
+    <p><span class="step-link-tag">On repart de</span>${esc(l.from)}</p>
+    <p><span class="step-link-tag step-link-tag--to">Ça servira</span>${esc(l.to)}</p>
+  </section>`;
 }
 
 /** Tant que la pratique n'est pas lancée : ce que voient l'animateur et les participants sous la théorie. */
@@ -468,7 +521,7 @@ function practiceGate(step) {
 }
 
 function stepHeader(step) {
-  const withCase = ['empathy', 'impact', 'story'].includes(step) && practiceOn(step);
+  const withCase = step === 'empathy' && practiceOn(step);
   const tool = TOOLS[STEP_TOOL[step]];
   const n = STEP_NUMBER[step];
   const phases = STEP_PHASES[step].map((p) => PHASES.find((x) => x.id === p).label).join(' · ');
@@ -483,7 +536,7 @@ function stepHeader(step) {
   </header>
   ${debrief ? '' : theoryBlock(step)}
   ${withCase ? caseBlock() : ''}
-  ${practiceOn(step) ? briefBlock(step) : ''}
+  ${exerciseOn(step) ? briefBlock(step) + stepLink(step) : ''}
   ${debrief ? '' : boardBar()}`;
 }
 
@@ -492,7 +545,7 @@ function stepHeader(step) {
  * restitution ; pendant la restitution, chaque participant peut aussi regarder l'autre groupe.
  */
 function boardBar() {
-  if (!shared.on || state.step === 'frame' || state.step === 'welcome') return '';
+  if (!shared.on || ['frame', 'welcome', 'bravo'].includes(state.step)) return '';
   const groups = boardGroups();
   const solo = shared.groups === 1;
   if (!HOST && !shared.restitution) {
@@ -509,7 +562,7 @@ function boardBar() {
   const partHint = shared.group === 'sim' ? 'le tableau du groupe simulé' : shared.group === shared.myGroup ? 'votre tableau' : 'le tableau de l\'autre groupe';
   return `<div class="board-bar">
     <div class="group-tabs" role="tablist" aria-label="Tableau affiché">${tabs}</div>
-    ${HOST ? `${shared.restitution || practiceOn() ? `<button type="button" class="btn ${shared.restitution ? 'btn-quiet' : 'btn-primary'} btn-small" data-act="restitution" data-focus="restitution">${shared.restitution ? 'Terminer la restitution' : 'Lancer la restitution'}</button>` : ''}
+    ${HOST ? `${shared.restitution || exerciseOn() ? `<button type="button" class="btn ${shared.restitution ? 'btn-quiet' : 'btn-primary'} btn-small" data-act="restitution" data-focus="restitution">${shared.restitution ? 'Terminer la restitution' : 'Lancer la restitution'}</button>` : ''}
       <p class="hint">${hostHint}</p>`
       : `<p class="hint">Restitution : ${partHint}, en lecture seule. L'animateur déplace les post-its.</p>`}
   </div>`;
@@ -548,7 +601,7 @@ function theoryBlock(step, { closable = true, extra = '' } = {}) {
         <h3>Pièges classiques</h3><ul class="pitfalls">${t.pitfalls.map((w) => `<li>${esc(w)}</li>`).join('')}</ul>
       </div>
     </div>
-    ${step === 'empathy' ? empathyExample() : step === 'impact' ? impactExample() : step === 'story' ? storyExample() : ''}
+    ${step === 'empathy' ? exampleBlock(step, empathyExample()) : step === 'impact' ? exampleBlock(step, impactExample()) : step === 'story' ? exampleBlock(step, storyExample()) : ''}
     ${extra}
     <div class="theory-foot">
       <p class="theory-origin">${esc(t.origin)}</p>
@@ -575,11 +628,27 @@ function exampleHead(title) {
 
 function empathyExample() {
   const ex = EMPATHY_EXAMPLE;
+  const lucie = { name: 'Lucie', hue: 20 };
+  // Même présentation que la carte de l'exercice, en lecture seule.
+  const zone = (z) => `<section class="ezone ezone--${z.id}" style="--h:${ZONE_HUES[z.id]}">
+      <h2>${esc(z.label)}</h2><p class="ezone-q">${esc(z.question)}</p>
+      <div class="note-list">${(ex.zones[z.id] ?? []).map((t) => staticNote(t, ZONE_HUES[z.id])).join('')}</div>
+    </section>`;
   return `<div class="example">
     ${exampleHead('Une empathy map remplie')}
-    <p class="hint"><strong>${esc(ex.persona)}</strong> On range ce qu'on a entendu et observé, sans interpréter trop vite.</p>
-    <div class="emap-example">${EMPATHY_ZONES.map((z) => `<div class="eex-zone" style="--h:${ZONE_HUES[z.id]}">
-      <h4>${esc(z.label)}</h4>${(ex.zones[z.id] ?? []).map((t) => staticNote(t, ZONE_HUES[z.id])).join('')}</div>`).join('')}</div>
+    <p class="hint">On range ce qu'on a entendu et observé, sans interpréter trop vite.</p>
+    <div class="emap emap--example">
+      ${zone(EMPATHY_ZONES[0])}
+      <div class="emap-center">
+        ${avatar(lucie, 'avatar--lg')}
+        <p class="emap-name">Lucie, 34 ans</p>
+        <p class="emap-role">Technicienne, déjeune à la cantine trois fois par semaine</p>
+      </div>
+      ${zone(EMPATHY_ZONES[1])}
+      ${zone(EMPATHY_ZONES[2])}
+      ${zone(EMPATHY_ZONES[3])}
+      <div class="emap-bottom">${zone(EMPATHY_ZONES[4])}${zone(EMPATHY_ZONES[5])}</div>
+    </div>
   </div>`;
 }
 
@@ -587,6 +656,14 @@ function impactExample() {
   const ex = IMPACT_EXAMPLE;
   return `<div class="example">
     ${exampleHead('Une impact map, du pourquoi au quoi')}
+    <div class="example-from">
+      <p class="step-link-tag">On repart de l'empathy map de Lucie</p>
+      <div class="example-from-grid">
+        <div><strong>Ses douleurs</strong><ul>${EMPATHY_EXAMPLE.zones.pains.map((x) => `<li>${esc(x)}</li>`).join('')}</ul></div>
+        <div><strong>Ses gains</strong><ul>${EMPATHY_EXAMPLE.zones.gains.map((x) => `<li>${esc(x)}</li>`).join('')}</ul></div>
+      </div>
+      <p class="hint">Les impacts cherchent à soulager ces douleurs ou à apporter ces gains.</p>
+    </div>
     <div class="canvas-scroll canvas-scroll--example">
       <div class="imap">
         <div class="imap-head">${IMPACT_LEVELS.map((l) => `<div style="--h:${KIND_HUES[l.id]}"><strong>${esc(l.label)}</strong> ${esc(l.name)}</div>`).join('')}</div>
@@ -602,7 +679,7 @@ function impactExample() {
         </li></ul>
       </div>
     </div>
-    <p class="hint">${ICONS.star} Les livrables étoilés sont ceux qu'on retient pour la première version : le chemin le plus court vers l'objectif.</p>
+    <p class="star-explain">${ICONS.star} <span><strong>L'étoile, c'est le lien avec la suite.</strong> Les livrables étoilés sont ceux qu'on retient : le chemin le plus court vers l'objectif. Ce sont eux, et eux seuls, qu'on emporte à l'étape suivante pour construire le produit. Les autres restent des idées.</span></p>
   </div>`;
 }
 
@@ -622,6 +699,11 @@ function storyExample() {
   </div>
   <div class="example">
     ${exampleHead('Puis la story map, du parcours aux versions')}
+    <div class="example-from">
+      <p class="step-link-tag">On repart des livrables étoilés de l'impact map de la cantine</p>
+      <ul class="example-kept">${IMPACT_EXAMPLE.actors.flatMap((ac) => ac.impacts.flatMap((i) => i.deliverables.filter((d, k) => i.kept.includes(k)))).map((d) => `<li>${ICONS.star} ${esc(d)}</li>`).join('')}</ul>
+      <p class="hint">On les place sous l'étape du parcours où ils aident Lucie, puis on les range dans des versions.</p>
+    </div>
     <div class="canvas-scroll canvas-scroll--example">
       <div class="smap smap--example">
         <div class="srow srow--backbone"><div class="slabel"><strong>Le parcours</strong></div>
@@ -832,6 +914,78 @@ function viewWelcome() {
   ${stepNav()}`;
 }
 
+/* ---------- Bravo ! La conclusion de l'exercice, avant le débrief ---------- */
+
+/** Ce que chaque groupe a produit (les tableaux qu'on peut lire d'ici). */
+function bravoGroups() {
+  const sum = (notes, personaId, label) => {
+    const goals = notes.filter((n) => n.place.b === 'goal').map((n) => n.text);
+    const kept = notes.filter((n) => n.place.b === 'deliverable' && n.keep).map((n) => n.text);
+    const mvp = notes.filter((n) => n.place.b === 'story' && n.place.lane === 'mvp').map((n) => n.text);
+    const cols = notes.filter((n) => n.place.b === 'backbone').length;
+    return { persona: personaById(personaId), label, goals, kept, mvp, cols, count: notes.length };
+  };
+  if (!shared.on) return [sum(state.notes, state.persona, '')];
+  const ids = HOST ? groupIdsFor(shared.groups) : [shared.myGroup].filter(Boolean);
+  return ids.map((g) => sum(shared.boards[g]?.notes ?? [], groupPersona(g), shared.groups === 2 ? groupName(g) : ''))
+    .filter((x) => x.count);
+}
+
+function confetti() {
+  const colors = [205, 330, 150, 44, 265, 6];
+  return `<div class="confetti" aria-hidden="true">${Array.from({ length: 36 }, (_, i) => {
+    const left = (i * 37) % 100;
+    const delay = ((i * 0.37) % 3).toFixed(2);
+    const dur = (3.2 + ((i * 0.53) % 2.4)).toFixed(2);
+    return `<i style="--h:${colors[i % colors.length]};left:${left}%;animation-delay:${delay}s;animation-duration:${dur}s;--r:${(i * 47) % 360}deg"></i>`;
+  }).join('')}</div>`;
+}
+
+function viewBravo() {
+  const groups = bravoGroups();
+  const total = groups.reduce((n, g) => n + g.count, 0);
+  const stats = [
+    [total, `post-it${total > 1 ? 's' : ''}`],
+    [groups.reduce((n, g) => n + g.cols, 0), 'étapes de parcours'],
+    [groups.reduce((n, g) => n + g.kept.length, 0), 'livrables retenus'],
+    [groups.reduce((n, g) => n + g.mvp.length, 0), 'stories en première version'],
+  ].filter(([n]) => n > 0);
+  return `
+  <header class="bravo-hero">
+    ${confetti()}
+    <svg class="bravo-art" viewBox="0 0 200 160" aria-hidden="true">${artDefs}
+      <path class="bravo-cup" d="M60 30 h80 v26 a40 40 0 0 1 -80 0z"/><path class="bravo-cup-ear" d="M60 40 h-16 a16 16 0 0 0 16 24 M140 40 h16 a16 16 0 0 1 -16 24"/>
+      <rect class="bravo-cup" x="92" y="94" width="16" height="22"/><rect class="bravo-cup" x="70" y="116" width="60" height="12" rx="3"/>
+      <path class="wa-star" d="M100 38 l5.5 11 12 1.7-8.7 8.5 2 12-10.8-5.7-10.8 5.7 2-12-8.7-8.5 12-1.7z"/>
+      ${artNote(30, 120, -10, 205, 30, 26)}${artNote(170, 118, 9, 330, 30, 26)}${artNote(26, 40, 8, 150, 26, 22)}${artNote(174, 36, -8, 44, 26, 22)}
+    </svg>
+    <p class="kicker">Mission accomplie</p>
+    <h1 tabindex="-1">${esc(BRAVO.title)}</h1>
+    ${BRAVO.story.map((x) => `<p class="lede">${esc(x)}</p>`).join('')}
+  </header>
+
+  ${stats.length ? `<section class="bravo-stats">${stats.map(([n, l]) => `<div><strong>${n}</strong><span>${esc(l)}</span></div>`).join('')}</section>` : ''}
+
+  <section class="bravo-path">
+    ${BRAVO.path.map((x, i) => `<article class="welcome-card bravo-step bravo-step--${i}">
+      <span class="bravo-n">${i + 1}</span>
+      <h2>${esc(x.label)}</h2><p>${esc(x.text)}</p>
+    </article>`).join('')}
+  </section>
+
+  ${groups.length ? `<section class="bravo-work">
+    <h2>Ce que vous avez construit</h2>
+    <div class="bravo-groups">${groups.map((g) => `<article class="bravo-group" style="--h:${g.persona?.hue ?? 205}">
+      <header>${g.persona ? avatar(g.persona) : ''}<div><strong>${g.label ? `${esc(g.label)} · ` : ''}${esc(g.persona?.name ?? '')}</strong><span>${esc(g.persona?.profile ?? '')}</span></div></header>
+      ${g.goals.length ? `<p class="bravo-label">L'objectif</p><p class="bravo-goal">${esc(g.goals[0])}</p>` : ''}
+      ${g.kept.length ? `<p class="bravo-label">Les livrables retenus</p><ul class="example-kept">${g.kept.map((k) => `<li>${ICONS.star} ${esc(k)}</li>`).join('')}</ul>` : ''}
+      ${g.mvp.length ? `<p class="bravo-label">La première version</p><ul class="bravo-mvp">${g.mvp.slice(0, 6).map((k) => `<li>${esc(k)}</li>`).join('')}${g.mvp.length > 6 ? `<li>et ${g.mvp.length - 6} de plus</li>` : ''}</ul>` : ''}
+    </article>`).join('')}</div>
+  </section>` : ''}
+  ${HOST ? '' : '<p class="hint">L\'animateur fait avancer l\'atelier : cette page suit l\'écran commun.</p>'}
+  ${stepNav()}`;
+}
+
 /** Le cadre : la théorie seulement, le Design Thinking et le double diamant (replié avec elle). */
 function viewFrame() {
   const chips = { all: ['designThinking'] };
@@ -861,7 +1015,7 @@ function viewFrame() {
 }
 
 /** Le cas fil rouge : présenté au début de la pratique de l'empathy map, repliable ensuite. */
-const caseOpen = () => ui.caseOpen[state.step] ?? state.step === 'empathy';
+const caseOpen = () => ui.caseOpen[state.step] ?? true;
 function caseBlock() {
   if (!caseOpen()) {
     return `<section class="case-mini"><button type="button" class="theory-toggle" data-act="case-toggle" data-focus="case" aria-expanded="false">
@@ -933,6 +1087,16 @@ function avatar(p, size = '') {
 
 function viewEmpathy() {
   if (!practiceOn('empathy')) return stepHeader('empathy') + practiceGate('empathy');
+  if (!exerciseOn('empathy')) {
+    return `${stepHeader('empathy')}
+    <section class="practice-gate">
+      ${HOST || !shared.on
+        ? `<p>Lisez le cas ensemble, puis lancez l'exercice${phones?.live ? ' : la carte apparaît chez tous et le minuteur démarre' : ''}.</p>
+          <button type="button" class="btn btn-primary" data-act="exercise-start" data-focus="exercise-start">Lancer l'exercice ↓</button>`
+        : '<p>Prenez le temps de lire le cas : l\'animateur lance l\'exercice juste après.</p>'}
+    </section>
+    ${HOST ? stepNav() : ''}`;
+  }
   const persona = personaById(state.persona);
   // En séance, la proposition ne se dévoile qu'à la restitution : d'abord le choix du groupe, ensuite la discussion.
   const comparing = state.compare[persona.id] === true && (!shared.on || shared.restitution);
@@ -1079,7 +1243,7 @@ function viewImpact() {
           </ul>
         </div>
       </div>
-      <p class="hint">${ICONS.star} ${shared.on ? 'Les livrables retenus se choisissent tous ensemble, à la restitution : l\'animateur pose les étoiles. Ils serviront à tous les groupes pour la story map.' : 'Cochez l\'étoile des livrables que vous retenez : ils vous attendront dans la story map. Plusieurs objectifs ? Ajoutez-les avec « Autre objectif ».'}</p>
+      <p class="hint">${ICONS.star} ${shared.on ? 'Les livrables retenus se choisissent tous ensemble, à la restitution : l\'animateur pose les étoiles, au moins 2 par persona. Ils partent à l\'étape suivante.' : 'Cochez l\'étoile des livrables que vous retenez : ils vous attendront à l\'étape suivante. Plusieurs objectifs ? Ajoutez-les avec « Autre objectif ».'}</p>
     </div>
     <aside class="side">
       ${trayHtml('impact', 'À placer', 'Glissez ces post-its dans l\'arbre.')}
@@ -1510,7 +1674,7 @@ function quizPanel() {
   </section>`;
 }
 
-const views = { welcome: viewWelcome, frame: viewFrame, empathy: viewEmpathy, impact: viewImpact, story: viewStory, debrief: viewDebrief };
+const views = { welcome: viewWelcome, bravo: viewBravo, frame: viewFrame, empathy: viewEmpathy, impact: viewImpact, story: viewStory, debrief: viewDebrief };
 
 document.addEventListener('keydown', (e) => {
   if (e.key === 'Escape' && ui.info && !document.querySelector('dialog[open]')) { ui.info = null; render(); }
@@ -1687,6 +1851,12 @@ const EDIT_TARGETS = '[data-add], [data-note], [data-extract], [data-keep], [dat
  * Suppression en un clic (croix du post-it). Un post-it simple part tout de suite, avec « Annuler » ;
  * une carte qui en porte d'autres demande d'abord une confirmation. Un extrait retourne dans la pioche.
  */
+/** Le minuteur de l'étape démarre la première fois (sauf s'il tourne déjà). */
+function startStepTimer(step, first) {
+  const t = phones.timer;
+  if (first && TIMER_STEPS.includes(step) && !(t && t.step === step)) phones.setTimer(startTimer(step, phones.now)).catch(() => {});
+}
+
 function deleteNote(id) {
   const n = getNote(state, id);
   if (!n || !canEdit()) return;
@@ -1833,7 +2003,7 @@ const actions = {
   'theory-open'() { if (state.step === 'frame') ui.frameFolded = false; else ui.theoryOpen.add(state.step); render('theory'); },
   'theory-close'() { if (state.step === 'frame') ui.frameFolded = true; else ui.theoryOpen.delete(state.step); render('theory'); },
   'case-toggle'() { ui.caseOpen[state.step] = !caseOpen(); render('case'); },
-  /** Animateur : lance la pratique pour tous ; la première fois, le minuteur de l'étape démarre. */
+  /** Animateur : lance la pratique pour tous ; la première fois, le minuteur de l'étape démarre (empathy : à l'exercice). */
   'practice-start'() {
     if (!HOST) return;
     const step = state.step;
@@ -1842,11 +2012,34 @@ const actions = {
     ui.theoryOpen.delete(step);
     if (phones?.live) {
       phones.setPractice(step).catch(() => toast('Pratique non lancée chez les participants : la connexion est peut-être coupée.'));
-      const t = phones.timer;
-      if (first && TIMER_STEPS.includes(step) && !(t && t.step === step)) phones.setTimer(startTimer(step, phones.now)).catch(() => {});
+      if (step !== 'empathy') startStepTimer(step, first);
     }
     commit();
-    $('.brief', main)?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  },
+  /** Empathy : après la lecture du cas, l'exercice (consigne, carte, minuteur) pour tous. */
+  'exercise-start'() {
+    if (!HOST) return;
+    const step = state.step;
+    const first = !exerciseOn(step);
+    if (!state.exercise.includes(step)) state.exercise.push(step);
+    if (phones?.live) {
+      phones.setMetaFlag('exercise', step).catch(() => toast('Exercice non lancé chez les participants : la connexion est peut-être coupée.'));
+      startStepTimer(step, first);
+    }
+    commit();
+  },
+  'example-show'() {
+    if (!HOST && shared.on) return;
+    const step = state.step;
+    if (!state.examples.includes(step)) state.examples.push(step);
+    ui.exampleOpen[step] = true;
+    if (phones?.live) phones.setMetaFlag('examples', step).catch(() => {});
+    commit({ focus: 'example' });
+  },
+  'example-toggle'() {
+    const step = state.step;
+    ui.exampleOpen[step] = !(ui.exampleOpen[step] ?? true);
+    render('example');
   },
   'reset-answers'() { state.debrief.answers = {}; commit(); },
   'phones-show'() { phones.show(); },
@@ -1895,7 +2088,8 @@ const actions = {
     state.compare[state.persona] = !state.compare[state.persona]; commit({ focus: 'compare' });
   },
   restitution() {
-    if (!shared.restitution && !practiceOn()) { toast('Lancez d\'abord la pratique (« Passer à la pratique »).'); return; }
+    if (!shared.restitution && !exerciseOn()) { toast('Lancez d\'abord l\'exercice.'); return; }
+    if (!shared.restitution && TIMER_STEPS.includes(state.step)) phones?.setMetaFlag('restituted', state.step).catch(() => {});
     phones?.setRestitution(!shared.restitution);
   },
   'journey-example'() {

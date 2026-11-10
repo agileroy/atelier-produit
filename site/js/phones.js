@@ -341,6 +341,9 @@ export function createPhones({ button, dialog, count, current, onRemote, onChang
     resume, sync, show, setQuiz, clearQuiz,
     end, setRoti, get roti() { return meta?.roti ?? null; },
     setPractice, get practice() { return meta?.practice ?? {}; },
+    /** Exemple dévoilé, exercice lancé (empathy), restitution faite : une fois par étape. */
+    setMetaFlag: (key, step) => store.setMeta(session.sid, { [`${key}/${step}`]: true }),
+    get examples() { return meta?.examples ?? {}; }, get exercise() { return meta?.exercise ?? {}; }, get restituted() { return meta?.restituted ?? {}; },
     setQuizEnd: (ms) => store.setMeta(session.sid, { quizEndsAt: ms }), get quizEndsAt() { return meta?.quizEndsAt ?? null; },
     setGroups, shuffle, moveMember, setRestitution, writeBoard, setBoardState, setKept, setTimer, setDone,
     get timer() { return meta?.timer ?? null; },

@@ -50,19 +50,22 @@ export async function startParticipant(api) {
   const wideQuiz = () => matchMedia('(min-width: 760px) and (pointer: fine)').matches;
   let pickedTool = null; // notion choisie au clic, en attendant une zone
   const qchip = (t) => `<button type="button" class="qchip tchip tchip--${t} ${pickedTool === t ? 'is-picked' : ''}" data-drag="qtool:${t}" data-qtool="${t}" aria-pressed="${pickedTool === t}">
-      <span class="pq-n">${toolOrder.indexOf(t) + 1}</span>${esc(TOOLS[t].name)}</button>`;
+      ${esc(TOOLS[t].name)}</button>`;
   function diamondQuiz() {
     const at = (zone) => toolOrder.filter((t) => (quizDraft.placement[t] ?? '') === zone);
     const loose = toolOrder.filter((t) => !PLACES.some((p) => p.id === quizDraft.placement[t]));
     const phase = (p) => `<div class="qzone qzone--${p.id}" data-qzone="${p.id}" data-drop="qzone:${p.id}"><strong>${esc(p.label)}</strong><small>${esc(p.plain)}</small>
       <div class="qzone-chips">${at(p.id).map(qchip).join('')}</div></div>`;
-    return `<div class="qdiamond" id="q1">
-      <p class="hint">Glissez chaque notion à sa place sur le double diamant (ou cliquez sur une notion, puis sur une zone).</p>
+    const all = PLACES.find((p) => p.id === 'all');
+    return `<div class="qdiamond" id="qt-diamond">
+      <p class="hint">Glissez chaque notion à sa place (ou cliquez sur une notion, puis sur une zone). Le grand cadre, c'est tout le double diamant.</p>
       <div class="qtray" data-qzone="" data-drop="qzone:">${loose.length ? loose.map(qchip).join('') : '<span class="hint">Toutes les notions sont placées.</span>'}</div>
-      <div class="qphases">
-        <svg class="qphases-art" viewBox="0 0 100 100" preserveAspectRatio="none" aria-hidden="true"><path d="M0.5 50 L25 1 L49.5 50 L25 99 Z M50.5 50 L75 1 L99.5 50 L75 99 Z"/></svg>
-        ${PLACES.filter((p) => p.id !== 'all').map(phase).join('')}</div>
-      ${phase(PLACES.find((p) => p.id === 'all'))}
+      <div class="qzone qzone--all qall" data-qzone="all" data-drop="qzone:all">
+        <div class="qall-head"><strong>${esc(all.label)}</strong><small>${esc(all.plain)}</small><div class="qzone-chips">${at('all').map(qchip).join('')}</div></div>
+        <div class="qphases">
+          <svg class="qphases-art" viewBox="0 0 100 100" preserveAspectRatio="none" aria-hidden="true"><path d="M0.5 50 L25 1 L49.5 50 L25 99 Z M50.5 50 L75 1 L99.5 50 L75 99 Z"/></svg>
+          ${PLACES.filter((p) => p.id !== 'all').map(phase).join('')}</div>
+      </div>
     </div>`;
   }
   function placeTool(t, zone) {
@@ -73,12 +76,16 @@ export async function startParticipant(api) {
     api.render();
   }
 
-  /** Questions sans réponse, numérotées comme à l'écran (notions 1 à 4 puis situations). */
-  const missingNumbers = () => [
-    ...toolOrder.map((t, i) => (PLACES.some((pl) => pl.id === quizDraft.placement[t]) ? 0 : i + 1)),
-    ...SITUATIONS.map((x, i) => (SITUATION_CHOICES.includes(quizDraft.answers[x.id]) ? 0 : toolOrder.length + i + 1)),
-  ].filter(Boolean);
-  const listFr = (nums) => (nums.length > 1 ? `${nums.slice(0, -1).join(', ')} et ${nums.at(-1)}` : String(nums[0]));
+  /** Ce qui manque : les notions à placer (par leur nom), les situations (numérotées de 1 à 8). */
+  const listFr = (items) => (items.length > 1 ? `${items.slice(0, -1).join(', ')} et ${items.at(-1)}` : String(items[0]));
+  function missingMessage() {
+    const tools = toolOrder.filter((t) => !PLACES.some((pl) => pl.id === quizDraft.placement[t])).map((t) => TOOLS[t].name);
+    const sits = SITUATIONS.map((x, i) => (SITUATION_CHOICES.includes(quizDraft.answers[x.id]) ? 0 : i + 1)).filter(Boolean);
+    const parts = [];
+    if (tools.length) parts.push(`à placer ${listFr(tools)} sur le double diamant`);
+    if (sits.length) parts.push(`à répondre ${sits.length > 1 ? 'aux situations' : 'à la situation'} ${listFr(sits)}`);
+    return parts.length ? `Il vous reste ${parts.join(', et ')} avant de pouvoir valider.` : '';
+  }
   const quizLeft = () => (meta?.quizEndsAt ? Math.max(0, meta.quizEndsAt - (Date.now() + (shared.offset ?? 0))) : null);
 
   /* ---------- Écrans avant le tableau ---------- */
@@ -172,15 +179,17 @@ export async function startParticipant(api) {
     return `<form class="pform pquiz" id="quizform">
       <div class="pprogress" aria-live="polite"><p><span id="qprogress">${done} / ${QUIZ_QUESTIONS}</span> réponses${quizLeft() !== null ? ` · <span class="pq-clock" id="qclock">${formatClock(quizLeft())}</span>` : ''}</p>
         <i><b id="qbar" style="width:${(done / QUIZ_QUESTIONS) * 100}%"></b></i></div>
-      <h3 class="pq-title">1. Où se range chaque notion sur le double diamant ?</h3>
-      ${wideQuiz() ? diamondQuiz() : toolOrder.map((t, k) => `<fieldset class="pq" id="q${k + 1}">
-        <legend><span class="pq-n">${k + 1}</span><span class="tchip tchip--${t}">${esc(TOOLS[t].name)}</span></legend>
+      <h3 class="pq-title">Le double diamant <span class="pq-points">4 points</span></h3>
+      <p class="hint">Où se range chaque notion ? Un point par notion bien placée.</p>
+      ${wideQuiz() ? diamondQuiz() : toolOrder.map((t) => `<fieldset class="pq" id="qt-${t}">
+        <legend><span class="tchip tchip--${t}">${esc(TOOLS[t].name)}</span></legend>
         <div class="pq-choices pq-choices--phases">${PLACES.map((p) => `<label class="pq-choice"><input type="radio" name="t:${t}" value="${p.id}" ${quizDraft.placement[t] === p.id ? 'checked' : ''}>
           <span><strong>${esc(p.label)}</strong><small>${esc(p.plain)}</small></span></label>`).join('')}</div>
       </fieldset>`).join('')}
-      <h3 class="pq-title">2. Quel outil pour quelle situation ?</h3>
-      ${SITUATIONS.map((x, k) => `<fieldset class="pq" id="q${toolOrder.length + k + 1}">
-        <legend><span class="pq-n">${toolOrder.length + k + 1}</span>${esc(x.text)}</legend>
+      <h3 class="pq-title">Les situations <span class="pq-points">8 points</span></h3>
+      <p class="hint">Quel outil pour quelle situation ?</p>
+      ${SITUATIONS.map((x, k) => `<fieldset class="pq" id="qs${k + 1}">
+        <legend><span class="pq-n">${k + 1}</span>${esc(x.text)}</legend>
         <div class="pq-choices">${SITUATION_CHOICES.map((c) => `<label class="pq-choice"><input type="radio" name="s:${x.id}" value="${c}" ${quizDraft.answers[x.id] === c ? 'checked' : ''}>
           <span><strong>${esc(CHOICE_LABELS[c])}</strong></span></label>`).join('')}</div>
       </fieldset>`).join('')}
@@ -194,13 +203,13 @@ export async function startParticipant(api) {
     const sc = quizScore(myQuiz);
     const verdictLabel = { right: 'Oui, c\'est le plus adapté.', ok: 'Défendable (½ point).', wrong: 'Pas le meilleur choix.' };
     return `<div class="pscore"><strong>${fmt(sc.points)}</strong> / ${QUIZ_MAX}<span>Votre score</span></div>
-      <h3 class="pq-title">1. Les notions sur le double diamant</h3>
+      <h3 class="pq-title">Le double diamant</h3>
       <ul class="pcorr">${sc.tools.map((t) => `<li class="dresult ${t.ok ? 'is-right' : 'is-wrong'}">
         <p class="dresult-head"><span class="tchip tchip--${t.tool}">${esc(TOOLS[t.tool].name)}</span> <span>vous : <strong>${esc(phaseLabel(t.phase))}</strong></span></p>
         <p class="dresult-verdict">${t.ok ? 'Bien vu.' : `Sa place : ${esc(TOOL_PHASES[t.tool].map(phaseLabel).join(' et '))}.`}</p>
         ${PLACEMENT_FEEDBACK[t.tool][t.phase] ? `<p>${esc(PLACEMENT_FEEDBACK[t.tool][t.phase])}</p>` : ''}
       </li>`).join('')}</ul>
-      <h3 class="pq-title">2. Les situations</h3>
+      <h3 class="pq-title">Les situations</h3>
       <ol class="pcorr">${sc.situations.map((v, k) => {
         const x = SITUATIONS.find((y) => y.id === v.id);
         const best = v.level === 'right' ? '' : `<p><strong>Le plus adapté : ${esc(CHOICE_LABELS[x.answer])}.</strong> ${esc(x.why)}</p>`;
@@ -222,9 +231,9 @@ export async function startParticipant(api) {
     if (btn) btn.disabled = sending;
     const miss = $('#qmissing');
     if (miss && !miss.hidden) {
-      const nums = missingNumbers();
-      miss.hidden = !nums.length;
-      if (nums.length) miss.textContent = `Il vous reste ${nums.length > 1 ? 'les questions' : 'la question'} ${listFr(nums)} avant de pouvoir valider.`;
+      const msg = missingMessage();
+      miss.hidden = !msg;
+      if (msg) miss.textContent = msg;
     }
   }
 
@@ -233,9 +242,8 @@ export async function startParticipant(api) {
     if (sending) return;
     const payload = quizPayload({ author, ...quizDraft }, { partial });
     if (!payload) {
-      const nums = missingNumbers();
       const miss = $('#qmissing');
-      if (miss) { miss.hidden = false; miss.textContent = `Il vous reste ${nums.length > 1 ? 'les questions' : 'la question'} ${listFr(nums)} avant de pouvoir valider.`; }
+      if (miss) { miss.hidden = false; miss.textContent = missingMessage(); }
       return;
     }
     sending = true;
@@ -404,6 +412,8 @@ export async function startParticipant(api) {
     shared.restitution = meta.restitution;
     shared.timer = meta.timer;
     shared.practice = meta.practice;
+    shared.examples = meta.examples;
+    shared.exercise = meta.exercise;
     store.onServerOffset((ms) => { shared.offset = ms; });
     api.setStep(meta.step);
     store.onMeta(sid, (raw) => {
@@ -415,6 +425,8 @@ export async function startParticipant(api) {
       shared.groups = next.groups;
       shared.timer = next.timer;
       shared.practice = next.practice;
+      shared.examples = next.examples;
+      shared.exercise = next.exercise;
       shared.restitution = next.restitution;
       if (phase !== 'ready') return;
       syncBoards();

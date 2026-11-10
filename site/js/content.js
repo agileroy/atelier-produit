@@ -9,6 +9,7 @@ export const STEPS = [
   { id: 'empathy', label: 'Empathy map', short: 'Empathy' },
   { id: 'impact', label: 'Impact mapping', short: 'Impact' },
   { id: 'story', label: 'Story mapping', short: 'Story' },
+  { id: 'bravo', label: 'Bravo !', short: 'Bravo' },
   { id: 'debrief', label: 'Débrief', short: 'Débrief' },
 ];
 
@@ -18,6 +19,30 @@ export const WELCOME = {
     { id: 'goal', title: 'Le but', text: 'Découvrir des techniques produit en les essayant : à quoi elles servent, quand les utiliser, comment elles s\'enchaînent. Pas besoin de les connaître avant.' },
     { id: 'format', title: 'Le format', items: ['Un peu de théorie, puis la pratique en groupe, sur un même cas fil rouge.', 'Chacun manipule les tableaux de son groupe depuis son ordinateur ou son téléphone.', 'Après chaque exercice, les groupes présentent leur travail et on en discute.', 'Environ 2 heures en tout.'] },
     { id: 'rules', title: 'Les règles du jeu', items: ['Pas de mauvaise réponse : on essaie, puis on en discute.', 'On écrit court : une idée par post-it.', 'On respecte le minuteur : l\'important est d\'aller au bout, pas d\'être parfait.', 'L\'animateur fait avancer l\'atelier pour tout le monde.'] },
+  ],
+};
+
+/**
+ * Le fil entre les étapes : d'où l'on repart (on peut nommer les étapes passées) et à quoi ça
+ * servira (sans nommer les étapes à venir : seulement leur numéro dans la barre du haut).
+ */
+export const STEP_LINKS = {
+  empathy: { from: 'Le cas Covoit\'Boulot et votre persona, présentés juste au-dessus.', to: 'Les douleurs et les gains de votre carte serviront à l\'étape 4.' },
+  impact: { from: 'Les douleurs et les gains de votre empathy map : ce qu\'il faut soulager, ce qui ferait la différence (rappelés à droite).', to: 'Les livrables étoilés, au moins 2 par persona, partent à l\'étape 5.' },
+  story: { from: 'Votre persona (empathy map) et vos livrables étoilés (impact mapping).', to: 'Votre première version : ce que l\'équipe livrerait d\'abord.' },
+};
+
+/** La conclusion de l'exercice, avant le débrief. */
+export const BRAVO = {
+  title: 'Bravo, Covoit\'Boulot est lancé !',
+  story: [
+    'Vous avez présenté Covoit\'Boulot à la direction de Valmétal : elle est conquise, et le projet est lancé.',
+    'Trois mois plus tard, les salariés l\'ont adopté : les voitures pleines se garent près de l\'entrée, les équipes en 2×8 trouvent un trajet avant leur prise de poste, et le parking n\'est plus une loterie.',
+  ],
+  path: [
+    { step: 'empathy', label: 'Vous avez écouté', text: 'Sophie et Karim, leurs douleurs et leurs gains.' },
+    { step: 'impact', label: 'Vous avez choisi', text: 'un objectif mesurable et les livrables qui y mènent.' },
+    { step: 'story', label: 'Vous avez découpé', text: 'le parcours et une première version utile de bout en bout.' },
   ],
 };
 
@@ -97,6 +122,7 @@ export const PLACEMENT_FEEDBACK = {
 /** Phase mise en avant pour chaque étape (repère « vous êtes ici »). */
 export const STEP_PHASES = {
   welcome: [],
+  bravo: [],
   frame: [],
   empathy: ['discover'],
   impact: ['define'],
@@ -457,7 +483,7 @@ export const BRIEFS = {
       'Écrivez un objectif mesurable (combien, d\'ici quand). Vous pouvez en écrire plusieurs si vous avez de l\'inspiration.',
       'Ajoutez les acteurs : Sophie et Karim, mais aussi la direction, les RH, les chefs d\'équipe…',
       'Pour chaque acteur, quel changement de comportement aiderait l\'objectif ?',
-      'Ajoutez les livrables. À la restitution, on choisit tous ensemble ceux qu\'on retient pour la story map.',
+      'Ajoutez les livrables. À la restitution, on choisit tous ensemble ceux qu\'on emporte à l\'étape suivante (au moins 2 par persona).',
     ],
   },
   story: {
@@ -471,7 +497,7 @@ export const BRIEFS = {
     ],
   },
   debrief: {
-    duration: '20 min',
+    duration: '10 min',
     steps: [
       'Lancez le quiz quand tout le monde est connecté.',
       'Chacun range les quatre notions sur le double diamant, puis choisit l\'outil adapté à huit situations.',

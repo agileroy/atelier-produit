@@ -48,6 +48,8 @@ export function newState() {
     journey: 'recit', // story map, avant le parcours validé : 'recit' (on raconte) ou 'regroup' (on regroupe)
     theoryClosed: [],
     practice: [], // étapes dont l'animateur a lancé la pratique (avant : la théorie seule)
+    exercise: [], // empathy : exercice lancé (après la lecture du cas)
+    examples: [], // exemples dévoilés par l'animateur
     debrief: { mode: 'team', placement: {}, checked: false, answers: {}, takeaways: '' },
     seen: [],
   };
@@ -640,6 +642,8 @@ export function sanitize(raw) {
 
   if (JOURNEY_STAGES.includes(raw.journey)) state.journey = raw.journey;
   if (Array.isArray(raw.practice)) state.practice = STEP_IDS.filter((st) => raw.practice.includes(st));
+  if (Array.isArray(raw.exercise)) state.exercise = STEP_IDS.filter((st) => raw.exercise.includes(st));
+  if (Array.isArray(raw.examples)) state.examples = STEP_IDS.filter((st) => raw.examples.includes(st));
   if (Array.isArray(raw.theoryClosed)) state.theoryClosed = STEP_IDS.filter((st) => raw.theoryClosed.includes(st));
   if (raw.compare && typeof raw.compare === 'object') {
     for (const p of PERSONA_IDS) if (raw.compare[p] === true) state.compare[p] = true;

@@ -21,7 +21,7 @@
               ".validate": "newData.isString() && newData.val().length >= 1 && newData.val().length <= 80"
             },
             "step": {
-              ".validate": "newData.isString() && newData.val().matches(/^(welcome|frame|empathy|impact|story|debrief)$/)"
+              ".validate": "newData.isString() && newData.val().matches(/^(welcome|frame|empathy|impact|story|bravo|debrief)$/)"
             },
             "persona": {
               ".validate": "newData.isString() && newData.val().matches(/^(sophie|karim)$/)"
@@ -47,6 +47,21 @@
             "practice": {
               "$step": {
                 ".validate": "$step.matches(/^(frame|empathy|impact|story)$/) && newData.isBoolean()"
+              }
+            },
+            "examples": {
+              "$step": {
+                ".validate": "$step.matches(/^(empathy|impact|story)$/) && newData.isBoolean()"
+              }
+            },
+            "exercise": {
+              "$step": {
+                ".validate": "$step.matches(/^(empathy|impact|story)$/) && newData.isBoolean()"
+              }
+            },
+            "restituted": {
+              "$step": {
+                ".validate": "$step.matches(/^(empathy|impact|story)$/) && newData.isBoolean()"
               }
             },
             "quizEndsAt": {
