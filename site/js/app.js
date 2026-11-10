@@ -1555,8 +1555,9 @@ function rotiBlock(code) {
   return `<div class="roti-share">
     <div class="join-qr">${qrSvg(link, 'QR code pour donner son avis (ROTI)')}</div>
     <div class="roti-text">
-      <p class="share-link"><button type="button" class="share-url" data-copy-roti="${esc(code)}" title="Copier le lien">${esc(link.replace(/^https?:\/\//, ''))}</button>
-        <button type="button" class="btn btn-primary btn-small" data-copy-roti="${esc(code)}">${ICONS.link} Copier le lien</button></p>
+      <p class="share-link"><a class="btn btn-primary" href="${esc(link)}" target="_blank" rel="noopener">Donner mon avis ↗</a>
+        <button type="button" class="btn btn-quiet btn-small" data-copy-roti="${esc(code)}">${ICONS.link} Copier le lien</button></p>
+      <p class="share-code"><a class="share-url" href="${esc(link)}" target="_blank" rel="noopener">${esc(link.replace(/^https?:\/\//, ''))}</a></p>
       <p class="share-code">Code du ROTI : <span class="room-code"><strong>${esc(code)}</strong></span></p>
     </div>
   </div>`;
