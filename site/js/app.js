@@ -197,7 +197,7 @@ function keptForStory() {
   return list.map((k) => ({ ...k, imported: state.notes.some((m) => m.from === `deliverable:${k.id}`) }));
 }
 
-/** Livrables étoilés par groupe (ou sur le tableau local) : il en faut au moins 2 par persona. */
+/** Livrables étoilés par groupe (ou sur le tableau local) : au moins 1 par persona, 2 conseillés. */
 const KEPT_MIN = 2;
 function keptCounts() {
   const count = (notes) => notes.filter((n) => n.place.b === 'deliverable' && n.keep).length;
@@ -441,11 +441,15 @@ function go(step) {
     return;
   }
   if (step === 'story' && state.step !== 'story') {
-    const missing = keptCounts().filter((k) => k.n < KEPT_MIN);
-    if (missing.length) {
-      toast(`Avant le story mapping, étoilez au moins ${KEPT_MIN} livrables par persona : ${missing.map((k) => `${k.name} ${k.n}/${KEPT_MIN}`).join(', ')}.`);
+    // Au moins 1 livrable étoilé par persona est obligatoire ; en dessous de 2, on prévient sans bloquer.
+    const counts = keptCounts();
+    const none = counts.filter((k) => k.n < 1);
+    if (none.length) {
+      toast(`Avant le story mapping, étoilez au moins 1 livrable pour ${none.map((k) => k.name).join(' et ')}.`);
       return;
     }
+    const few = counts.filter((k) => k.n < KEPT_MIN);
+    if (few.length) toast(`Attention : un seul livrable retenu pour ${few.map((k) => k.name).join(' et ')}. On en conseille au moins ${KEPT_MIN} par persona.`);
   }
   if (!setStep(state, step)) return;
   ui.selectedTool = null;
@@ -1315,7 +1319,7 @@ function viewImpact() {
           </ul>
         </div>
       </div>
-      <p class="hint">${ICONS.star} ${shared.on ? 'Les livrables retenus se choisissent tous ensemble, à la restitution : l\'animateur pose les étoiles, au moins 2 par persona. Ils partent à l\'étape suivante.' : 'Cochez l\'étoile des livrables que vous retenez : ils vous attendront à l\'étape suivante. Plusieurs objectifs ? Ajoutez-les avec « Autre objectif ».'}</p>
+      <p class="hint">${ICONS.star} ${shared.on ? 'Les livrables retenus se choisissent tous ensemble, à la restitution : l\'animateur pose les étoiles, au moins 1 par persona (2 conseillés). Ils partent à l\'étape suivante.' : 'Cochez l\'étoile des livrables que vous retenez : ils vous attendront à l\'étape suivante. Plusieurs objectifs ? Ajoutez-les avec « Autre objectif ».'}</p>
     </div>
     <aside class="side">
       ${trayHtml('impact', 'À placer', 'Glissez ces post-its dans l\'arbre.')}

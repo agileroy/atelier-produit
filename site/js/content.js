@@ -29,7 +29,7 @@ export const WELCOME = {
  */
 export const STEP_LINKS = {
   empathy: { from: 'Le cas Covoit\'Boulot et votre persona, présentés juste au-dessus.', to: 'Les douleurs et les gains de votre carte serviront à l\'étape 4.' },
-  impact: { from: 'Les douleurs et les gains de votre empathy map : ce qu\'il faut soulager, ce qui ferait la différence (rappelés à droite).', to: 'Les livrables étoilés, au moins 2 par persona, partent à l\'étape 5.' },
+  impact: { from: 'Les douleurs et les gains de votre empathy map : ce qu\'il faut soulager, ce qui ferait la différence (rappelés à droite).', to: 'Les livrables étoilés, au moins 1 par persona (2 conseillés), partent à l\'étape 5.' },
   story: { from: 'Votre persona (empathy map) et vos livrables étoilés (impact mapping).', to: 'Votre première version : ce que l\'équipe livrerait d\'abord.' },
 };
 
@@ -500,7 +500,7 @@ export const BRIEFS = {
       'Écrivez un objectif mesurable (combien, d\'ici quand). Vous pouvez en écrire plusieurs si vous avez de l\'inspiration.',
       'Ajoutez les acteurs : Sophie et Karim, mais aussi la direction, les RH, les chefs d\'équipe…',
       'Pour chaque acteur, quel changement de comportement aiderait l\'objectif ?',
-      'Ajoutez les livrables. À la restitution, on choisit tous ensemble ceux qu\'on emporte à l\'étape suivante (au moins 2 par persona).',
+      'Ajoutez les livrables. À la restitution, on choisit tous ensemble ceux qu\'on emporte à l\'étape suivante (au moins 1 par persona, 2 conseillés).',
     ],
   },
   story: {
