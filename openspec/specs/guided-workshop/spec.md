@@ -34,6 +34,9 @@ Chaque étape d'outil SHALL afficher, avec la consigne, d'où l'on repart (les �
 ### Requirement: Restitution avant la suite
 En séance, l'animateur SHALL ne pouvoir passer à une étape suivante qu'après avoir lancé au moins une fois la restitution de l'étape en cours (empathy, impact, story).
 
+### Requirement: Partir du problème, pas de la solution demandée
+Le cas SHALL présenter l'appli de covoiturage comme la solution demandée par la direction, et le rôle de l'équipe comme la vérification qu'elle répond au bon problème (télétravail, vélo, navette, horaires… sont d'autres réponses possibles). L'objectif d'exemple SHALL porter sur le problème (le nombre de voitures sur le parking), la consigne de l'impact mapping SHALL inviter à des livrables hors appli, et l'impact map du groupe simulé en contient (non étoilés : ils ne passent pas par la story map de l'appli). La page Bravo SHALL rappeler que l'appli n'était peut-être pas la meilleure réponse.
+
 ### Requirement: Bravo
 Une étape « Bravo ! », entre la story map et le débrief, SHALL conclure l'exercice de façon festive : le lancement réussi de Covoit'Boulot, le chemin parcouru en trois temps, quelques chiffres et ce que chaque groupe a construit (persona, objectif, livrables retenus, première version).
 

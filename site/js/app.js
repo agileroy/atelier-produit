@@ -1319,7 +1319,7 @@ function viewImpact() {
           </ul>
         </div>
       </div>
-      <p class="hint">${ICONS.star} ${shared.on ? 'Les livrables retenus se choisissent tous ensemble, à la restitution : l\'animateur pose les étoiles, au moins 1 par persona (2 conseillés). Ils partent à l\'étape suivante.' : 'Cochez l\'étoile des livrables que vous retenez : ils vous attendront à l\'étape suivante. Plusieurs objectifs ? Ajoutez-les avec « Autre objectif ».'}</p>
+      <p class="hint">${ICONS.star} ${shared.on ? 'Les livrables retenus se choisissent tous ensemble, à la restitution : l\'animateur pose les étoiles, au moins 1 par persona (2 conseillés). Ils partent à l\'étape suivante. Les livrables hors appli (télétravail, navette…) sont de vraies pistes, mais ils ne passent pas par une story map : ils suivent leur propre chemin (une décision RH, un contrat de transport). Ici, on construit la partie appli.' : 'Cochez l\'étoile des livrables que vous retenez : ils vous attendront à l\'étape suivante. Plusieurs objectifs ? Ajoutez-les avec « Autre objectif ». Les livrables hors appli (télétravail, navette…) sont de vraies pistes, mais ils ne passent pas par une story map : ici, on construit la partie appli.'}</p>
     </div>
     <aside class="side">
       ${trayHtml('impact', 'À placer', 'Glissez ces post-its dans l\'arbre.')}

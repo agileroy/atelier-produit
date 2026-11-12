@@ -30,7 +30,7 @@ export const WELCOME = {
 export const STEP_LINKS = {
   empathy: { from: 'Le cas Covoit\'Boulot et votre persona, présentés juste au-dessus.', to: 'Les douleurs et les gains de votre carte serviront à l\'étape 4.' },
   impact: { from: 'Les douleurs et les gains de votre empathy map : ce qu\'il faut soulager, ce qui ferait la différence (rappelés à droite).', to: 'Les livrables étoilés, au moins 1 par persona (2 conseillés), partent à l\'étape 5.' },
-  story: { from: 'Votre persona (empathy map) et vos livrables étoilés (impact mapping).', to: 'Votre première version : ce que l\'équipe livrerait d\'abord.' },
+  story: { from: 'Votre persona (empathy map) et vos livrables étoilés qui passent par l\'appli (impact mapping).', to: 'Votre première version : ce que l\'équipe livrerait d\'abord.' },
 };
 
 /** La dernière page : merci, et le ROTI. */
@@ -54,6 +54,7 @@ export const BRAVO = {
   story: [
     'Vous avez présenté Covoit\'Boulot à la direction de Valmétal : elle est conquise, et le projet est lancé.',
     'Trois mois plus tard, les salariés l\'ont adopté : les voitures pleines se garent près de l\'entrée, les équipes en 2×8 trouvent un trajet avant leur prise de poste, et le parking n\'est plus une loterie.',
+    'Et si l\'appli n\'avait pas été la meilleure réponse ? C\'est la question que vous avez posée en ouvrant l\'impact map. Une vraie équipe peut très bien conclure que le télétravail ou une navette règlent une partie du problème, plus vite et moins cher. Partir du problème, pas de la solution demandée : c\'est tout le sens du premier diamant.',
   ],
   path: [
     { step: 'empathy', label: 'Vous avez écouté', text: 'Sophie et Karim, leurs douleurs et leurs gains.' },
@@ -69,13 +70,13 @@ export const PHONE_STEPS = ['empathy', 'impact', 'story'];
 
 export const CASE = {
   name: "Covoit'Boulot",
-  tagline: 'Une appli de covoiturage entre collègues',
+  tagline: 'Un parking saturé, et une demande de la direction',
   context: [
     "Valmétal, 1 400 salariés, fabrique des pièces métalliques sur un site installé dans une zone d'activité, en périphérie de la ville.",
     "Le site est mal desservi : une ligne de bus, peu de passages, rien avant 6 h ni après 21 h. Neuf salariés sur dix viennent en voiture, presque toujours seuls.",
     "Le parking (900 places) est plein dès 8 h 15. Les gens se garent sur les bas-côtés, les amendes et les accrochages se multiplient, et les équipes postées en 2×8 ont du mal à venir sans voiture.",
   ],
-  request: "La direction veut « une appli de covoiturage interne » et vous confie le sujet. Avant de foncer, l'équipe produit prend le temps de comprendre les utilisateurs, de clarifier l'objectif et de découper une première version utile.",
+  request: "La direction arrive avec sa solution : « une appli de covoiturage interne ». C'est souvent comme ça que démarre un sujet produit. Votre rôle : vérifier qu'elle répond au bon problème, et qu'il n'existe pas plus simple ou plus efficace (télétravail, vélo, navette, horaires…). Pour l'exercice, vous irez jusqu'à une première version de l'appli : gardez la question en tête à chaque étape.",
 };
 
 /* ---------- Le double diamant (Design Council, 2005) ---------- */
@@ -221,7 +222,7 @@ export const IMPACT_LEVELS = [
   { id: 'deliverable', label: 'Quoi ?', name: 'Livrables', question: 'Qu\'est-ce qu\'on pourrait faire ou livrer pour provoquer ce changement ?' },
 ];
 
-export const GOAL_EXAMPLE = 'Réduire de 20 % les voitures avec un seul occupant sur le parking, d\'ici 12 mois';
+export const GOAL_EXAMPLE = 'Réduire de 20 % le nombre de voitures sur le parking, d\'ici 12 mois';
 
 /* ---------- Story mapping ---------- */
 
@@ -281,6 +282,7 @@ export const SIMULATED = {
       { actor: 'Les salariés qui viennent seuls en voiture', impacts: [
         { text: 'Proposent leurs places libres sur leur trajet habituel', deliverables: [['Publier son trajet récurrent en une minute', true], ['Voir combien on économise par mois', false]] },
         { text: 'Acceptent un passager sans craindre le détour', deliverables: [['Fixer soi-même le point de rendez-vous', true], ['Pouvoir refuser une demande sans se justifier', false]] },
+        { text: 'Viennent moins souvent en voiture', deliverables: [['Deux jours de télétravail pour les postes qui le permettent', false], ['Des vélos électriques en location à tarif réduit', false]] },
       ] },
       { actor: 'Le service RH', impacts: [
         { text: 'Fait connaître le covoiturage aux nouveaux arrivants', deliverables: [['Une présentation à l\'accueil des nouveaux', false]] },
@@ -309,6 +311,9 @@ export const SIMULATED = {
       ] },
       { actor: 'Les conducteurs du matin', impacts: [
         { text: 'Proposent leur trajet aux collègues de leur équipe', deliverables: [['Voir les collègues de son équipe qui habitent sur son trajet', true]] },
+      ] },
+      { actor: 'La direction du site', impacts: [
+        { text: 'Organise un transport aux heures de relève', deliverables: [['Une navette aux heures de relève des équipes', false]] },
       ] },
     ],
     story: [
@@ -497,10 +502,10 @@ export const BRIEFS = {
   impact: {
     duration: '20 min',
     steps: [
-      'Écrivez un objectif mesurable (combien, d\'ici quand). Vous pouvez en écrire plusieurs si vous avez de l\'inspiration.',
+      'Écrivez un objectif mesurable (combien, d\'ici quand), sur le problème (le parking) et pas sur la solution (l\'appli). Vous pouvez en écrire plusieurs si vous avez de l\'inspiration.',
       'Ajoutez les acteurs : Sophie et Karim, mais aussi la direction, les RH, les chefs d\'équipe…',
       'Pour chaque acteur, quel changement de comportement aiderait l\'objectif ?',
-      'Ajoutez les livrables. À la restitution, on choisit tous ensemble ceux qu\'on emporte à l\'étape suivante (au moins 1 par persona, 2 conseillés).',
+      'Ajoutez les livrables, pas seulement des fonctionnalités de l\'appli : télétravail, vélos, navette, horaires… tout ce qui ferait changer le comportement compte. À la restitution, on choisit tous ensemble ceux qu\'on emporte (au moins 1 par persona, 2 conseillés).',
     ],
   },
   story: {
