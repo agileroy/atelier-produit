@@ -22,6 +22,9 @@ Le double diamant SHALL garder les noms officiels des phases (Découvrir, Défin
 ### Requirement: Accueil
 L'atelier SHALL commencer par une étape « Accueil », sans théorie ni minuteur : le but de l'atelier, le format (théorie puis pratique en groupe, restitutions), la durée totale, les règles du jeu et la carte pour rejoindre. Elle ne dit rien du débrief ni du quiz. L'accueil SHALL être illustré (post-its en double diamant, cartes colorées). L'étape suivante, « Le cadre », n'est que de la théorie : le Design Thinking avec le double diamant à l'intérieur du bloc théorique (replier la théorie replie le diamant). Le cas fil rouge (Covoit'Boulot, Sophie et Karim) SHALL être présenté au début de la pratique de l'empathy map seulement, repliable : « Passer à la pratique » montre le cas (la page s'y place pour tous), puis « Lancer l'exercice » (animateur) affiche la consigne et la carte et démarre le minuteur.
 
+### Requirement: Reprendre un atelier enregistré dès l'accueil
+L'accueil SHALL proposer à l'animateur de reprendre un atelier enregistré (.json) ; l'atelier reprend à l'étape où il avait été enregistré, sans repasser par les étapes précédentes.
+
 ### Requirement: La théorie avant la pratique
 Chaque étape d'outil (empathy, impact, story) SHALL d'abord n'afficher que la théorie de l'outil (à quoi ça sert, quand l'utiliser, comment faire, pièges, origine). Seul l'animateur SHALL pouvoir cliquer sur « Passer à la pratique » : la pratique (consigne « À faire » et tableaux) s'ouvre alors pour tous, et la théorie se replie en une ligne que chacun peut rouvrir puis replier. Le premier clic SHALL démarrer le minuteur de l'étape (empathy, impact, story) ; rouvrir et replier la théorie ensuite n'y touche pas.
 

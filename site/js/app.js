@@ -932,7 +932,8 @@ function viewWelcome() {
       ${blk.items ? `<ul>${blk.items.map((x) => `<li>${esc(x)}</li>`).join('')}</ul>` : ''}
     </article>`).join('')}
   </section>
-  ${HOST ? '' : '<p class="hint">L\'animateur fait avancer l\'atelier : cette page suit l\'écran commun.</p>'}
+  ${HOST ? `<p class="hint welcome-resume">Vous avez enregistré un atelier ? <button type="button" class="btn btn-quiet btn-small" data-act="open" data-focus="open-welcome">Reprendre un atelier enregistré (.json)</button> : il reprend à l'étape où vous l'aviez laissé.</p>`
+    : '<p class="hint">L\'animateur fait avancer l\'atelier : cette page suit l\'écran commun.</p>'}
   ${stepNav()}`;
 }
 
