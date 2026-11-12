@@ -13,7 +13,7 @@ import {
   availableExtracts, placeExtract, unplaceExtract, extractById, compareEmpathy, emptyZones, personaById,
   toggleKeep, keptDeliverables, importDeliverable, mvpGaps,
   useJourneyExample, journeyNotes, journeyHints, simulatedNotes,
-  allActions, looseActions, actionsOf, stepsWithoutDeliverable, recitMoments, toggleParallel,
+  allActions, looseActions, actionsOf, stepsWithoutDeliverable, recitTree, moveInRecit, addToRecit,
   setPlacement, checkPlacement, answerSituation, situationScore, situationVerdict, mergeRemote, reportText,
   boardUpdates, recordsToNotes,
   serialize, parseSaved, sanitize, toolName, TOOL_IDS, MAX_TEXT,
@@ -817,7 +817,7 @@ function noteHtml(n, opts = {}) {
   const del = canEdit() ? `<button type="button" class="note-x" data-del="${n.id}" data-nodrag title="${extract ? 'Remettre dans la pioche' : 'Supprimer'}" aria-label="${extract ? 'Remettre dans la pioche' : 'Supprimer'} : ${esc(n.text)}">×</button>` : '';
   return `<div class="note ${kind} ${opts.cls ?? ''}" style="--h:${hue}" ${opts.nodrag ? '' : `data-drag="note:${n.id}"`} data-note="${n.id}" data-focus="note:${n.id}" role="button" tabindex="0"
       aria-label="${esc(n.text)}. Ouvrir pour modifier ou déplacer.">
-    ${del}<span class="note-text">${esc(n.text)}</span>
+    ${opts.extra ?? ''}${del}<span class="note-text">${esc(n.text)}</span>
     ${meta.length ? `<span class="note-meta">${meta.join('')}</span>` : ''}
   </div>`;
 }
@@ -1366,18 +1366,28 @@ function viewRecit() {
   const grouped = all.length - acts.length;
   const stepName = (n) => getNote(state, n.place.col)?.text ?? '';
   const edit = canEdit();
-  // Les actions déjà regroupées restent visibles dans le récit (elles se déplacent au regroupement).
-  const item = (n) => (n.place.b === 'action'
-    ? noteHtml(n, { cls: 'note--action' })
-    : noteHtml(n, { cls: 'note--action is-grouped', nodrag: true, badge: `<span title="Regroupée : elle se déplace au regroupement">→ ${esc(stepName(n))}</span>` }));
-  // Entre deux moments, la flèche met l'action suivante en parallèle ; dans un moment, « en parallèle » l'en retire.
-  const arrow = (n) => (edit
-    ? `<button type="button" class="recit-arrow" data-par="${n.id}" title="Mettre « ${esc(n.text)} » en parallèle de l'action précédente" aria-label="Mettre « ${esc(n.text)} » en parallèle de l'action précédente"><span class="ra-next">→</span><span class="ra-par">∥</span></button>`
+  // Chaque action : on la glisse pour la déplacer ; lâchée au centre d'une autre, elle se met en parallèle.
+  const item = (n) => noteHtml(n, {
+    cls: `note--action ${n.place.b === 'action' ? '' : 'is-grouped'}`,
+    badge: n.place.b === 'action' ? '' : `<span title="Regroupée sous cette étape">→ ${esc(stepName(n))}</span>`,
+    extra: edit ? `<span class="ronto" data-drop="ronto:${n.id}" aria-hidden="true"><span>∥ en parallèle</span></span>` : '',
+  });
+  // Entre deux éléments, la flèche met l'action suivante en parallèle de ce qui précède.
+  const arrow = (next) => (edit && next.note
+    ? `<button type="button" class="recit-arrow" data-par="${next.note.id}" title="Mettre « ${esc(next.note.text)} » en parallèle de ce qui précède" aria-label="Mettre « ${esc(next.note.text)} » en parallèle de ce qui précède"><span class="ra-next">→</span><span class="ra-par">∥</span></button>`
     : '<span class="recit-arrow" aria-hidden="true">→</span>');
-  const parTag = (n) => (edit
-    ? `<button type="button" class="rpar" data-par="${n.id}" title="Ne plus mettre « ${esc(n.text)} » en parallèle">∥ en parallèle <span aria-hidden="true">×</span></button>`
-    : '<span class="rpar">∥ en parallèle</span>');
-  const shown = recitMoments(state).map((m, i) => `${i ? arrow(m[0]) : ''}<div class="rmoment ${m.length > 1 ? 'is-par' : ''}">${m.map((n, k) => `${k ? parTag(n) : ''}${item(n)}`).join('')}</div>`);
+  const seq = (items, path, depth, label) => items.map((it, i) => `${i ? arrow(it) : ''}${it.note ? item(it.note) : blockHtml(it, depth, label)}`).join('');
+  const blockHtml = (blk, depth, label) => `<div class="rblock rblock--l${depth % 3}">
+      <p class="rblock-head">∥ En parallèle · ${blk.branches.length} branches</p>
+      ${blk.branches.map((br, i) => {
+        const name = label ? `${label}.${i + 1}` : `${i + 1}`;
+        return `<div class="rlane"><span class="rlane-n">Branche ${name}</span>
+          <div class="rseq" data-drop="rseq:${br.path}" data-axis="wrap">${seq(br.items, br.path, depth + 1, name)}
+            ${edit ? `<span class="recit-arrow" aria-hidden="true">→</span><button type="button" class="rsuite" data-suite="${br.path}" data-drop="rsuite:${br.path}" data-focus="suite:${br.path}">+ Suite</button>` : ''}</div></div>`;
+      }).join('')}
+      ${edit ? `<button type="button" class="rbranch" data-newbranch="${blk.block}|${blk.path}" data-drop="rbranch:${blk.block}|${blk.path}" data-focus="branch:${blk.block}">+ Branche</button>` : ''}
+    </div>`;
+  const shown = seq(recitTree(state), '', 0, '');
   const authors = [...new Set(allActions(state).map((n) => n.author).filter(Boolean))];
   return `
   ${stepHeader('story')}
@@ -1398,8 +1408,8 @@ function viewRecit() {
   <section class="recit" aria-labelledby="recit-title">
     <div class="recit-head"><h3 id="recit-title">Le récit de ${esc(persona.name)}</h3>
       <span>${all.length} action${all.length > 1 ? 's' : ''}${authors.length ? ` · ${esc(authors.join(', '))}` : ''}${grouped ? ` · ${grouped} déjà regroupée${grouped > 1 ? 's' : ''}` : ''}</span></div>
-    <div class="recit-flow" data-drop="action" data-axis="wrap">
-      ${shown.join('')}
+    <div class="recit-flow rseq" data-drop="rseq:" data-axis="wrap">
+      ${shown}
       ${all.length ? '' : '<p class="hint">Les actions s\'afficheront ici, dans l\'ordre du récit.</p>'}
     </div>
     ${canEdit() ? `<form class="composer" id="action-form" autocomplete="off">
@@ -1407,7 +1417,7 @@ function viewRecit() {
       <input class="composer-input" id="action-input" name="action" maxlength="${MAX_TEXT}" data-focus="action-input" placeholder="${esc(ACTION_EXAMPLES.good[persona.id]?.[0] ?? '')}" value="${esc(ui.actionDraft ?? '')}">
       <button type="submit" class="btn btn-primary btn-small">Ajouter ↵</button>
     </form>
-    <p class="hint">Entrée pour ajouter, dans l'ordre du récit. Glissez une action pour la remettre au bon endroit, cliquez dessus pour la corriger. Deux actions en même temps, ou une autre branche possible ? Cliquez sur la flèche entre elles : <strong>∥</strong> les met en parallèle.</p>` : ''}
+    <p class="hint">Entrée pour ajouter, dans l'ordre du récit. Glissez une action pour la remettre au bon endroit, cliquez dessus pour la corriger. Deux actions en même temps, ou une autre branche possible ? Lâchez une action au centre d'une autre, ou cliquez sur la flèche entre elles (<strong>∥</strong>) : elles passent en parallèle. Chaque branche a sa suite (« + Suite »), et une branche peut à son tour se diviser.</p>` : ''}
   </section>
   <section class="checkpoint">
     <div><h2>On a fait le tour ?</h2>
@@ -1727,7 +1737,7 @@ function openDialog(html, ctx) {
   editor.querySelector('textarea')?.focus();
 }
 
-function openNew(place, label, act = false) {
+function openNew(place, label, act = false, target = null) {
   if (place.b === 'action') act = true;
   const level = act ? 'Action' : { goal: 'Objectif', actor: 'Acteur', impact: 'Impact', deliverable: 'Livrable', backbone: 'Étape du parcours', story: 'Story' }[place.b];
   const hints = {
@@ -1750,7 +1760,7 @@ function openNew(place, label, act = false) {
       <button type="button" class="btn btn-quiet" data-cancel>Annuler</button>
       <button type="submit" class="btn btn-primary">Ajouter</button>
     </div>
-  </form>`, { mode: 'new', place, act });
+  </form>`, { mode: 'new', place, act, target });
 }
 
 function openEdit(id) {
@@ -1769,7 +1779,6 @@ function openEdit(id) {
       <select class="field" name="place">${places.map((p) => `<option value="${esc(encodePlace(p.place))}" ${encodePlace(p.place) === current ? 'selected' : ''}>${esc(p.label)}</option>`).join('')}</select></label>
     ${blocked ? '<p class="hint">Ce post-it a des post-its rattachés : il peut changer de place, pas de niveau.</p>' : ''}
     ${n.place.b === 'deliverable' && (HOST || !shared.on) ? `<label class="check"><input type="checkbox" name="keep" ${n.keep ? 'checked' : ''}> Retenu pour la story map</label>` : ''}
-    ${n.act && allActions(state)[0]?.id !== n.id ? `<label class="check"><input type="checkbox" name="par" ${n.par ? 'checked' : ''}> En parallèle de l'action précédente du récit (en même temps, ou une autre branche)</label>` : ''}
     <div class="dialog-actions">
       <button type="button" class="btn btn-danger" data-delete>${extract ? 'Remettre dans la pioche' : 'Supprimer'}</button>
       <span></span>
@@ -1847,7 +1856,8 @@ editor.addEventListener('submit', (e) => {
     return;
   }
   if (editing.mode === 'new') {
-    const note = addNote(state, editing.place, text, { ...(hooks.author ? { author: hooks.author() } : {}), ...(editing.act ? { act: true } : {}) });
+    const extra = { ...(hooks.author ? { author: hooks.author() } : {}), ...(editing.act ? { act: true } : {}) };
+    const note = editing.target ? addToRecit(state, editing.place, text, extra, editing.target) : addNote(state, editing.place, text, extra);
     editor.close();
     if (note) commit({ focus: `note:${note.id}` });
     return;
@@ -1862,7 +1872,6 @@ editor.addEventListener('submit', (e) => {
       if (!r.ok) toast(blockMessage(r.reason));
     }
     if (form.elements.keep && form.elements.keep.checked !== !!getNote(state, n.id)?.keep) toggleKeep(state, n.id);
-    if (form.elements.par && form.elements.par.checked !== !!getNote(state, n.id)?.par) toggleParallel(state, n.id);
     editor.close();
     commit({ focus: `note:${n.id}` });
   }
@@ -1932,10 +1941,18 @@ function undoToast(message, onUndo) {
 main.addEventListener('click', (e) => {
   const parBtn = e.target.closest('[data-par]');
   if (parBtn) {
-    if (!canEdit() || !toggleParallel(state, parBtn.dataset.par)) return;
-    const on = getNote(state, parBtn.dataset.par)?.par;
+    if (!canEdit()) return;
+    if (!moveInRecit(state, parBtn.dataset.par, { after: true })) { toast('Trop de niveaux de branches : regroupez plutôt.'); return; }
     commit({ focus: `note:${parBtn.dataset.par}` });
-    announce(on ? 'Action mise en parallèle de la précédente' : 'Action remise à la suite');
+    announce('Action mise en parallèle de ce qui la précède');
+    return;
+  }
+  const suiteBtn = e.target.closest('[data-suite]');
+  if (suiteBtn && canEdit()) { openNew({ b: 'action' }, 'Action', true, { suite: suiteBtn.dataset.suite }); return; }
+  const branchBtn = e.target.closest('[data-newbranch]');
+  if (branchBtn && canEdit()) {
+    const [blockId, path] = branchBtn.dataset.newbranch.split('|');
+    openNew({ b: 'action' }, 'Action', true, { branch: blockId, path });
     return;
   }
   const delBtn = e.target.closest('[data-del]');
@@ -2210,6 +2227,8 @@ function accepts(dragKey, dropKey) {
   if (type === 'note') {
     const n = getNote(state, id);
     if (!n) return false;
+    // Récit : on déplace l'action dans le récit (ordre, branches), sans toucher à son étape.
+    if (/^r(seq|onto|suite|branch):/.test(dropKey)) return !!n.act && dropKey !== `ronto:${id}`;
     if (dropKey === 'kept') return !!n.from?.startsWith('deliverable:');
     if (dropKey.startsWith('pool:')) return !!n.from?.startsWith('extract:');
     const place = decodePlace(dropKey);
@@ -2242,6 +2261,16 @@ function onDrop(dragKey, dropKey, beforeKey) {
   if (type === 'note') {
     if (dropKey.startsWith('pool:')) { unplaceExtract(state, id); commit(); announce('Extrait remis dans la pioche'); return; }
     if (dropKey === 'kept') { removeNote(state, id); commit(); announce('Livrable remis dans la liste des livrables retenus'); return; }
+    const recit = dropKey.match(/^r(seq|onto|suite|branch):(.*)$/);
+    if (recit) {
+      const [, kind, arg] = recit;
+      const target = kind === 'seq' ? { seq: arg, beforeId } : kind === 'onto' ? { onto: arg } : kind === 'suite' ? { suite: arg }
+        : { branch: arg.split('|')[0], path: arg.split('|')[1] ?? '' };
+      if (!moveInRecit(state, id, target)) { toast('Trop de niveaux de branches : regroupez plutôt.'); return; }
+      commit({ focus: `note:${id}` });
+      announce(kind === 'onto' ? 'Action mise en parallèle' : kind === 'seq' ? 'Action déplacée dans le récit' : 'Action ajoutée à la branche');
+      return;
+    }
     const place = decodePlace(dropKey);
     const r = moveNote(state, id, place, beforeId);
     if (!r.ok) { toast(blockMessage(r.reason)); return; }

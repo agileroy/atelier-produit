@@ -4,7 +4,7 @@ import {
   newState, setStep, addNote, moveNote, moveBlocker, removeNote, notesIn, childrenOf, placesFor,
   availableExtracts, placeExtract, unplaceExtract, compareEmpathy, emptyZones,
   toggleKeep, keptDeliverables, importDeliverable, deliverablePath,
-  allActions, looseActions, actionsOf, stepsWithoutDeliverable, recitMoments, toggleParallel, getNote, SORT_LANE,
+  allActions, looseActions, actionsOf, stepsWithoutDeliverable, recitTree, moveInRecit, addToRecit, BRANCH_RE, getNote, SORT_LANE,
   useJourneyExample, journeyNotes, journeyHints, simulatedNotes,
   mvpGaps, setPlacement, checkPlacement, answerSituation, situationScore, situationVerdict,
   mergeRemote, reportText, serialize, parseSaved, sanitize, encodePlace, decodePlace, nextStep, prevStep,
@@ -222,26 +222,64 @@ test('récit : une action regroupée devient une story « à trier » de son ét
   assert.equal(allActions(s).length, 3);
 });
 
-test('récit : actions en parallèle, et ancien format relu', () => {
+test('récit en branches : parallèle, suite de branche, branches imbriquées', () => {
   const s = newState();
-  const [a, b, c, d] = ['publie son trajet', 'fixe son prix', 'accepte un passager', 'refuse un passager'].map((t) => addNote(s, { b: 'action' }, t));
-  assert.equal(toggleParallel(s, b.id), true);
-  assert.equal(toggleParallel(s, d.id), true);
-  assert.deepEqual(recitMoments(s).map((m) => m.map((n) => n.id)), [[a.id, b.id], [c.id, d.id]]);
+  const [a, b, c, d, t1, t2, z] = ['paie', 'reçoit la confirmation', 'annule', 'note', 'test 1', 'test 2', 'fin'].map((t) => addNote(s, { b: 'action' }, t));
+  const shape = () => {
+    const show = (items) => items.map((it) => (it.note ? it.note.text : `[${it.branches.map((br) => show(br.items).join(' > ')).join(' | ')}]`));
+    return show(recitTree(s)).join(' > ');
+  };
+  // La flèche ∥ : « annule » en parallèle de « reçoit la confirmation ».
+  assert.equal(moveInRecit(s, c.id, { after: true }), true);
+  assert.equal(shape(), 'paie > [reçoit la confirmation | annule] > note > test 1 > test 2 > fin');
+  const block = recitTree(s)[1];
+  // Chaque branche a sa suite.
+  moveInRecit(s, t1.id, { suite: block.branches[0].path });
+  moveInRecit(s, t2.id, { suite: block.branches[1].path });
+  assert.equal(shape(), 'paie > [reçoit la confirmation > test 1 | annule > test 2] > note > fin');
+  // Lâcher sur une action qui ouvre une branche : une branche de plus dans ce bloc.
+  moveInRecit(s, d.id, { onto: b.id });
+  assert.equal(shape(), 'paie > [reçoit la confirmation > test 1 | annule > test 2 | note] > fin');
+  // Lâcher sur une action au milieu d'une branche : un bloc dans la branche.
+  moveInRecit(s, d.id, { onto: t2.id });
+  assert.equal(shape(), 'paie > [reçoit la confirmation > test 1 | annule > [test 2 | note]] > fin');
+  // Les chemins passent par la base et reviennent identiques.
   const back = recordsToNotes(Object.fromEntries(s.notes.map((n, i) => [n.id, noteRecord(n, i)])));
-  assert.deepEqual(back.map((n) => !!n.par), [false, true, false, true]);
-  // Déplacée ailleurs dans le récit, une action n'est plus en parallèle.
-  moveNote(s, d.id, { b: 'action' }, a.id);
-  assert.equal(getNote(s, d.id).par, undefined);
-  // Ancien format : « action|étape » devient une story « à trier » de l'étape.
+  assert.deepEqual(back.map((n) => n.br ?? ''), s.notes.map((n) => n.br ?? ''));
+  assert.ok(s.notes.filter((n) => n.br).every((n) => BRANCH_RE.test(n.br)));
+  // Supprimer une branche : le bloc qui n'a plus qu'une branche redevient une suite.
+  removeNote(s, d.id);
+  assert.equal(shape(), 'paie > [reçoit la confirmation > test 1 | annule > test 2] > fin');
+  removeNote(s, c.id); removeNote(s, t2.id);
+  assert.equal(shape(), 'paie > reçoit la confirmation > test 1 > fin');
+  assert.ok(allActions(s).every((n) => !n.br));
+  // Remettre sur la ligne principale, à un endroit précis.
+  moveInRecit(s, z.id, { seq: '', beforeId: b.id });
+  assert.equal(shape(), 'paie > fin > reçoit la confirmation > test 1');
+  // Une nouvelle branche par « + Branche », avec la composition d'un bloc à 3 branches.
+  moveInRecit(s, z.id, { after: true });
+  const blk = recitTree(s)[0];
+  assert.equal(blk.branches.length, 2);
+  const n3 = addToRecit(s, { b: 'action' }, 'autre cas', {}, { branch: blk.block, path: '' });
+  assert.equal(recitTree(s)[0].branches.length, 3);
+  assert.equal(n3.act, true);
+  assert.equal(a.br, blk.branches[0].path);
+});
+
+test('récit : ancien format (parallèle, action regroupée) relu', () => {
   const old = sanitize({ notes: [
     { id: 'step0001', text: 'Proposer', place: { b: 'backbone' } },
     { id: 'act00001', text: 'publie', place: { b: 'action', parent: 'step0001' } },
-    { id: 'act00002', text: 'orpheline', place: { b: 'action', parent: 'nope0001' } },
+    { id: 'act00002', text: 'fixe son prix', place: { b: 'action' }, par: true },
+    { id: 'act00003', text: 'orpheline', place: { b: 'action', parent: 'nope0001' } },
   ] });
   assert.deepEqual(old.notes.map((n) => [n.id, encodePlace(n.place), !!n.act]), [
-    ['step0001', 'backbone', false], ['act00001', 'story|step0001|sort', true], ['act00002', 'action', true],
+    ['step0001', 'backbone', false], ['act00001', 'story|step0001|sort', true], ['act00002', 'action', true], ['act00003', 'action', true],
   ]);
+  const tree = recitTree(old);
+  assert.equal(tree.length, 2);
+  assert.deepEqual(tree[0].branches.map((b) => b.items[0].note.text), ['publie', 'fixe son prix']);
+  assert.ok(old.notes.every((n) => n.par === undefined));
 });
 
 test('story map : étapes sans livrable de l\'impact map', () => {

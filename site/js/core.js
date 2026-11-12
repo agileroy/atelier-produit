@@ -79,8 +79,8 @@ export const prevStep = (step) => STEP_IDS[stepIndex(step) - 1] ?? null;
    { b: 'action' }                      action du récit, pas encore regroupée
    { b: 'action', parent: stepId }      ancien format : action regroupée (relue en story « à trier »)
    Une action regroupée sous une étape devient une story de cette étape ({ b: 'story', lane: 'sort' }) :
-   elle garde la marque `act` (elle vient du récit) et reste visible dans le récit. `par` : l'action
-   se fait en parallèle de la précédente du récit (en même temps, ou une autre branche).
+   elle garde la marque `act` (elle vient du récit) et reste visible dans le récit. `br` : sa branche
+   dans le récit (voir « Récit en branches »), indépendante de son étape.
    { b: 'journey' }                     étape du parcours, en cours de regroupement (avant validation)
    { b: 'backbone' }                    étape de la colonne vertébrale de la story map
    { b: 'story', col: backboneId, lane } story sous une étape, dans une version */
@@ -170,7 +170,7 @@ export function addNote(state, place, text, extra = {}) {
   if (extra.rid) note.rid = String(extra.rid);
   if (extra.kind && IMPACT_KINDS.includes(extra.kind)) note.kind = extra.kind;
   if (place.b === 'action' || extra.act) note.act = true;
-  if (extra.par) note.par = true;
+  if (extra.br && BRANCH_RE.test(extra.br)) note.br = extra.br;
   state.notes.push(note);
   return note;
 }
@@ -215,7 +215,6 @@ export function moveNote(state, id, place, beforeId = null) {
     return { ok: true };
   }
   state.notes.splice(index, 1);
-  if (note.act && place.b === 'action') delete note.par; // remise ailleurs dans le récit : plus en parallèle
   note.place = { ...place };
   if (place.b !== 'tray') delete note.kind;
   const before = beforeId && beforeId !== id ? state.notes.findIndex((n) => n.id === beforeId && samePlace(n.place, place)) : -1;
@@ -245,6 +244,7 @@ export function removeNote(state, id) {
     }
   }
   state.notes = state.notes.filter((n) => !doomed.has(n.id));
+  if (note.act) normalizeRecit(state);
   return doomed.size;
 }
 
@@ -387,22 +387,169 @@ export const looseActions = (state) => notesIn(state, { b: 'action' });
 /** Les actions regroupées sous une étape (devenues ses stories, quelle que soit leur version). */
 export const actionsOf = (state, stepId) => state.notes.filter((n) => n.act && n.place.b === 'story' && n.place.col === stepId);
 
-/** Le récit en « moments » : une action en parallèle rejoint le moment de l'action précédente. */
-export function recitMoments(state) {
-  const moments = [];
-  for (const n of allActions(state)) {
-    if (n.par && moments.length) moments[moments.length - 1].push(n);
-    else moments.push([n]);
-  }
-  return moments;
+/* ---------- Récit en branches ----------
+   Chaque action porte sa branche : `br`, un chemin « bloc:branche/bloc:branche… » (vide sur la ligne
+   principale). Un bloc parallèle se place dans le récit à sa première action ; ses branches se suivent
+   par numéro, chacune avec sa propre suite d'actions, et peuvent contenir d'autres blocs. */
+
+export const BRANCH_RE = /^[a-z0-9]{4,24}:[1-9][0-9]?(\/[a-z0-9]{4,24}:[1-9][0-9]?){0,5}$/;
+export const BRANCH_DEPTH = 6;
+const brSegs = (br) => (br ? br.split('/').map((x) => { const [id, k] = x.split(':'); return { id, k: Number(k) }; }) : []);
+const brJoin = (path, seg) => (path ? `${path}/${seg}` : seg);
+const inPath = (br, path) => !path || br === path || (br ?? '').startsWith(`${path}/`);
+
+/**
+ * L'arbre du récit : une suite d'éléments, chacun une action ({ note }) ou un bloc parallèle
+ * ({ block, path, branches: [{ k, path, items }] }). `path` : le chemin de la suite qui le contient.
+ */
+export function recitTree(state) {
+  const build = (notes, depth, path) => {
+    const items = [];
+    const blocks = new Map();
+    for (const n of notes) {
+      const seg = brSegs(n.br)[depth];
+      if (!seg) { items.push({ note: n }); continue; }
+      let b = blocks.get(seg.id);
+      if (!b) { b = { block: seg.id, path, raw: new Map() }; blocks.set(seg.id, b); items.push(b); }
+      if (!b.raw.has(seg.k)) b.raw.set(seg.k, []);
+      b.raw.get(seg.k).push(n);
+    }
+    for (const b of blocks.values()) {
+      b.branches = [...b.raw.keys()].sort((x, y) => x - y)
+        .map((k) => { const bp = brJoin(path, `${b.block}:${k}`); return { k, path: bp, items: build(b.raw.get(k), depth + 1, bp) }; });
+      delete b.raw;
+    }
+    return items;
+  };
+  return build(allActions(state), 0, '');
 }
 
-/** Met une action en parallèle de la précédente du récit, ou l'en retire. */
-export function toggleParallel(state, id) {
-  const n = getNote(state, id);
-  if (!n?.act) return false;
-  if (n.par) delete n.par; else n.par = true;
+/** Récrit les chemins depuis l'arbre : un bloc d'une seule branche redevient une suite, les branches sont renumérotées. */
+export function normalizeRecit(state) {
+  const emit = (items, path) => {
+    for (const it of items) {
+      if (it.note) { if (path) it.note.br = path; else delete it.note.br; continue; }
+      if (it.branches.length === 1) { emit(it.branches[0].items, path); continue; }
+      it.branches.forEach((b, i) => emit(b.items, brJoin(path, `${it.block}:${i + 1}`)));
+    }
+  };
+  emit(recitTree(state), '');
+}
+
+/** Où se trouve une action : la suite qui la contient (ses éléments, son chemin) et sa position. */
+function locate(tree, id) {
+  const walk = (items, path) => {
+    for (let i = 0; i < items.length; i += 1) {
+      const it = items[i];
+      if (it.note?.id === id) return { items, path, index: i };
+      if (it.branches) for (const b of it.branches) { const r = walk(b.items, b.path); if (r) return r; }
+    }
+    return null;
+  };
+  return walk(tree, '');
+}
+
+function findBlock(tree, blockId, path) {
+  const walk = (items) => {
+    for (const it of items) {
+      if (!it.branches) continue;
+      if (it.block === blockId && it.path === path) return it;
+      for (const b of it.branches) { const r = walk(b.items); if (r) return r; }
+    }
+    return null;
+  };
+  return walk(tree);
+}
+
+/** Range la note `id` juste après la dernière action de `path` (sa sous-arborescence), ou juste après `afterId`. */
+function placeInRecit(state, id, { path = '', afterId = null, beforeId = null } = {}) {
+  const index = state.notes.findIndex((n) => n.id === id);
+  if (index < 0) return;
+  const [note] = state.notes.splice(index, 1);
+  let at = -1;
+  if (beforeId) at = state.notes.findIndex((n) => n.id === beforeId);
+  else {
+    let last = -1;
+    state.notes.forEach((n, i) => { if (afterId ? n.id === afterId : (n.act && inPath(n.br ?? '', path))) last = i; });
+    if (last >= 0) at = last + 1;
+  }
+  if (at >= 0) state.notes.splice(at, 0, note);
+  else state.notes.push(note);
+}
+
+const depthOf = (path) => brSegs(path).length;
+
+/**
+ * Déplace une action dans le récit, sans changer son étape. `target` :
+ * { seq: path, beforeId }   dans une suite (ligne principale ou branche), avant `beforeId` ou à la fin ;
+ * { onto: id }              en parallèle d'une action : nouvelle branche du bloc si elle ouvre une branche, sinon nouveau bloc ;
+ * { suite: path }           à la fin d'une branche ;
+ * { branch: blockId, path } nouvelle branche d'un bloc (path : la suite qui contient le bloc) ;
+ * { after: id }             en parallèle de l'élément qui précède l'action (la flèche ∥).
+ * Renvoie false si c'est impossible (trop de niveaux, cible inconnue).
+ */
+export function moveInRecit(state, id, target) {
+  const note = getNote(state, id);
+  if (!note?.act) return false;
+  const tree = recitTree(state);
+  if ('seq' in target) {
+    if (target.seq && !BRANCH_RE.test(target.seq)) return false;
+    if (target.seq) note.br = target.seq; else delete note.br;
+    const before = target.beforeId && target.beforeId !== id ? getNote(state, target.beforeId) : null;
+    placeInRecit(state, id, before ? { beforeId: before.id } : { path: target.seq });
+  } else if ('suite' in target) {
+    if (!BRANCH_RE.test(target.suite)) return false;
+    note.br = target.suite;
+    placeInRecit(state, id, { path: target.suite });
+  } else if ('branch' in target) {
+    const block = findBlock(tree, target.branch, target.path ?? '');
+    if (!block) return false;
+    const k = Math.max(...block.branches.map((b) => b.k)) + 1;
+    note.br = brJoin(block.path, `${block.block}:${k}`);
+    placeInRecit(state, id, { path: brJoin(block.path, `${block.block}:${block.branches[block.branches.length - 1].k}`) });
+  } else if ('onto' in target) {
+    if (target.onto === id) return false;
+    const where = locate(tree, target.onto);
+    if (!where) return false;
+    const other = getNote(state, target.onto);
+    const segs = brSegs(where.path);
+    if (where.index === 0 && segs.length) {
+      // La cible ouvre une branche : l'action ouvre une branche de plus dans ce bloc.
+      const parent = segs.slice(0, -1).map((x) => `${x.id}:${x.k}`).join('/');
+      const block = findBlock(tree, segs[segs.length - 1].id, parent);
+      const k = Math.max(...block.branches.map((b) => b.k)) + 1;
+      note.br = brJoin(parent, `${block.block}:${k}`);
+      placeInRecit(state, id, { path: brJoin(parent, `${block.block}:${block.branches[block.branches.length - 1].k}`) });
+    } else {
+      if (depthOf(where.path) >= BRANCH_DEPTH) return false;
+      const bid = newId(6);
+      other.br = brJoin(where.path, `${bid}:1`);
+      note.br = brJoin(where.path, `${bid}:2`);
+      placeInRecit(state, id, { afterId: other.id });
+    }
+  } else if ('after' in target) {
+    const where = locate(tree, id);
+    if (!where || where.index === 0) return false;
+    const prev = where.items[where.index - 1];
+    if (prev.branches) {
+      const k = Math.max(...prev.branches.map((b) => b.k)) + 1;
+      note.br = brJoin(where.path, `${prev.block}:${k}`);
+    } else {
+      if (depthOf(where.path) >= BRANCH_DEPTH) return false;
+      const bid = newId(6);
+      prev.note.br = brJoin(where.path, `${bid}:1`);
+      note.br = brJoin(where.path, `${bid}:2`);
+    }
+  } else return false;
+  normalizeRecit(state);
   return true;
+}
+
+/** Une nouvelle action à la fin d'une branche, ou dans une nouvelle branche d'un bloc. */
+export function addToRecit(state, place, text, extra, target) {
+  const note = addNote(state, place, text, { ...extra, act: true });
+  if (note && target && !moveInRecit(state, note.id, target)) normalizeRecit(state);
+  return note;
 }
 
 /** Étapes du parcours sous lesquelles aucun livrable de l'impact map n'a été rangé. */
@@ -662,7 +809,8 @@ export function sanitize(raw) {
       if (place.b === 'tray' && IMPACT_KINDS.includes(n.kind)) note.kind = n.kind;
       if (place.b === 'deliverable' && n.keep === true) note.keep = true;
       if (act) note.act = true;
-      if (act && n.par === true) note.par = true;
+      if (act && typeof n.br === 'string' && BRANCH_RE.test(n.br)) note.br = n.br;
+      if (act && n.par === true && !note.br) note.par = true; // ancien format, converti plus bas
       note.order = order.get(n);
       state.notes.push(note);
       ids.add(n.id);
@@ -671,6 +819,21 @@ export function sanitize(raw) {
   // Ordre d'origine conservé (les passes ne servent qu'à vérifier les parents).
   state.notes.sort((x, y) => x.order - y.order);
   for (const n of state.notes) delete n.order;
+  // Ancien format : « en parallèle de la précédente » devient un bloc à deux branches (ou plus).
+  let prevAct = null;
+  for (const n of state.notes) {
+    if (!n.act) continue;
+    if (n.par && prevAct) {
+      const head = prevAct.br ? null : prevAct;
+      if (head) head.br = `${head.id.slice(0, 6)}:1`;
+      const [seg] = (prevAct.br ?? '').split('/');
+      const [bid, k] = seg.split(':');
+      n.br = `${bid}:${Number(k) + 1}`;
+    }
+    delete n.par;
+    prevAct = n;
+  }
+  normalizeRecit(state);
   // Un extrait ne peut être posé qu'une fois.
   const extracts = new Set();
   state.notes = state.notes.filter((n) => {
@@ -732,7 +895,7 @@ export function noteRecord(n, order) {
   if (n.kind) r.kind = n.kind;
   if (n.keep) r.keep = true;
   if (n.act) r.act = true;
-  if (n.par) r.par = true;
+  if (n.br) r.br = n.br;
   return r;
 }
 
@@ -743,7 +906,7 @@ export function recordsToNotes(tree) {
     .sort(([a, x], [b, y]) => (Number(x.order) || 0) - (Number(y.order) || 0) || a.localeCompare(b))
     .map(([id, r]) => ({
       id, text: r.text, place: decodePlace(r.place) ?? {}, from: typeof r.from === 'string' && RECORD_FROM.test(r.from) ? r.from : undefined,
-      author: r.author, kind: r.kind, keep: r.keep === true, act: r.act === true, par: r.par === true,
+      author: r.author, kind: r.kind, keep: r.keep === true, act: r.act === true, br: typeof r.br === 'string' ? r.br : undefined, par: r.par === true,
     }));
   return sanitize({ notes: rows }).notes;
 }
