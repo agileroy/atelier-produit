@@ -578,7 +578,7 @@ function boardBar() {
   const tabs = groups.map((g) => `<button type="button" role="tab" aria-selected="${g === shared.group}" data-group="${g}" data-focus="group:${g}">
       ${esc(boardLabel(g))}${count(g)}${!HOST && g === shared.myGroup ? ' <span class="board-you">vous</span>' : ''}</button>`).join('');
   const hostHint = shared.restitution
-    ? `Les participants voient ${solo ? 'leur tableau et celui du groupe simulé' : 'les deux tableaux'}, en lecture seule : vous seul déplacez les post-its.`
+    ? `Les participants voient ${solo ? 'leur tableau et celui du groupe simulé' : 'les deux tableaux'}, en lecture seule : vous seul déplacez les idées.`
     : solo ? `Un seul groupe : à la restitution, on compare son tableau à celui d'un groupe simulé qui a travaillé sur ${esc(personaById(groupPersona('sim'))?.name ?? '')}.`
       : 'Chaque groupe ne voit que son tableau. La restitution montre les deux à tous.';
   const partHint = shared.group === 'sim' ? 'le tableau du groupe simulé' : shared.group === shared.myGroup ? 'votre tableau' : 'le tableau de l\'autre groupe';
@@ -586,7 +586,7 @@ function boardBar() {
     <div class="group-tabs" role="tablist" aria-label="Tableau affiché">${tabs}</div>
     ${HOST ? `${shared.restitution || exerciseOn() ? `<button type="button" class="btn ${shared.restitution ? 'btn-quiet' : 'btn-primary'} btn-small" data-act="restitution" data-focus="restitution">${shared.restitution ? 'Terminer la restitution' : 'Lancer la restitution'}</button>` : ''}
       <p class="hint">${hostHint}</p>`
-      : `<p class="hint">Restitution : ${partHint}, en lecture seule. L'animateur déplace les post-its.</p>`}
+      : `<p class="hint">Restitution : ${partHint}, en lecture seule. L'animateur déplace les idées.</p>`}
   </div>`;
 }
 
@@ -859,7 +859,7 @@ const artDefs = '<defs><filter id="ashadow" x="-30%" y="-30%" width="160%" heigh
 function stepArt(step) {
   const svg = (label, body) => `<svg class="step-art" viewBox="0 0 300 170" role="img" aria-label="${esc(label)}">${artDefs}${body}</svg>`;
   if (step === 'frame') {
-    return svg('Le double diamant et ses post-its', `<path class="wa-diamond" d="M10 85 L80 15 L150 85 L80 155 Z M150 85 L220 15 L290 85 L220 155 Z"/><path class="wa-axis" d="M10 85 H290"/>
+    return svg('Le double diamant et ses idées', `<path class="wa-diamond" d="M10 85 L80 15 L150 85 L80 155 Z M150 85 L220 15 L290 85 L220 155 Z"/><path class="wa-axis" d="M10 85 H290"/>
       ${[[50, 60, -6, 205], [96, 96, 5, 330], [64, 116, 4, 150], [190, 56, -5, 44], [236, 100, 6, 265], [200, 118, -3, 6]].map((n) => artNote(...n)).join('')}`);
   }
   if (step === 'empathy') {
@@ -878,7 +878,7 @@ function stepArt(step) {
       ${[[55, 72, 3, 44], [119, 70, -3, 44], [183, 74, 2, 44], [247, 71, -2, 44], [55, 128, -3, 150], [183, 130, 4, 150], [247, 126, -2, 330]].map((n) => artNote(...n)).join('')}
       <path class="wa-version" d="M15 99 H290"/>`);
   }
-  return svg('Une ampoule et des post-its', `<circle class="wa-head" cx="150" cy="70" r="42"/><path class="wa-face" d="M136 112 h28 M138 122 h24 M143 132 h14"/>
+  return svg('Une ampoule et des idées', `<circle class="wa-head" cx="150" cy="70" r="42"/><path class="wa-face" d="M136 112 h28 M138 122 h24 M143 132 h14"/>
     <path class="wa-face" d="M150 50 v22 M140 62 l10 10 10-10"/>
     ${artNote(60, 50, -8, 205)}${artNote(244, 46, 7, 330)}${artNote(70, 120, 5, 150)}${artNote(234, 118, -6, 44)}`);
 }
@@ -890,7 +890,7 @@ function welcomeArt() {
     [214, 98, 7, 265], [196, 150, -6, 6], [300, 66, 5, 44], [344, 120, -7, 150],
     [292, 160, 3, 205], [404, 84, -5, 330], [440, 140, 6, 265], [380, 172, -3, 6],
   ];
-  return `<svg class="welcome-art" viewBox="0 0 520 250" role="img" aria-label="Des post-its colorés qui s'organisent en double diamant">
+  return `<svg class="welcome-art" viewBox="0 0 520 250" role="img" aria-label="Des idées colorées qui s'organisent en double diamant">
     <defs><filter id="wshadow" x="-20%" y="-20%" width="140%" height="160%"><feDropShadow dx="0" dy="3" stdDeviation="3" flood-opacity=".18"/></filter></defs>
     <path class="wa-diamond" d="M20 125 L135 20 L250 125 L135 230 Z M250 125 L380 20 L500 125 L380 230 Z"/>
     <path class="wa-axis" d="M20 125 H500"/>
@@ -943,7 +943,7 @@ function viewWelcome() {
 function merciArt() {
   const pts = [[100, 50], [80, 32], [56, 34], [40, 54], [44, 80], [62, 102], [82, 120], [100, 136], [118, 120], [138, 102], [156, 80], [160, 54], [144, 34], [120, 32]];
   const hues = [330, 6, 44, 205, 150, 265];
-  return `<svg class="bravo-art merci-art" viewBox="0 0 200 160" role="img" aria-label="Des post-its en forme de cœur">${artDefs}
+  return `<svg class="bravo-art merci-art" viewBox="0 0 200 160" role="img" aria-label="Des idées en forme de cœur">${artDefs}
     ${pts.map(([x, y], i) => artNote(x, y, ((i * 37) % 20) - 10, hues[i % hues.length], 22, 20)).join('')}
     <path class="wa-star" d="M100 70 l5 10 11 1.6-8 7.8 1.9 11-9.9-5.2-9.9 5.2 1.9-11-8-7.8 11-1.6z"/>
   </svg>`;
@@ -1034,7 +1034,7 @@ function viewBravo() {
   const groups = bravoGroups();
   const total = groups.reduce((n, g) => n + g.count, 0);
   const stats = [
-    [total, `post-it${total > 1 ? 's' : ''}`],
+    [total, `idée${total > 1 ? 's' : ''}`],
     [groups.reduce((n, g) => n + g.cols, 0), 'étapes de parcours'],
     [groups.reduce((n, g) => n + g.kept.length, 0), 'livrables retenus'],
     [groups.reduce((n, g) => n + g.mvp.length, 0), 'stories en première version'],
@@ -1151,7 +1151,7 @@ function joinCard() {
     return `<section class="join join--off">
       <span class="join-icon">${ICONS.users}</span>
       <div><h2>Faire participer chacun</h2>
-      <p class="hint">Chacun rejoint l'atelier depuis son ordinateur ou son téléphone, avec son prénom, et envoie ses post-its.</p></div>
+      <p class="hint">Chacun rejoint l'atelier depuis son ordinateur ou son téléphone, avec son prénom, et envoie ses idées.</p></div>
       <button type="button" class="btn btn-primary" data-act="phones-show" data-focus="phones-show">Ouvrir l'atelier aux participants</button>
     </section>`;
   }
@@ -1247,7 +1247,7 @@ function viewEmpathy() {
       ${comparing
         ? `<p><strong>${cmp.matching} extrait${cmp.matching > 1 ? 's' : ''} sur ${cmp.placed}</strong> rangé${cmp.matching > 1 ? 's' : ''} comme la proposition${pool.length ? `, et ${pool.length} pas encore rangé${pool.length > 1 ? 's' : ''}` : ''}. La proposition complète est juste en dessous. Il n'y a pas de tri parfait : un écart est une bonne occasion de discuter (dire n'est pas penser, faire n'est pas dire).</p>`
         : HOST || !shared.on ? '<p>Une fois les extraits rangés, comparez avec une proposition de tri.</p>' : '<p>Rangez les extraits entre vous : l\'animateur dévoilera une proposition de tri au moment de la restitution.</p>'}
-      ${empty.length ? `<p>Zones vides : <strong>${esc(empty.join(', '))}</strong>. Ce sont les questions de la prochaine interview.</p>` : '<p>Toutes les zones ont au moins un post-it.</p>'}
+      ${empty.length ? `<p>Zones vides : <strong>${esc(empty.join(', '))}</strong>. Ce sont les questions de la prochaine interview.</p>` : '<p>Toutes les zones ont au moins une idée.</p>'}
     </div>
     ${!shared.on || (HOST && shared.group !== 'sim' && shared.restitution) ? `<button type="button" class="btn ${comparing ? 'btn-quiet' : 'btn-primary'}" data-act="compare" data-focus="compare" ${cmp.placed || shared.on ? '' : 'disabled'}>
       ${comparing ? 'Masquer la proposition' : 'Comparer avec la proposition'}</button>` : ''}
@@ -1335,7 +1335,7 @@ function viewImpact() {
       <p class="hint">${ICONS.star} ${shared.on ? 'Les livrables retenus se choisissent tous ensemble, à la restitution : l\'animateur pose les étoiles, au moins 1 par persona (2 conseillés). Ils partent à l\'étape suivante. Les livrables hors appli (télétravail, navette…) sont de vraies pistes, mais ils ne passent pas par une story map : ils suivent leur propre chemin (une décision RH, un contrat de transport). Ici, on construit la partie appli.' : 'Cochez l\'étoile des livrables que vous retenez : ils vous attendront à l\'étape suivante. Plusieurs objectifs ? Ajoutez-les avec « Autre objectif ». Les livrables hors appli (télétravail, navette…) sont de vraies pistes, mais ils ne passent pas par une story map : ici, on construit la partie appli.'}</p>
     </div>
     <aside class="side">
-      ${trayHtml('impact', 'À placer', 'Glissez ces post-its dans l\'arbre.')}
+      ${trayHtml('impact', 'À placer', 'Glissez ces idées dans l\'arbre.')}
       <section class="inspiration">
         <h2>Pour s'inspirer</h2>
         ${inspiration.length ? inspiration.map(({ p, pains, gains }) => `<div class="insp">
@@ -1544,7 +1544,7 @@ function viewStory() {
   </section>
   <div class="story-sources">
     ${keptSection(kept, toPlace)}
-    ${trayHtml('story', 'À placer', 'Glissez ces post-its sous une étape du parcours.')}
+    ${trayHtml('story', 'À placer', 'Glissez ces idées sous une étape du parcours.')}
   </div>`}
 
   <div class="canvas">
@@ -1760,7 +1760,7 @@ function openNew(place, label, act = false, target = null) {
   openDialog(`<form method="dialog" class="dialog-form" data-form="note">
     <h2 id="editor-title">${esc(title)}</h2>
     ${hint ? `<p class="hint">${esc(hint)}</p>` : ''}
-    <label class="field-wrap"><span class="sr-only">Texte du post-it</span>
+    <label class="field-wrap"><span class="sr-only">Texte de l'idée</span>
       <textarea class="field note-field" name="text" rows="3" maxlength="${MAX_TEXT}" required></textarea></label>
     <div class="dialog-actions">
       <button type="button" class="btn btn-quiet" data-cancel>Annuler</button>
@@ -1777,13 +1777,13 @@ function openEdit(id) {
   const current = encodePlace(n.place);
   const blocked = childrenOf(state, id).length && n.place.b !== 'empathy';
   openDialog(`<form method="dialog" class="dialog-form" data-form="note">
-    <h2 id="editor-title">${extract ? 'Extrait d\'interview' : 'Post-it'}</h2>
+    <h2 id="editor-title">${extract ? 'Extrait d\'interview' : 'Idée'}</h2>
     ${n.author ? `<p class="hint">${ICONS.phone} Envoyé par ${esc(n.author)}</p>` : ''}
     <label class="field-wrap"><span class="field-label">Texte</span>
       <textarea class="field note-field" name="text" rows="3" maxlength="${MAX_TEXT}" required ${extract ? 'readonly' : ''}>${esc(n.text)}</textarea></label>
     <label class="field-wrap"><span class="field-label">Ranger dans</span>
       <select class="field" name="place">${places.map((p) => `<option value="${esc(encodePlace(p.place))}" ${encodePlace(p.place) === current ? 'selected' : ''}>${esc(p.label)}</option>`).join('')}</select></label>
-    ${blocked ? '<p class="hint">Ce post-it a des post-its rattachés : il peut changer de place, pas de niveau.</p>' : ''}
+    ${blocked ? '<p class="hint">Cette idée a d\'autres idées rattachées : elle peut changer de place, pas de niveau.</p>' : ''}
     ${n.place.b === 'deliverable' && (HOST || !shared.on) ? `<label class="check"><input type="checkbox" name="keep" ${n.keep ? 'checked' : ''}> Retenu pour la story map</label>` : ''}
     <div class="dialog-actions">
       <button type="button" class="btn btn-danger" data-delete>${extract ? 'Remettre dans la pioche' : 'Supprimer'}</button>
@@ -1831,12 +1831,12 @@ editor.addEventListener('click', (e) => {
     const n = getNote(state, editing.id);
     if (!n) { editor.close(); return; }
     const kids = childrenOf(state, editing.id).length;
-    if (n.place.b !== 'backbone' && kids && !confirm(`Supprimer aussi les ${kids} post-it${kids > 1 ? 's' : ''} rattaché${kids > 1 ? 's' : ''} ?`)) return;
+    if (n.place.b !== 'backbone' && kids && !confirm(`Supprimer aussi ${kids > 1 ? `les ${kids} idées rattachées` : 'l\'idée rattachée'} ?`)) return;
     if (n.from?.startsWith('extract:')) unplaceExtract(state, n.id);
     else removeNote(state, n.id);
     editor.close();
     commit();
-    announce('Post-it supprimé');
+    announce('Idée supprimée');
     return;
   }
   const zone = e.target.closest('[data-zone]');
@@ -1870,7 +1870,7 @@ editor.addEventListener('submit', (e) => {
   }
   if (editing.mode === 'edit') {
     const n = getNote(state, editing.id);
-    if (!n) { editor.close(); toast('Ce post-it vient d\'être supprimé par quelqu\'un du groupe.'); return; }
+    if (!n) { editor.close(); toast('Cette idée vient d\'être supprimée par quelqu\'un du groupe.'); return; }
     if (!n.from?.startsWith('extract:')) updateNote(state, n.id, text);
     const place = decodePlace(form.elements.place?.value);
     if (place && !samePlace(place, n.place)) {
@@ -1893,8 +1893,8 @@ editor.addEventListener('close', () => {
 
 function blockMessage(reason) {
   return reason === 'children'
-    ? 'Ce post-it a des post-its rattachés : déplacez-les ou supprimez-les d\'abord.'
-    : 'Ce post-it ne peut pas aller là.';
+    ? 'Cette idée a d\'autres idées rattachées : déplacez-les ou supprimez-les d\'abord.'
+    : 'Cette idée ne peut pas aller là.';
 }
 
 /* ---------- Clics dans la page ---------- */
@@ -1917,15 +1917,15 @@ function deleteNote(id) {
   if (n.from?.startsWith('extract:')) { unplaceExtract(state, id); commit(); announce('Extrait remis dans la pioche'); return; }
   const kids = childrenOf(state, id).length;
   if (kids && !confirm(`Supprimer « ${n.text} » ? ${['backbone', 'journey'].includes(n.place.b)
-    ? `Ses ${kids} post-it${kids > 1 ? 's' : ''} ne sont pas perdus : les actions retournent dans « Pas encore regroupées », les stories dans le bac.`
-    : `Les ${kids} post-it${kids > 1 ? 's' : ''} rattachés seront supprimés aussi.`}`)) return;
+    ? `${kids > 1 ? `Ses ${kids} idées ne sont pas perdues` : 'Son idée n\'est pas perdue'} : les actions retournent dans « Pas encore regroupées », les stories dans le bac.`
+    : `${kids > 1 ? `Les ${kids} idées rattachées seront supprimées` : 'L\'idée rattachée sera supprimée'} aussi.`}`)) return;
   const before = clone(state.notes);
   removeNote(state, id);
   const kept = new Map(state.notes.map((x) => [x.id, x]));
   const removed = before.map((x, i) => ({ x, i })).filter(({ x }) => !kept.has(x.id));
   const moved = before.filter((x) => kept.has(x.id) && encodePlace(x.place) !== encodePlace(kept.get(x.id).place));
   commit();
-  undoToast(removed.length > 1 ? `${removed.length} post-its supprimés.` : 'Post-it supprimé.', () => {
+  undoToast(removed.length > 1 ? `${removed.length} idées supprimées.` : 'Idée supprimée.', () => {
     for (const { x, i } of removed) if (!getNote(state, x.id)) state.notes.splice(Math.min(i, state.notes.length), 0, clone(x));
     for (const x of moved) { const cur = getNote(state, x.id); if (cur) cur.place = x.place; }
     commit();
@@ -1969,7 +1969,7 @@ main.addEventListener('click', (e) => {
   const groupTab = t.closest('[data-group]');
   if (groupTab) { showGroup(groupTab.dataset.group); render(`group:${groupTab.dataset.group}`); return; }
   if (!canEdit() && t.closest(EDIT_TARGETS)) {
-    toast(shared.group === 'sim' ? 'Groupe simulé : lecture seule.' : !HOST && !shared.restitution && timeUp() ? 'Temps écoulé : on attend la restitution.' : !HOST && !shared.restitution && myGroupDone() ? 'Votre groupe a terminé : « Finalement, on continue » pour modifier encore.' : shared.restitution ? 'Restitution : seul l\'animateur déplace les post-its.' : 'Lecture seule : c\'est le tableau de l\'autre groupe.');
+    toast(shared.group === 'sim' ? 'Groupe simulé : lecture seule.' : !HOST && !shared.restitution && timeUp() ? 'Temps écoulé : on attend la restitution.' : !HOST && !shared.restitution && myGroupDone() ? 'Votre groupe a terminé : « Finalement, on continue » pour modifier encore.' : shared.restitution ? 'Restitution : seul l\'animateur déplace les idées.' : 'Lecture seule : c\'est le tableau de l\'autre groupe.');
     return;
   }
   const info = t.closest('[data-info]');
@@ -2281,7 +2281,7 @@ function onDrop(dragKey, dropKey, beforeKey) {
     const r = moveNote(state, id, place, beforeId);
     if (!r.ok) { toast(blockMessage(r.reason)); return; }
     commit({ focus: `note:${id}` });
-    announce(`Post-it rangé : ${placeLabel(state, place)}`);
+    announce(`Idée rangée : ${placeLabel(state, place)}`);
   }
 }
 

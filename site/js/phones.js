@@ -197,7 +197,7 @@ export function createPhones({ button, dialog, count, current, onRemote, onChang
   }
 
   async function end({ ask = true } = {}) {
-    if (ask && !confirm('Terminer la séance ? Les post-its déjà reçus restent sur le tableau ; ils sont effacés de la base.')) return;
+    if (ask && !confirm('Terminer la séance ? Les idées déjà reçues restent sur le tableau ; elles sont effacées de la base.')) return;
     try {
       await store.deleteSession(session.sid, meta?.code);
       forget('Séance terminée, base nettoyée.');
@@ -217,7 +217,7 @@ export function createPhones({ button, dialog, count, current, onRemote, onChang
     count.hidden = !live || !presence.length;
     count.textContent = presence.length;
     button.title = live
-      ? `${presence.length} connecté${presence.length > 1 ? 's' : ''} · ${notes.length} post-it${notes.length > 1 ? 's' : ''} reçu${notes.length > 1 ? 's' : ''}`
+      ? `${presence.length} connecté${presence.length > 1 ? 's' : ''} · ${notes.length} idée${notes.length > 1 ? 's' : ''} reçue${notes.length > 1 ? 's' : ''}`
       : 'Faire participer depuis un ordinateur ou un téléphone';
     if (dialog.open) dialog.innerHTML = body();
     onChange();
@@ -231,15 +231,15 @@ export function createPhones({ button, dialog, count, current, onRemote, onChang
     if (status === 'off') {
       return `${head}<div class="dialog-form">
         <p>La participation à distance n'est pas encore configurée pour cet outil.</p>
-        <p class="hint">L'atelier fonctionne très bien sans : on écrit les post-its directement sur l'écran projeté. Pour l'activer, il faut un projet Firebase (voir le README du dépôt).</p>
+        <p class="hint">L'atelier fonctionne très bien sans : on écrit les idées directement sur l'écran projeté. Pour l'activer, il faut un projet Firebase (voir le README du dépôt).</p>
       </div>`;
     }
     if (status === 'idle' || status === 'connecting') {
       return `${head}<div class="dialog-form">
-        <p>Chacun rejoint depuis son ordinateur ou son téléphone, avec un lien à copier ou un QR code, puis écrit ses post-its. Ils arrivent sur cet écran, à l'étape en cours.</p>
+        <p>Chacun rejoint depuis son ordinateur ou son téléphone, avec un lien à copier ou un QR code, puis écrit ses idées. Elles arrivent sur cet écran, à l'étape en cours.</p>
         <ul class="hint-list">
           <li>Pas de compte : un prénom suffit.</li>
-          <li>Seuls les post-its envoyés passent par la base, effacée quand vous terminez la séance.</li>
+          <li>Seules les idées envoyées passent par la base, effacée quand vous terminez la séance.</li>
           <li>Le VPN de l'entreprise bloque Firebase : l'animateur et les participants doivent être hors VPN (ou rejoindre depuis leur téléphone).</li>
         </ul>
         <div class="dialog-actions"><span></span>

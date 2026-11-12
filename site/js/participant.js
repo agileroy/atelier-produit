@@ -135,7 +135,7 @@ export async function startParticipant(api) {
     return `<section class="pcard pcard--center">
       <p class="kicker">Atelier Produit</p>
       <h1>Bienvenue !</h1>
-      <p>Vous allez travailler en groupe sur les tableaux de l'atelier. Votre prénom s'affichera sur vos post-its.</p>
+      <p>Vous allez travailler en groupe sur les tableaux de l'atelier. Votre prénom s'affichera sur vos idées.</p>
       <form class="pform" id="nameform">
         <label class="field-wrap"><span class="field-label">Votre prénom</span>
           <input class="field" name="author" maxlength="${MAX_AUTHOR}" autocomplete="given-name" required value="${esc(author)}" ${nameError ? 'aria-invalid="true" aria-describedby="name-error"' : ''}></label>
