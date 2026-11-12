@@ -54,7 +54,7 @@ export const BRAVO = {
   story: [
     'Vous avez présenté Covoit\'Boulot à la direction de Valmétal : elle est conquise, et le projet est lancé.',
     'Trois mois plus tard, les salariés l\'ont adopté : les voitures pleines se garent près de l\'entrée, les équipes en 2×8 trouvent un trajet avant leur prise de poste, et le parking n\'est plus une loterie.',
-    'Et si l\'appli n\'avait pas été la meilleure réponse ? C\'est la question que vous avez posée en ouvrant l\'impact map. Une vraie équipe peut très bien conclure que le télétravail ou une navette règlent une partie du problème, plus vite et moins cher. Partir du problème, pas de la solution demandée : c\'est tout le sens du premier diamant.',
+    'Une question à garder en tête : l\'appli était-elle la meilleure réponse ? Le télétravail ou une navette auraient peut-être réglé une partie du problème, plus vite et moins cher. C\'est aussi à ça que sert l\'impact map : partir du problème, et pas de la solution demandée, c\'est tout le sens du premier diamant.',
   ],
   path: [
     { step: 'empathy', label: 'Vous avez écouté', text: 'Sophie et Karim, leurs douleurs et leurs gains.' },
