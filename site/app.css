@@ -1421,3 +1421,13 @@ button.recit-arrow { display: inline-grid; place-items: center; width: 32px; hei
 button.recit-arrow:hover, button.recit-arrow:focus-visible { border-color: hsl(205 60% 55%); background: var(--surface); color: hsl(205 60% 38%); }
 button.recit-arrow:hover .ra-next, button.recit-arrow:focus-visible .ra-next { display: none; }
 button.recit-arrow:hover .ra-par, button.recit-arrow:focus-visible .ra-par { display: inline; }
+
+/* Merci ! : garder une trace (animateur) */
+.merci-export { display: grid; gap: 10px; padding: 18px 22px; border-radius: 16px; border: 1px solid var(--line); }
+.merci-export h2 { margin: 0; font-size: 18px; }
+.merci-export h2 .hint { font-size: 13px; font-weight: 600; }
+.merci-export p { margin: 0; }
+.export-actions { display: flex; flex-wrap: wrap; gap: 10px; }
+.merci-export .export-actions .btn { justify-self: auto; }
+.print-report .pr-quiz { break-inside: avoid; margin: 10px 0 14px; }
+.print-report .pr-quiz ul { list-style: none; padding-left: 0; margin: 4px 0; }

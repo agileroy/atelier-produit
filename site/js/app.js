@@ -983,6 +983,18 @@ function viewMerci() {
     ${merciRoti()}
   </section>
 
+  ${HOST ? `<section class="panel panel--export merci-export">
+    <h2>Garder une trace <span class="hint">· pour vous seul</span></h2>
+    <p class="hint">Le compte rendu reprend les tableaux de chaque groupe et le détail du quiz : la note et les réponses de chaque participant, des notes les plus basses aux plus hautes, pour revenir avec ceux qui en ont besoin.</p>
+    <div class="export-actions">
+      <button type="button" class="btn btn-primary" data-act="copy" data-focus="copy">Copier le compte rendu</button>
+      <button type="button" class="btn btn-quiet" data-act="print" data-focus="print">Imprimer ou PDF</button>
+      <button type="button" class="btn btn-quiet" data-act="save" data-focus="save">Enregistrer l'atelier (.json)</button>
+    </div>
+    <p class="hint">Le fichier se rouvre ici : <button type="button" class="btn btn-quiet btn-small" data-act="open" data-focus="open">reprendre un atelier enregistré</button>
+      · <button type="button" class="btn btn-danger btn-small" data-act="reset" data-focus="reset">Recommencer un atelier vierge</button></p>
+  </section>` : ''}
+
   <section class="further">
     <h2>Pour aller plus loin</h2>
     <ul>${MERCI.further.map((f) => `<li><strong>${esc(f.name)}</strong><span>${esc(f.by)}</span></li>`).join('')}</ul>
@@ -1576,17 +1588,6 @@ function viewDebrief() {
   return `
   ${stepHeader('debrief')}
   ${quizPanel()}
-
-  <section class="dsection debrief-end">
-    <div class="panel panel--export">
-      <h2>Garder une trace</h2>
-      <button type="button" class="btn btn-primary" data-act="copy" data-focus="copy">Copier le compte rendu</button>
-      <button type="button" class="btn btn-quiet" data-act="print" data-focus="print">Imprimer ou PDF</button>
-      <button type="button" class="btn btn-quiet" data-act="save" data-focus="save">Enregistrer l'atelier (.json)</button>
-      <p class="hint">Le fichier se rouvre ici : <button type="button" class="btn btn-quiet btn-small" data-act="open" data-focus="open">reprendre un atelier enregistré</button>.</p>
-      <p class="hint"><button type="button" class="btn btn-danger btn-small" data-act="reset" data-focus="reset">Recommencer un atelier vierge</button></p>
-    </div>
-  </section>
   ${stepNav()}`;
 }
 
@@ -2287,15 +2288,36 @@ setupDnd(main, { accepts, onDrop });
 
 /* ---------- Impression ---------- */
 
-/** Résultats du quiz pour le compte rendu (si le quiz a été joué). */
-function quizReportLines() {
+/** Résultats du quiz : la moyenne, puis chaque participant (notes les plus basses d'abord) avec ses réponses. */
+function quizReport() {
   const entries = ui.quizEntries;
-  if (!entries.length) return '';
+  if (!entries.length) return null;
   const st = quizStats(entries);
   const fmt = (n) => String(Math.round(n * 10) / 10).replace('.', ',');
-  const top = podium(entries).map((p) => `${p.rank}. ${p.author} (${fmt(p.points)} / ${QUIZ_MAX})`).join(', ');
-  return `\n\nQUIZ\n${st.count} participant${st.count > 1 ? 's' : ''}, moyenne ${fmt(st.average)} / ${QUIZ_MAX}. Podium : ${top}.`;
+  const placeLabel = (id) => PLACES.find((x) => x.id === id)?.label ?? 'pas de réponse';
+  const expected = (tool) => TOOL_PHASES[tool].map(placeLabel).join(' / ');
+  const mark = (pts) => (pts >= 1 ? '✓' : pts > 0 ? '½' : '✗');
+  const people = [...entries].sort((x, y) => x.score.points - y.score.points || x.author.localeCompare(y.author, 'fr'))
+    .map((e) => ({
+      author: e.author,
+      points: e.score.points,
+      tools: e.score.tools.map((t) => ({ mark: mark(t.ok ? 1 : 0), text: `${toolName(t.tool)} : ${placeLabel(t.phase)}${t.ok ? '' : ` (attendu : ${expected(t.tool)})`}` })),
+      situations: e.score.situations.map((v, i) => {
+        const sit = SITUATIONS.find((x) => x.id === v.id);
+        const chosen = CHOICE_LABELS[v.choice] ?? 'pas de réponse';
+        return { mark: mark(v.points), text: `${i + 1}. ${chosen}${v.points >= 1 ? '' : ` (le plus adapté : ${CHOICE_LABELS[sit.answer]})`}`, title: sit.text };
+      }),
+    }));
+  const head = `${st.count} participant${st.count > 1 ? 's' : ''}, moyenne ${fmt(st.average)} / ${QUIZ_MAX}.`;
+  const text = `\n\nQUIZ\n${head}\n${people.map((p) => `\n${p.author} : ${fmt(p.points)} / ${QUIZ_MAX}\n  Double diamant :\n${p.tools.map((t) => `    ${t.mark} ${t.text}`).join('\n')}\n  Situations :\n${p.situations.map((x) => `    ${x.mark} ${x.text}`).join('\n')}`).join('\n')}`;
+  const html = `<p>${esc(head)} Des notes les plus basses aux plus hautes.</p>
+    ${people.map((p) => `<div class="pr-quiz"><h3>${esc(p.author)} · ${fmt(p.points)} / ${QUIZ_MAX}</h3>
+      <div class="pr-grid"><div><h4>Double diamant</h4><ul>${p.tools.map((t) => `<li>${t.mark} ${esc(t.text)}</li>`).join('')}</ul></div>
+      <div><h4>Situations</h4><ul>${p.situations.map((x) => `<li title="${esc(x.title)}">${x.mark} ${esc(x.text)}</li>`).join('')}</ul></div></div></div>`).join('')}
+    <p class="muted">Situations : ${SITUATIONS.map((x, i) => `${i + 1}. ${esc(x.text)}`).join(' ')}</p>`;
+  return { text, html };
 }
+const quizReportLines = () => quizReport()?.text ?? '';
 
 /** Les tableaux à mettre dans le compte rendu : un par groupe pendant une séance, sinon le tableau local. */
 function reportBoards() {
@@ -2314,7 +2336,7 @@ function buildReport() {
     <h1>Atelier Produit · ${esc(CASE.name)}</h1>
     <p class="muted">${esc(new Date().toLocaleDateString('fr-FR', { day: 'numeric', month: 'long', year: 'numeric' }))}</p>
     ${sections}
-    <h2>Débrief</h2>${quizReportLines() ? `<p class="pre">${esc(quizReportLines().trim().replace(/^QUIZ\n/, 'Quiz : '))}</p>` : ''}
+    <h2>Débrief : le quiz</h2>${quizReport()?.html ?? '<p class="muted">Quiz non joué.</p>'}
 `;
 }
 
