@@ -984,8 +984,8 @@ function viewMerci() {
   </section>
 
   ${HOST ? `<section class="panel panel--export merci-export">
-    <h2>Garder une trace <span class="hint">· pour vous seul</span></h2>
-    <p class="hint">Le compte rendu reprend les tableaux de chaque groupe et le détail du quiz : la note et les réponses de chaque participant, des notes les plus basses aux plus hautes, pour revenir avec ceux qui en ont besoin.</p>
+    <h2>Garder une trace</h2>
+    <p class="hint">Le compte rendu reprend le travail de chaque groupe.</p>
     <div class="export-actions">
       <button type="button" class="btn btn-primary" data-act="copy" data-focus="copy">Copier le compte rendu</button>
       <button type="button" class="btn btn-quiet" data-act="print" data-focus="print">Imprimer ou PDF</button>
