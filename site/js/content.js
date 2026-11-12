@@ -506,10 +506,9 @@ export const BRIEFS = {
   story: {
     duration: '35 min',
     steps: [
-      'Racontez la semaine de votre persona avec l\'appli : chacun ajoute des actions courtes.',
-      'Regroupez-les en 4 à 7 grandes étapes : c\'est la première ligne de votre story map.',
-      'Reliez les livrables retenus à l\'impact mapping au parcours : sous quelle étape chacun aide-t-il votre persona ? Ajoutez les stories qui manquent.',
-      'Découpez en versions : la première version doit traverser tout le parcours.',
+      'Racontez la semaine de votre persona avec l\'appli : chacun ajoute des actions courtes. Deux actions en même temps, ou une autre branche ? Mettez-les en parallèle.',
+      'Regroupez-les en 4 à 7 grandes étapes : c\'est la première ligne de votre story map, et les actions rangées dessous en deviennent les stories.',
+      'Découpez en versions : ajoutez sous leur étape les livrables retenus à l\'impact mapping, puis rangez chaque story dans une version. La première doit traverser tout le parcours.',
       'Relisez la première version : peut-on vraiment covoiturer avec ? C\'est elle qu\'on fera tester aux utilisateurs pour apprendre.',
     ],
   },
@@ -519,7 +518,7 @@ export const BRIEFS = {
       'Lancez le quiz quand tout le monde est connecté.',
       'Chacun range les quatre notions sur le double diamant, puis choisit l\'outil adapté à huit situations.',
       'Révélez les réponses : chacun reçoit sa correction, et l\'écran montre les bonnes réponses.',
-      'Discutez des situations les moins réussies, puis notez ce que l\'équipe retient.',
+      'Discutez des situations les moins réussies.',
     ],
   },
 };

@@ -52,7 +52,7 @@ La barre d'étapes et la navigation SHALL ne nommer que les étapes déjà attei
 - **THEN** elle montre un exemple complet en lecture seule sur un autre sujet que le cas (la cantine anti-gaspi) : objectif → acteurs → impacts → livrables, ou parcours et trois versions
 
 ### Requirement: Débrief
-Le débrief SHALL se faire uniquement en quiz individuel sur téléphone (voir phone-postits). Il porte sur le rangement de quatre notions sur le double diamant (le Design Thinking, qui couvre tout le double diamant, et les trois outils) et sur huit situations ; chaque choix reçoit une explication propre. L'équipe SHALL pouvoir noter ce qu'elle retient, et le compte rendu SHALL inclure les résultats du quiz.
+Le débrief SHALL se faire uniquement en quiz individuel sur téléphone (voir phone-postits). Il porte sur le rangement de quatre notions sur le double diamant (le Design Thinking, qui couvre tout le double diamant, et les trois outils) et sur huit situations ; chaque choix reçoit une explication propre. Le compte rendu SHALL inclure les résultats du quiz. Il n'y a plus de bloc « Ce que l'équipe retient » : les retours passent par le ROTI de la page « Merci ! ».
 
 ### Requirement: Rejoindre à toute étape
 Tant que la séance est ouverte, le bouton « Participants » de l'en-tête SHALL afficher le code de la salle à chaque étape ; son panneau SHALL proposer « Afficher en grand » : le QR code, l'adresse courte et le code, sans les commandes d'administration de la séance.

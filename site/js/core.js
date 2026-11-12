@@ -77,7 +77,10 @@ export const prevStep = (step) => STEP_IDS[stepIndex(step) - 1] ?? null;
    { b: 'impact', parent: actorId }     impact sous un acteur
    { b: 'deliverable', parent: impactId } livrable sous un impact
    { b: 'action' }                      action du récit, pas encore regroupée
-   { b: 'action', parent: stepId }      action regroupée sous une étape du parcours
+   { b: 'action', parent: stepId }      ancien format : action regroupée (relue en story « à trier »)
+   Une action regroupée sous une étape devient une story de cette étape ({ b: 'story', lane: 'sort' }) :
+   elle garde la marque `act` (elle vient du récit) et reste visible dans le récit. `par` : l'action
+   se fait en parallèle de la précédente du récit (en même temps, ou une autre branche).
    { b: 'journey' }                     étape du parcours, en cours de regroupement (avant validation)
    { b: 'backbone' }                    étape de la colonne vertébrale de la story map
    { b: 'story', col: backboneId, lane } story sous une étape, dans une version */
@@ -123,7 +126,7 @@ export function familyOf(p) {
   if (p.b === 'empathy') return 'empathy';
   if (p.b === 'tray') return p.step;
   if (['goal', 'actor', 'impact', 'deliverable'].includes(p.b)) return 'impact';
-  if (p.b === 'action') return 'recit';
+  if (p.b === 'action') return 'story'; // une action regroupée devient une story
   if (p.b === 'journey') return 'journey';
   if (['backbone', 'story'].includes(p.b)) return 'story';
   return null;
@@ -166,6 +169,8 @@ export function addNote(state, place, text, extra = {}) {
   if (extra.author) note.author = cleanText(extra.author, MAX_AUTHOR);
   if (extra.rid) note.rid = String(extra.rid);
   if (extra.kind && IMPACT_KINDS.includes(extra.kind)) note.kind = extra.kind;
+  if (place.b === 'action' || extra.act) note.act = true;
+  if (extra.par) note.par = true;
   state.notes.push(note);
   return note;
 }
@@ -187,6 +192,9 @@ export function moveBlocker(state, id, place) {
   const note = getNote(state, id);
   if (!note || !placeExists(state, place)) return 'missing';
   if (familyOf(note.place) !== familyOf(place)) return 'family';
+  // Seules les actions vont dans le récit ; une action n'est pas une étape du parcours.
+  if (place.b === 'action' && !note.act) return 'family';
+  if (place.b === 'backbone' && note.act) return 'family';
   if (note.place.b !== place.b && childrenOf(state, id).length) return 'children';
   if (place.parent === id || place.col === id) return 'children';
   return null;
@@ -197,7 +205,17 @@ export function moveNote(state, id, place, beforeId = null) {
   const reason = moveBlocker(state, id, place);
   if (reason) return { ok: false, reason };
   const index = state.notes.findIndex((n) => n.id === id);
-  const [note] = state.notes.splice(index, 1);
+  const note = state.notes[index];
+  // Une action déposée sans post-it de repère (regroupée, rangée dans une version, remise en vrac)
+  // garde sa place dans l'ordre du récit.
+  const anchor = beforeId && beforeId !== id && state.notes.some((n) => n.id === beforeId && samePlace(n.place, place));
+  if (note.act && !anchor) {
+    if (place.b === 'action' && note.place.b === 'action') return { ok: true };
+    note.place = { ...place };
+    return { ok: true };
+  }
+  state.notes.splice(index, 1);
+  if (note.act && place.b === 'action') delete note.par; // remise ailleurs dans le récit : plus en parallèle
   note.place = { ...place };
   if (place.b !== 'tray') delete note.kind;
   const before = beforeId && beforeId !== id ? state.notes.findIndex((n) => n.id === beforeId && samePlace(n.place, place)) : -1;
@@ -216,7 +234,7 @@ export function removeNote(state, id) {
   const doomed = new Set([id]);
   if (note.place.b === 'backbone' || note.place.b === 'journey') {
     // Les actions regroupées retournent dans le récit, les stories dans le bac.
-    for (const child of childrenOf(state, id)) child.place = child.place.b === 'action' ? { b: 'action' } : { b: 'tray', step: 'story' };
+    for (const child of childrenOf(state, id)) child.place = child.act || child.place.b === 'action' ? { b: 'action' } : { b: 'tray', step: 'story' };
   } else {
     const stack = [id];
     while (stack.length) {
@@ -247,14 +265,14 @@ export function placesFor(state, id) {
     for (const i of state.notes.filter((n) => n.place.b === 'impact')) out.push({ place: { b: 'deliverable', parent: i.id }, label: `Livrable de « ${label(i)} »` });
   } else if (family === 'journey') {
     out.push({ place: { b: 'journey' }, label: 'Étape du parcours' });
-  } else if (family === 'recit') {
-    out.push({ place: { b: 'action' }, label: 'Pas encore regroupée' });
-    for (const st of notesIn(state, { b: 'backbone' })) out.push({ place: { b: 'action', parent: st.id }, label: `Sous « ${label(st)} »` });
   } else if (family === 'story') {
-    out.push({ place: { b: 'tray', step: 'story' }, label: 'Bac « à placer »' });
-    out.push({ place: { b: 'backbone' }, label: 'Étape du parcours' });
+    if (note.act) out.push({ place: { b: 'action' }, label: 'Récit : pas encore regroupée' });
+    else {
+      out.push({ place: { b: 'tray', step: 'story' }, label: 'Bac « à placer »' });
+      out.push({ place: { b: 'backbone' }, label: 'Étape du parcours' });
+    }
     for (const col of notesIn(state, { b: 'backbone' })) {
-      for (const lane of STORY_LANES) out.push({ place: { b: 'story', col: col.id, lane: lane.id }, label: `${label(col)} · ${lane.label}` });
+      for (const lane of [{ id: SORT_LANE, label: 'À trier' }, ...STORY_LANES]) out.push({ place: { b: 'story', col: col.id, lane: lane.id }, label: `${label(col)} · ${lane.label}` });
     }
   }
   return out.filter((o) => !moveBlocker(state, id, o.place) || samePlace(o.place, note.place));
@@ -364,9 +382,28 @@ export function deliverablePath(state, id) {
 /** Les grandes étapes du parcours : ce sont directement les colonnes de la story map. */
 export const journeyNotes = (state) => notesIn(state, { b: 'backbone' });
 /** Les actions du récit : toutes, pas encore regroupées, ou regroupées sous une étape. */
-export const allActions = (state) => state.notes.filter((n) => n.place.b === 'action');
+export const allActions = (state) => state.notes.filter((n) => n.act);
 export const looseActions = (state) => notesIn(state, { b: 'action' });
-export const actionsOf = (state, stepId) => notesIn(state, { b: 'action', parent: stepId });
+/** Les actions regroupées sous une étape (devenues ses stories, quelle que soit leur version). */
+export const actionsOf = (state, stepId) => state.notes.filter((n) => n.act && n.place.b === 'story' && n.place.col === stepId);
+
+/** Le récit en « moments » : une action en parallèle rejoint le moment de l'action précédente. */
+export function recitMoments(state) {
+  const moments = [];
+  for (const n of allActions(state)) {
+    if (n.par && moments.length) moments[moments.length - 1].push(n);
+    else moments.push([n]);
+  }
+  return moments;
+}
+
+/** Met une action en parallèle de la précédente du récit, ou l'en retire. */
+export function toggleParallel(state, id) {
+  const n = getNote(state, id);
+  if (!n?.act) return false;
+  if (n.par) delete n.par; else n.par = true;
+  return true;
+}
 
 /** Étapes du parcours sous lesquelles aucun livrable de l'impact map n'a été rangé. */
 export function stepsWithoutDeliverable(state) {
@@ -565,7 +602,6 @@ export function reportText(state, date = '') {
   }
 
   lines.push('', 'DÉBRIEF');
-  if (state.debrief.takeaways.trim()) lines.push('Ce que l\'équipe retient :', state.debrief.takeaways.trim());
   return lines.join('\n');
 }
 
@@ -606,14 +642,17 @@ export function sanitize(raw) {
   const pending = rawNotes.filter((n) => ID_RE.test(n.id) && cleanText(n.text) && decodePlace(encodePlace(n.place ?? {})));
   const ids = new Set();
   const order = new Map(pending.map((n, i) => [n, i]));
-  for (const pass of [['empathy', 'tray', 'goal', 'journey', 'backbone'], ['actor', 'action'], ['impact'], ['deliverable', 'story']]) {
+  for (const pass of [['empathy', 'tray', 'goal', 'journey', 'backbone'], ['actor'], ['impact'], ['deliverable', 'story', 'action']]) {
     for (const n of pending) {
       if (!pass.includes(n.place.b) || ids.has(n.id)) continue;
       let place = decodePlace(encodePlace(n.place));
+      const act = place.b === 'action' || n.act === true;
+      // Ancien format : une action regroupée devient une story « à trier » de son étape.
+      if (place.b === 'action' && place.parent) place = { b: 'story', col: place.parent, lane: SORT_LANE };
       if (!placeExists(state, place)) {
         const family = familyOf(place);
-        if (family === 'impact' || family === 'story') place = { b: 'tray', step: family };
-        else if (family === 'recit') place = { b: 'action' };
+        if (act) place = { b: 'action' };
+        else if (family === 'impact' || family === 'story') place = { b: 'tray', step: family };
         else continue;
       }
       const note = { id: n.id, text: cleanText(n.text), place };
@@ -622,6 +661,8 @@ export function sanitize(raw) {
       if (typeof n.rid === 'string' && ID_RE.test(n.rid)) note.rid = n.rid;
       if (place.b === 'tray' && IMPACT_KINDS.includes(n.kind)) note.kind = n.kind;
       if (place.b === 'deliverable' && n.keep === true) note.keep = true;
+      if (act) note.act = true;
+      if (act && n.par === true) note.par = true;
       note.order = order.get(n);
       state.notes.push(note);
       ids.add(n.id);
@@ -690,6 +731,8 @@ export function noteRecord(n, order) {
   if (n.author) r.author = n.author;
   if (n.kind) r.kind = n.kind;
   if (n.keep) r.keep = true;
+  if (n.act) r.act = true;
+  if (n.par) r.par = true;
   return r;
 }
 
@@ -700,7 +743,7 @@ export function recordsToNotes(tree) {
     .sort(([a, x], [b, y]) => (Number(x.order) || 0) - (Number(y.order) || 0) || a.localeCompare(b))
     .map(([id, r]) => ({
       id, text: r.text, place: decodePlace(r.place) ?? {}, from: typeof r.from === 'string' && RECORD_FROM.test(r.from) ? r.from : undefined,
-      author: r.author, kind: r.kind, keep: r.keep === true,
+      author: r.author, kind: r.kind, keep: r.keep === true, act: r.act === true, par: r.par === true,
     }));
   return sanitize({ notes: rows }).notes;
 }

@@ -292,7 +292,7 @@ export function createPhones({ button, dialog, count, current, onRemote, onChang
       <div class="groups-grid groups-grid--${n}">
         ${groupIdsFor(n).map((g) => `<div class="group-col">
           <p class="group-name">${esc(groupName(g))} <span class="count">${r[g].length}</span></p>
-          <ul>${r[g].map((p) => `<li>${esc(p.author)}${n === 2 ? `<button type="button" class="link-btn" data-move="${esc(p.uid)}" data-to="${g === 'g1' ? 'g2' : 'g1'}" title="Passer dans l'autre groupe">→ ${esc(groupName(g === 'g1' ? 'g2' : 'g1'))}</button>` : ''}</li>`).join('') || '<li class="hint">Personne pour l\'instant</li>'}</ul>
+          <ul>${r[g].map((p) => `<li>${esc(p.author)}${n === 2 ? `<button type="button" class="btn btn-quiet btn-small" data-move="${esc(p.uid)}" data-to="${g === 'g1' ? 'g2' : 'g1'}" title="Passer dans l'autre groupe">→ ${esc(groupName(g === 'g1' ? 'g2' : 'g1'))}</button>` : ''}</li>`).join('') || '<li class="hint">Personne pour l\'instant</li>'}</ul>
         </div>`).join('')}
       </div>
       ${n === 1 ? `<div class="persona-pick">

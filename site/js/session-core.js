@@ -124,7 +124,7 @@ export function quizProgress({ placement = {}, answers = {} } = {}) {
 
 /** Réponse laissée vide à la fin du temps : elle compte zéro. */
 export const NO_ANSWER = 'none';
-export const QUIZ_DURATION = 3 * 60000;
+export const QUIZ_DURATION = 5 * 60000;
 
 /** Numéros (1 à 12) des questions sans réponse, dans l'ordre du questionnaire. */
 export function missingQuestions({ placement = {}, answers = {} } = {}) {

@@ -262,6 +262,12 @@
                   "keep": {
                     ".validate": "newData.isBoolean()"
                   },
+                  "act": {
+                    ".validate": "newData.isBoolean()"
+                  },
+                  "par": {
+                    ".validate": "newData.isBoolean()"
+                  },
                   "$other": {
                     ".validate": false
                   }

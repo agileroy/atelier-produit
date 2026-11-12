@@ -4,7 +4,7 @@ import {
   newState, setStep, addNote, moveNote, moveBlocker, removeNote, notesIn, childrenOf, placesFor,
   availableExtracts, placeExtract, unplaceExtract, compareEmpathy, emptyZones,
   toggleKeep, keptDeliverables, importDeliverable, deliverablePath,
-  allActions, looseActions, actionsOf, stepsWithoutDeliverable,
+  allActions, looseActions, actionsOf, stepsWithoutDeliverable, recitMoments, toggleParallel, getNote, SORT_LANE,
   useJourneyExample, journeyNotes, journeyHints, simulatedNotes,
   mvpGaps, setPlacement, checkPlacement, answerSituation, situationScore, situationVerdict,
   mergeRemote, reportText, serialize, parseSaved, sanitize, encodePlace, decodePlace, nextStep, prevStep,
@@ -190,28 +190,58 @@ test('parcours : les étapes sont directement la colonne vertébrale ; ancien fo
   assert.equal(back.find((n) => n.text === 'Demander une place').place.col, col.id);
 });
 
-test('récit : actions en vrac, regroupées sous des étapes ; secours de l\'animateur', () => {
+test('récit : une action regroupée devient une story « à trier » de son étape ; secours de l\'animateur', () => {
   const s = newState();
   const a1 = addNote(s, { b: 'action' }, 'entend parler de l\'appli', { author: 'Léa' });
   const a2 = addNote(s, { b: 'action' }, 'installe l\'appli');
   const a3 = addNote(s, { b: 'action' }, 'voit ses économies');
   const step = addNote(s, { b: 'backbone' }, 'Rejoindre le service');
-  assert.equal(moveNote(s, a1.id, { b: 'action', parent: step.id }).ok, true);
-  assert.equal(moveNote(s, a2.id, { b: 'action', parent: step.id }).ok, true);
+  const sort = { b: 'story', col: step.id, lane: SORT_LANE };
+  assert.equal(a1.act, true);
+  assert.equal(moveNote(s, a2.id, sort).ok, true);
+  assert.equal(moveNote(s, a1.id, sort).ok, true);
   assert.equal(moveNote(s, a1.id, { b: 'backbone' }).ok, false, 'une action ne devient pas une étape');
   assert.equal(moveNote(s, step.id, { b: 'action' }).ok, false, 'une étape ne devient pas une action');
-  assert.deepEqual(actionsOf(s, step.id).map((n) => n.text), ['entend parler de l\'appli', 'installe l\'appli']);
+  const story = addNote(s, { b: 'story', col: step.id, lane: 'mvp' }, 'Une story');
+  assert.equal(moveNote(s, story.id, { b: 'action' }).ok, false, 'une story ajoutée sur la carte ne va pas dans le récit');
+  // Regrouper ne change pas l'ordre du récit.
+  assert.deepEqual(allActions(s).map((n) => n.id), [a1.id, a2.id, a3.id]);
+  assert.deepEqual(actionsOf(s, step.id).map((n) => n.id), [a1.id, a2.id]);
+  assert.deepEqual(notesIn(s, sort).map((n) => n.id), [a1.id, a2.id]);
+  assert.equal(moveNote(s, a1.id, { b: 'story', col: step.id, lane: 'mvp' }).ok, true, 'puis elle se range dans une version');
+  assert.deepEqual(actionsOf(s, step.id).map((n) => n.id), [a1.id, a2.id]);
   assert.deepEqual(looseActions(s).map((n) => n.id), [a3.id]);
-  assert.deepEqual(placesFor(s, a3.id).map((p) => p.label), ['Pas encore regroupée', 'Sous « Rejoindre le service »']);
+  assert.deepEqual(placesFor(s, a3.id).map((p) => p.label).slice(0, 2), ['Récit : pas encore regroupée', 'Rejoindre le service · À trier']);
   const back = recordsToNotes(Object.fromEntries(s.notes.map((n, i) => [n.id, noteRecord(n, i)])));
-  assert.equal(back.filter((n) => n.place.b === 'action' && n.place.parent === step.id).length, 2);
-  addNote(s, { b: 'story', col: step.id, lane: 'mvp' }, 'Une story');
+  assert.equal(back.filter((n) => n.act).length, 3);
   // Secours : les étapes du groupe sont remplacées, les actions reviennent en vrac, les stories au bac.
   assert.equal(useJourneyExample(s, 'karim'), JOURNEY_EXAMPLES.karim.length);
   assert.deepEqual(journeyNotes(s).map((n) => n.text), JOURNEY_EXAMPLES.karim);
   assert.equal(looseActions(s).length, 3);
   assert.equal(notesIn(s, { b: 'tray', step: 'story' }).length, 1);
   assert.equal(allActions(s).length, 3);
+});
+
+test('récit : actions en parallèle, et ancien format relu', () => {
+  const s = newState();
+  const [a, b, c, d] = ['publie son trajet', 'fixe son prix', 'accepte un passager', 'refuse un passager'].map((t) => addNote(s, { b: 'action' }, t));
+  assert.equal(toggleParallel(s, b.id), true);
+  assert.equal(toggleParallel(s, d.id), true);
+  assert.deepEqual(recitMoments(s).map((m) => m.map((n) => n.id)), [[a.id, b.id], [c.id, d.id]]);
+  const back = recordsToNotes(Object.fromEntries(s.notes.map((n, i) => [n.id, noteRecord(n, i)])));
+  assert.deepEqual(back.map((n) => !!n.par), [false, true, false, true]);
+  // Déplacée ailleurs dans le récit, une action n'est plus en parallèle.
+  moveNote(s, d.id, { b: 'action' }, a.id);
+  assert.equal(getNote(s, d.id).par, undefined);
+  // Ancien format : « action|étape » devient une story « à trier » de l'étape.
+  const old = sanitize({ notes: [
+    { id: 'step0001', text: 'Proposer', place: { b: 'backbone' } },
+    { id: 'act00001', text: 'publie', place: { b: 'action', parent: 'step0001' } },
+    { id: 'act00002', text: 'orpheline', place: { b: 'action', parent: 'nope0001' } },
+  ] });
+  assert.deepEqual(old.notes.map((n) => [n.id, encodePlace(n.place), !!n.act]), [
+    ['step0001', 'backbone', false], ['act00001', 'story|step0001|sort', true], ['act00002', 'action', true],
+  ]);
 });
 
 test('story map : étapes sans livrable de l\'impact map', () => {
@@ -297,9 +327,8 @@ test('compte rendu : contient les trois tableaux et le débrief', () => {
   const { s, deliv } = impactTree('Objectif X');
   toggleKeep(s, deliv.id);
   placeExtract(s, 'k1', 'says');
-  s.debrief.takeaways = 'On refera une empathy map au prochain sujet.';
   const text = reportText(s, '2026-11-05');
-  for (const part of ['EMPATHY MAP', 'Karim', 'Objectif : Objectif X', '[retenu]', 'STORY MAP', 'On refera']) {
+  for (const part of ['EMPATHY MAP', 'Karim', 'Objectif : Objectif X', '[retenu]', 'STORY MAP']) {
     assert.ok(text.includes(part), part);
   }
 });
